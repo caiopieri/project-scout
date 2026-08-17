@@ -2,6 +2,16 @@
 
 > Veredito auditável do Arquiteto. Uma linha só é preenchida depois de ler o
 > diff, rodar os testes e executar uma sonda independente.
+>
+> **Nível de evidência é obrigatório** em toda linha nova (regra de 2026-08-17):
+>
+> - `fixture` — rodou contra dado local; não prova integração.
+> - `integração local` — rodou contra Supabase/Wrangler locais.
+> - `live` — rodou contra a fonte real, com credencial real, e retornou dado real.
+>
+> Fatia de coleta ou de IA só fecha com evidência `live`. "Passou" sobre caminho
+> que só rodou com mock deve ser escrito como o que de fato rodou. Nenhuma linha
+> pode ser aprovada para código que não tem caminho alcançável por usuário.
 
 | Data       | Handoff                 | Commit               | O que verifiquei                                                                                                                                                                                       | Resultado | Evidência                                                                                                                                                                                                                                   |
 | ---------- | ----------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -29,9 +39,17 @@
 | 2026-08-17 | QUEUE-DLQ-01            | sem Git no workspace | DLQs configuradas para coleta e análise após 12 retries; `wrangler deploy --dry-run --env production`                                                                                                  | ✅ passou | Wrangler validou o bundle e bindings Production; account deletion permanece sem DLQ até revisão de retenção dos identificadores e ainda falta alerta/replay operacional                                                                     |
 | 2026-08-17 | EBAY-RATE-DO-01         | sem Git no workspace | Durable Object SQLite para reserva atômica Production; 3 testes de wiring/concorrência; suíte completa 295/295; `db:test` 71/71; typecheck, lint, Prettier, build, smoke Production e dry-run Wrangler | ✅ passou | Production falha fechado sem `EBAY_RATE_LIMITER`; reservas concorrentes retornam 2×200 e 1×429; binding `EbayRateLimitDurableObject` validado sem deploy remoto; smoke OAuth/Browse retornou 1 item, sem segredo                            |
 
+| 2026-08-17 | REESTRUTURA-01 | `a3c7c27` → `1291a6e` | git init com baseline preservado; remoção de F4–F7 e dos pacotes-marcador; reescrita de AGENTS/README/ROADMAP/arquitetura e criação de vision/prd/status | ✅ passou (integração local) | typecheck limpo, lint limpo, build ok, 222/222 testes verdes após a remoção (eram 295 com 73 testes de código inalcançável); nenhum segredo entrou no índice do Git; capacidade do sistema inalterada |
+
 ### Onde isto pode dar errado
 
 - Este log não substitui a verificação real; a linha só pode ser aprovada após
   evidência independente.
-- O workspace não tem metadados Git, portanto o vínculo será por arquivos e
-  saída de testes até um repositório ser disponibilizado.
+- A reestruturação de 2026-08-17 não adicionou nem removeu capacidade: o sistema
+  faz exatamente o que fazia antes. Se alguém ler a queda de 295 para 222 testes
+  como regressão, está lendo errado — o que caiu era cobertura de código que
+  nenhum caminho alcançava.
+- As linhas anteriores a 2026-08-17 foram escritas sem nível de evidência
+  explícito. Quase todas são `fixture` ou `integração local`; as únicas `live`
+  são as de smoke do eBay Production. Não as releia como prova de sistema
+  funcionando de ponta a ponta.

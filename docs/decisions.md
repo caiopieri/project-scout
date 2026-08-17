@@ -189,3 +189,56 @@ This document records the architectural choices proposed for **Project Scout**, 
 ### 1.43 Collection DLQ before alerting and replay policy
 
 - **Decision**: Configure Cloudflare Queue dead-letter destinations for collection and analysis consumers after their 12 delivery retries. Do not configure one for the account-deletion queue yet: its transient task contains eBay account identifiers, so retention and replay controls must be reviewed before creating a second durable copy. A DLQ without alerting and a documented replay/retention procedure is not considered an operational gate completion.
+
+### 1.44 Repositório sob controle de versão (reestruturação 2026-08-17)
+
+- **Decisão**: O workspace passa a ser um repositório Git. O commit `a3c7c27`
+  preserva integralmente o estado entregue por M1–M7 e F0–F7 antes de qualquer
+  remoção. `.browser-profile/`, `supabase/.temp/` e `.maestri/` entram no
+  `.gitignore` por conterem sessão de navegador e estado local de ferramenta.
+  Motivo: 12 mil linhas e 30 handoffs existiam sem histórico, rollback ou
+  revisão de diff.
+
+### 1.45 Núcleo próprio de coleta em vez de provedor externo (2026-08-17)
+
+- **Decisão**: A cascata de coleta é construída internamente. Provedor externo
+  (Firecrawl, Apify) pode ser usado pontualmente para **estudar** o
+  comportamento de uma fonte, nunca no caminho crítico. Motivo do fundador:
+  custo por chamada escala com o volume do garimpo e é definido por terceiro;
+  parte da coleta precisa rodar na máquina do usuário com a sessão dele, o que
+  nenhum SaaS de scraping faz. Isso **revoga** a orientação anterior de §9.3 do
+  PRD original e o item de "crawler próprio proibido" do AGENTS.md anterior.
+
+### 1.46 Local Agent é núcleo, não fase futura (2026-08-17)
+
+- **Decisão**: A execução na máquina do usuário deixa de ser F7/pós-MVP e passa
+  a ser um plano de execução de primeira classe (fatia S6), em modo
+  somente-leitura. O agente **puxa** tarefas e nunca expõe porta de entrada;
+  credencial e cookie do usuário não saem da máquina. Motivo: monitorar leilão e
+  fonte autenticada é requisito de produto, não conveniência.
+
+### 1.47 Remoção de F4–F7 do código ativo (2026-08-17)
+
+- **Decisão**: Funções puras de auto-cura, leilão, negociação e autorização
+  saem do build (commit `1291a6e`), preservadas em `a3c7c27`. Nenhuma tinha
+  rota, fila, consumidor ou tela que as alcançasse; mantê-las fazia a suíte
+  verde representar capacidade inexistente. As tabelas correspondentes
+  permanecem no banco, órfãs, até uma migration de limpeza revisada. As
+  capacidades voltam pelo ROADMAP (S8, S10, S12) quando houver tráfego real.
+
+### 1.48 Costura `SourceDocument` entre núcleo e vertical (2026-08-17)
+
+- **Decisão**: O núcleo trafega documento com proveniência, sem preço nem
+  vocabulário de comércio; a vertical possui o mapper e o schema normalizado. A
+  desnarrowing de `rawListingPreviewSchema` (preço obrigatório) e de
+  `researchCriteriaSchema` (`category`/`brands` como enum global) acontece na
+  fatia S5, junto com a primeira fonte sem API oficial — não antes, para não
+  criar abstração sem segundo caso concreto.
+
+### 1.49 Extração por LLM é dirigida por schema (2026-08-17)
+
+- **Decisão**: A porta de IA recebe o schema de saída do chamador e não conhece
+  o domínio. A vertical de comércio pede defeitos e evidências; outra vertical
+  pediria outra coisa. Motivo: é o mesmo custo de implementação e evita que o
+  núcleo nasça amarrado a eletrônicos. Testes usam resposta gravada; a suíte não
+  chama a rede.
