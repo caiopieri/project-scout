@@ -10,7 +10,23 @@
 ## 1. Usuário e contexto
 
 Usuário único no início: **Caio**, dono de uma loja de eletrônicos em abertura,
-desenvolvedor, com logística internacional disponível. Compra para:
+desenvolvedor.
+
+**Ele é multipaís, não brasileiro.** Base atual no Brasil, venda prevista nos
+Estados Unidos, residência futura na Europa, pessoas trabalhando para ele em
+vários países. Logística, burocracia e desembaraço **já estão resolvidos** — ele
+consegue trazer um MacBook de um distribuidor na China ou dos EUA quando quiser.
+
+**O gargalo dele é tempo de garimpo, e só isso.** Referência real: mais de 70
+horas dentro do Xianyu pesquisando manualmente, com bons resultados obtidos à
+custa de análise pesada. O sistema existe para substituir essas 70 horas, não
+para resolver logística.
+
+Limite atual: **volume**. Preço de fábrica é função de MOQ, e o volume ainda está
+sendo construído — o sistema deve dizer o que é acessível hoje e o que só abre
+com quantidade maior.
+
+Compra para:
 
 | Modo de aquisição     | O que procura                            | O que decide a compra                                     |
 | --------------------- | ---------------------------------------- | --------------------------------------------------------- |
@@ -135,11 +151,27 @@ sistema precisa:
 Somente leitura. Lance automático é ação vinculante e depende de autorização
 explícita, fora do escopo atual.
 
-### 3.10 Fornecedores e cadeia
+### 3.10 Fornecedores, cadeia e contatos
 
-Mostrar o mesmo produto nos níveis fábrica → fornecedor → distribuidor →
-revendedor, com preço, MOQ, prazo e rota logística, para que a compra aconteça o
-mais perto possível da origem.
+Segundo produto, com entidade própria: **fornecedor não é anúncio**. O sistema
+precisa descobrir e manter quem vende o quê, em que nível da cadeia, com preço
+por faixa de quantidade, MOQ, prazo, rota e **contato**. Ter o contato é o
+objetivo declarado do usuário — não apenas ver a oferta.
+
+Mostrar a escada do mesmo produto — fábrica → fornecedor → distribuidor →
+revendedor — e marcar explicitamente **o que está fora de alcance no volume
+atual**.
+
+Verdade de canal que o sistema precisa respeitar, para não prometer o impossível:
+
+- **Produto novo de marca** (Apple, Dell, Lenovo, HP) não tem canal de fábrica: o
+  ODM fabrica sob contrato e não vende a terceiros. O acesso legítimo é
+  distribuição autorizada, que exige credenciamento e cujas margens são estreitas.
+- **Acessórios e marcas chinesas** (ex.: Baseus) têm a escada completa acessível
+  via diretórios B2B, com MOQ negociável. É onde o modelo "compre da fábrica"
+  funciona de verdade.
+- **Notebook de marca a preço baixo** vem de liquidação, open box, ITAD e leilão
+  corporativo — não de fábrica. É o canal a priorizar para recondicionamento.
 
 ### 3.11 Conversar com o sistema
 

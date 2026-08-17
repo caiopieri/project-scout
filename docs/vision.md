@@ -39,9 +39,27 @@ Decisão do fundador, tomada com os números na mão:
   logada — monitorar leilão, ver preço de fornecedor autenticado, acompanhar
   conta própria. Nenhum SaaS de scraping faz isso.
 
-Custo-alvo do nosso núcleo: manutenção + proxy rotativo. Usar um fornecedor
-externo pontualmente para **estudar** o comportamento de uma fonte é aceitável;
-depender dele no caminho crítico não é.
+### 2.1 O que se compra e o que não se compra
+
+Não construímos infraestrutura de IP. Também não pagamos por interface bonita em
+cima dela. A fronteira é objetiva:
+
+> **Se o fornecedor precisa saber qual site é para o serviço funcionar, é a
+> camada que não compramos. Se ele entrega o mesmo produto independentemente do
+> site, é infraestrutura e compramos.**
+
+| Compramos                                        | Não compramos                      |
+| ------------------------------------------------ | ---------------------------------- |
+| IPs residenciais e de datacenter, rotação, banda | Scrapers prontos por marketplace   |
+| Compute de navegador headless                    | "Me dê o JSON deste anúncio"       |
+| Armazenamento, fila, banco                       | Interface e orquestração de coleta |
+
+**Exceção declarada:** uma fonte que o núcleo ainda não consegue coletar pode
+usar temporariamente um serviço gerenciado, como ponte. Isso é registrado no
+manifest da fonte, aparece na telemetria de custo e tem prazo — nunca vira o
+caminho padrão.
+
+Custo-alvo do núcleo em regime: manutenção + proxy rotativo.
 
 ## 3. As três formas de execução
 

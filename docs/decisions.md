@@ -306,3 +306,37 @@ This document records the architectural choices proposed for **Project Scout**, 
   `(user_id, listing_id)` e não por projeto, corrigido na S3 antes de existir
   dado. Semântica separada: coração = "quero olhar depois"; `decision` = "o que
   eu fiz".
+
+### 1.58 Fronteira de compra: capacidade bruta sim, conveniência não (2026-08-17)
+
+- **Decisão**: Refina a ADR 1.45. Infraestrutura de IP **não é construída** — é
+  contratada de quem mantém pool de proxies. Mas não se paga por serviço que
+  empacota essa infraestrutura em extração gerenciada (scrapers prontos por
+  marketplace, "me dê o JSON deste anúncio"), porque essa é exatamente a camada
+  que o núcleo é.
+- **Teste objetivo**: se o fornecedor precisa saber **qual site** é para o
+  serviço funcionar, é conveniência e não compramos. Se entrega o mesmo produto
+  independentemente do site (IP, banda, compute de browser, storage), é
+  infraestrutura e compramos.
+- **Exceção declarada**: fonte que o núcleo ainda não consegue coletar pode usar
+  um serviço gerenciado como ponte temporária. Deve constar no manifest da fonte,
+  aparecer na telemetria de custo e ter prazo. Nunca é o caminho padrão.
+
+### 1.59 Fontes classificadas por tier de dificuldade (2026-08-17)
+
+- **Decisão**: Fontes são atacadas por tier (A: API oficial · B: HTML/endpoint ·
+  C: adversarial · D: diretório e dado de comércio), não por desejo. Nenhuma
+  fonte de tier C (Taobao, Tmall, Xianyu, 1688) antes de duas de tier B estarem
+  estáveis e a auto-cura existir, e tendo o Local Agent como pré-requisito.
+  Motivo: tier C não é problema de esforço, é adversário ativo — e o produto vale
+  com A + B.
+
+### 1.60 Fornecedor é entidade própria, não anúncio (2026-08-17)
+
+- **Decisão**: A inteligência de fornecedores (S12) tem entidade, fontes e tela
+  próprias: quem vende o quê, nível na cadeia, MOQ, faixa de preço, prazo, rota e
+  **contato**. Fontes incluem diretórios B2B, listas de expositores de feira,
+  registros públicos de importação/exportação e listas de distribuidores
+  autorizados. O sistema deve marcar o que está fora de alcance no volume atual
+  do usuário, e não prometer canal de fábrica onde ele não existe (produto novo
+  de marca só tem distribuição autorizada credenciada).

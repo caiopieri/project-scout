@@ -19,6 +19,29 @@ Não há "fase". Há fila.
 
 ---
 
+## Fontes por tier de dificuldade
+
+Fonte não é uma coisa só. Começar pela errada custa meses. A ordem de ataque
+segue o tier, não o desejo.
+
+| Tier  | Natureza                     | Fontes                                                                                          | Custo de construir | Custo de manter                      |
+| ----- | ---------------------------- | ----------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------ |
+| **A** | API oficial                  | eBay ✓, Mercado Livre, BestBuy, Amazon PA-API (com requisitos de conta)                         | dias               | baixo                                |
+| **B** | HTML / endpoint público      | OLX, Swappa, BidSpotter, AllSurplus, leiloeiros BR, GovDeals                                    | 1–2 semanas cada   | médio — quebra algumas vezes por ano |
+| **C** | Adversarial                  | Taobao, Tmall, Xianyu, 1688                                                                     | meses              | **alto e permanente**                |
+| **D** | Diretório / dado de comércio | Alibaba, Made-in-China, Global Sources, listas de expositores de feira, registros de importação | variável           | baixo, mas dado envelhece            |
+
+**Tier C não é questão de esforço, é de adversário.** O grupo Alibaba tem times
+dedicados a bloquear coleta: fingerprint de dispositivo, risk control por conta,
+exigência de login, detecção de ritmo. Não é "difícil de programar", é "alguém
+trabalha todo dia para quebrar o que foi feito ontem". Exige sessão real do
+usuário, IP local e ritmo humano — ou seja, **Local Agent (S6) é pré-requisito**.
+Caminhos legítimos alternativos (plataformas abertas de parceiro, agentes de
+sourcing) devem ser avaliados antes de investir em raspagem.
+
+Regra: **nenhuma fonte de tier C antes de duas fontes de tier B estarem estáveis
+e a auto-cura existir.** O produto vale com A + B; C é ampliação, não requisito.
+
 ## Agora — primeiro garimpo real
 
 ### S1 — eBay real, memória de preço e execução visível
@@ -99,8 +122,10 @@ partir de uma URL colada pelo usuário.
 
 ### S8 — Proxy, rotação e saúde por fonte
 
-Rotação de IP, limite por fonte, circuit breaker e `collector_health` real por
-camada.
+**Infraestrutura de IP é contratada, não construída** (ver
+[vision.md §2.1](docs/vision.md)). Esta fatia integra um provedor de proxy atrás
+de uma porta própria, e implementa o que é nosso: escolha de rota por fonte,
+limite, circuit breaker e `collector_health` real por camada.
 
 **Pronto quando:** uma fonte bloqueada degrada de forma ordenada e visível, sem
 tempestade de retry.
@@ -125,10 +150,29 @@ real** (comissão do leiloeiro, taxa administrativa, retirada, débitos),
 monitoramento de lote com registro de todos os lances, custo por unidade útil.
 Sem lance.
 
-### S12 — Fornecedores e cadeia
+### S12 — Fornecedores, cadeia e contatos
 
-O mesmo produto nos níveis fábrica → fornecedor → distribuidor → revendedor, com
-preço, MOQ e prazo comparados.
+Segundo produto do sistema, com entidade própria: não é anúncio, é **fornecedor**.
+O que se guarda é quem vende o quê, em que nível da cadeia, a que preço por faixa
+de quantidade, com que MOQ, prazo, rota logística e **contato verificado**.
+
+Fontes deste produto (tier D, mais leilão/ITAD do tier B):
+
+| Fonte                                                            | O que entrega                                                                                     |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Diretórios B2B (Alibaba, 1688, Made-in-China, Global Sources)    | fabricante e trading company, MOQ, faixa de preço                                                 |
+| Listas de expositores de feira (Canton Fair, Computex, IFA, CES) | quem fabrica o quê, com contato — dado público e de alta qualidade                                |
+| **Registros públicos de importação/exportação**                  | quem realmente importa de quem, em que volume — é como se descobre o fornecedor real de uma marca |
+| Listas de distribuidores autorizados dos fabricantes             | canal legítimo para produto novo de marca                                                         |
+| Leiloeiros, ITADs e liquidadores                                 | o canal real de notebook de marca a preço baixo                                                   |
+
+Saída: escada do mesmo produto — fábrica → fornecedor → distribuidor →
+revendedor — com preço, prazo e **o que é acessível no volume atual do usuário**,
+já que preço de fábrica é função de MOQ.
+
+**Pronto quando:** para um produto alvo, o sistema lista fornecedores em pelo
+menos dois níveis da cadeia, com contato, MOQ e faixa de preço, e diz
+explicitamente quais estão fora do alcance no volume atual.
 
 ---
 
