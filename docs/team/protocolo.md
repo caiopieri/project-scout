@@ -7,14 +7,26 @@
 
 ## 1. Papéis
 
-| Papel          | Quem                  | Contexto                | Autoridade                                      |
-| -------------- | --------------------- | ----------------------- | ----------------------------------------------- |
-| **Arquiteto**  | Claude Code (maestro) | **nunca limpo**         | Define módulos, verifica entrega, aprova avanço |
-| **Engenheiro** | Claude Code           | limpo **a cada módulo** | Planeja cada spec, revisa o dev, faz merge      |
-| **Dev**        | Codex `--yolo`        | limpo **a cada spec**   | Escreve código na branch da spec                |
+| Papel          | Quem                                    | Contexto                | Autoridade                                      |
+| -------------- | --------------------------------------- | ----------------------- | ----------------------------------------------- |
+| **Arquiteto**  | Claude Code · Opus 5 (maestro)          | **nunca limpo**         | Define módulos, verifica entrega, aprova avanço |
+| **Engenheiro** | Codex · gpt-5.6-luna **xhigh**          | limpo **a cada módulo** | Planeja cada spec, revisa o dev, faz merge      |
+| **Dev**        | Codex · gpt-5.6-luna **high**, `--yolo` | limpo **a cada spec**   | Escreve código na branch da spec                |
 
 **Módulo** = um Round do [ROADMAP](../../ROADMAP.md) (ex.: Round 1).
 **Spec** = uma fatia numerada (ex.: S1.1), com handoff próprio.
+
+Comandos de recrutamento em uso:
+
+```bash
+maestri recruit "Engenheiro" --preset "Codex" \
+  --command 'codex --yolo -c model_reasoning_effort="xhigh"' --dir <repo>
+maestri recruit "Dev" --preset "Codex" --command 'codex --yolo' --dir <repo>
+```
+
+O engenheiro roda em esforço maior porque o trabalho dele é julgamento: planejar
+a spec e reprovar diff ruim. O dev roda em esforço padrão porque executa um plano
+já fechado.
 
 ---
 
