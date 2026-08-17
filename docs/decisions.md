@@ -360,3 +360,20 @@ This document records the architectural choices proposed for **Project Scout**, 
   evidência. Motivo: a S3 original reunia landed cost, métricas, score, feed,
   dossiê, inventário, agente e exportação — o que viola a própria regra de diff
   mínimo e torna impossível declarar "pronto".
+
+### 1.63 Auto-cura tem três níveis de autoridade, e só o mais estreito é autônomo (2026-08-17)
+
+- **Decisão**: "Sistema auto-curável" separa-se em resiliência (nível 0, sem IA:
+  retry, circuit breaker, failover de camada, degradação declarada) e correção
+  por agente (níveis 1 a 3). Nível 1 diagnostica sem tocar em código; nível 2
+  corrige em sandbox com fixture antiga preservada, canário e rollback, mas o
+  merge exige humano; nível 3 aplica sem humano **apenas** dentro de uma
+  whitelist explícita de arquivos, com gate de CI verde e trilha de auditoria.
+- **Nunca autorizado ao agente**: teste, migration, RLS, autenticação,
+  verificação de assinatura, política de custo e valuation, credencial, limite de
+  taxa e qualquer ação vinculante. Whitelist, nunca blacklist.
+- **Motivo**: o sistema ingere texto hostil de anúncios; a cadeia
+  descrição maliciosa → log → contexto do agente → código é real. E agente com
+  autoridade sobre teste converte quebra em suíte verde.
+- **Pré-requisito**: o substrato (sonda canário por fonte, orçamento de erro,
+  incidente automático, trilha de auditoria) entra na S8, antes do agente.

@@ -128,23 +128,43 @@ que se provar recorrente vira connector dedicado, escrito e revisado por humano.
 **Pronto quando:** uma fonte nunca vista antes entrega anúncios ao pipeline a
 partir de uma URL colada pelo usuário.
 
-### S8 — Proxy, rotação e saúde por fonte
+### S8 — Resiliência, proxy e observabilidade
+
+Nível 0 da auto-cura: o que mantém o sistema de pé **sem IA nenhuma**, mais o
+substrato que a S9 vai ler.
 
 **Infraestrutura de IP é contratada, não construída** (ver
-[vision.md §2.1](docs/vision.md)). Esta fatia integra um provedor de proxy atrás
-de uma porta própria, e implementa o que é nosso: escolha de rota por fonte,
-limite, circuit breaker e `collector_health` real por camada.
+[vision.md §2.1](docs/vision.md)). O que é nosso: escolha de rota por fonte,
+circuit breaker por fonte e camada, failover de camada na cascata,
+`collector_health` real, DLQ com alerta e procedimento de replay.
+
+Entra também o substrato de observabilidade que ainda não existe:
+
+- **sonda canário por fonte** — busca conhecida com resultado esperado, rodando
+  periodicamente; é ela que detecta a quebra antes do usuário;
+- **orçamento de erro por fonte** — taxa de sucesso abaixo do limiar abre
+  incidente automaticamente;
+- **trilha de auditoria** de ações de manutenção.
 
 **Pronto quando:** uma fonte bloqueada degrada de forma ordenada e visível, sem
-tempestade de retry.
+tempestade de retry, e a queda de uma fonte abre incidente sozinha — sem ninguém
+ter percebido antes do sistema.
 
-### S9 — Auto-cura
+### S9 — Auto-cura ([spec](docs/auto-cura.md))
 
-Detectar quebra a partir de `observation_events` reais → classificar → propor
-correção com fixture, canário e rollback → aprovação humana.
+Três níveis de autoridade, executados em ordem. O substrato (sonda canário,
+orçamento de erro, incidente) vem na S8; aqui entra o agente.
 
-**Pronto quando:** uma quebra real gera diagnóstico e proposta antes de alguém
-perceber.
+| #        | Fatia                            | Pronto quando                                                                                                                                                                              |
+| -------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **S9.1** | Diagnóstico autônomo             | Uma quebra real gera relatório com classe da falha, diff entre o raw que funcionava e o que quebrou, e proposta de correção com fixture — **sem tocar em código**                          |
+| **S9.2** | Correção com canário e aprovação | A proposta roda em sandbox, a fixture antiga continua passando, o canário mede, o rollback é automático — e o merge exige humano                                                           |
+| **S9.3** | Autonomia estreita               | Correção aplicada sem humano **apenas** em arquivos de whitelist explícita (mapeamento/seletor de connector), com gate de CI verde, canário medido, rollback testado e trilha de auditoria |
+
+**Fora da whitelist, autonomia é proibida.** O agente nunca toca em teste,
+migration, RLS, autenticação, política de custo, credencial, limite de taxa ou
+qualquer coisa que execute ação vinculante — ver
+[auto-cura.md §5](docs/auto-cura.md).
 
 ### S10 — Hoje, monitores e alertas
 
