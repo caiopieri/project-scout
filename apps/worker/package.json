@@ -1,0 +1,27 @@
+{
+  "name": "@scout/worker",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint \"src/**/*.ts\"",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@scout/ai": "*",
+    "@scout/collection": "*",
+    "@scout/config": "*",
+    "@scout/database": "*",
+    "@scout/domain": "*",
+    "@scout/ebay-connector": "*",
+    "@scout/search-intelligence": "*",
+    "@scout/schemas": "*",
+    "@scout/valuation": "*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240208.0",
+    "wrangler": "^4.115.0"
+  }
+}

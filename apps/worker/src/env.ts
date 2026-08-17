@@ -1,0 +1,49 @@
+export interface Env extends Omit<
+  CloudflareBindings,
+  | 'COLLECT_QUEUE'
+  | 'ANALYSIS_QUEUE'
+  | 'EBAY_DELETION_QUEUE'
+  | 'SUPABASE_URL'
+  | 'SUPABASE_ANON_KEY'
+  | 'WEB_ORIGIN'
+  | 'EBAY_APP_ID_CLIENT_ID'
+  | 'EBAY_CERT_ID_CLIENT_SECRET'
+  | 'ML_CONNECTOR_MODE'
+  | 'ML_ACCESS_TOKEN'
+  | 'ML_CLIENT_ID'
+  | 'ML_CLIENT_SECRET'
+  | 'ML_REFRESH_TOKEN'
+  | 'EBAY_ACCOUNT_DELETION_ENDPOINT_URL'
+  | 'EBAY_DELETION_VERIFICATION_TOKEN'
+  | 'EBAY_NOTIFICATION_ENVIRONMENT'
+  | 'EBAY_IDENTITY_HASH_SECRET'
+  | 'EBAY_PROBE_TOKEN'
+  | 'PUBLIC_API_ENABLED'
+  | 'TEXT_ANALYZER_MODE'
+  | 'EBAY_GLOBAL_REQUESTS_PER_MINUTE'
+  | 'EBAY_RATE_LIMITER'
+> {
+  COLLECT_QUEUE: Queue<import('@scout/schemas').CollectionTask>;
+  ANALYSIS_QUEUE?: Queue<import('@scout/schemas').TextAnalysisTask>;
+  EBAY_DELETION_QUEUE: Queue<import('@scout/schemas').EbayAccountDeletionTask>;
+  SUPABASE_URL: string;
+  SUPABASE_ANON_KEY: string;
+  SUPABASE_SERVICE_ROLE_KEY: string;
+  EBAY_APP_ID_CLIENT_ID?: string;
+  EBAY_CERT_ID_CLIENT_SECRET?: string;
+  ML_CONNECTOR_MODE?: 'production' | 'unavailable';
+  ML_ACCESS_TOKEN?: string;
+  ML_CLIENT_ID?: string;
+  ML_CLIENT_SECRET?: string;
+  ML_REFRESH_TOKEN?: string;
+  EBAY_ACCOUNT_DELETION_ENDPOINT_URL?: string;
+  EBAY_DELETION_VERIFICATION_TOKEN?: string;
+  EBAY_NOTIFICATION_ENVIRONMENT?: 'sandbox' | 'production';
+  EBAY_IDENTITY_HASH_SECRET?: string;
+  EBAY_PROBE_TOKEN?: string;
+  PUBLIC_API_ENABLED?: 'true' | 'false';
+  TEXT_ANALYZER_MODE?: 'deterministic' | 'mock';
+  EBAY_GLOBAL_REQUESTS_PER_MINUTE?: string;
+  EBAY_RATE_LIMITER?: DurableObjectNamespace;
+  WEB_ORIGIN?: string;
+}

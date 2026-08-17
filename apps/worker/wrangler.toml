@@ -1,0 +1,121 @@
+name = "project-scout-worker"
+main = "src/index.ts"
+compatibility_date = "2026-07-29"
+compatibility_flags = ["nodejs_compat"]
+
+# KV Namespace Bindings (Operational Config & Rate Limiting)
+[[kv_namespaces]]
+binding = "SCOUT_CACHE"
+id = "local_cache"
+
+[[durable_objects.bindings]]
+name = "EBAY_RATE_LIMITER"
+class_name = "EbayRateLimitDurableObject"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["EbayRateLimitDurableObject"]
+
+# R2 Bucket Bindings (raw payloads now; product images remain Milestone 8)
+[[r2_buckets]]
+binding = "IMAGE_BUCKET"
+bucket_name = "project-scout-images-dev"
+
+[[r2_buckets]]
+binding = "RAW_BUCKET"
+bucket_name = "project-scout-raw-dev"
+
+[vars]
+EBAY_CONNECTOR_MODE = "mock"
+EBAY_MARKETPLACE_ID = "EBAY_US"
+EBAY_GLOBAL_REQUESTS_PER_MINUTE = "2"
+EBAY_NOTIFICATION_ENVIRONMENT = "production"
+PUBLIC_API_ENABLED = "true"
+TEXT_ANALYZER_MODE = "deterministic"
+
+# Cloudflare Queues Producers Bindings
+[[queues.producers]]
+queue = "ebay-collect-queue"
+binding = "COLLECT_QUEUE"
+
+[[queues.producers]]
+queue = "analysis-queue"
+binding = "ANALYSIS_QUEUE"
+
+[[queues.producers]]
+queue = "ebay-account-deletion-queue"
+binding = "EBAY_DELETION_QUEUE"
+
+[[queues.consumers]]
+queue = "ebay-collect-queue"
+max_batch_size = 5
+max_batch_timeout = 2
+max_retries = 12
+dead_letter_queue = "ebay-collect-dlq"
+
+[[queues.consumers]]
+queue = "analysis-queue"
+max_batch_size = 5
+max_batch_timeout = 2
+max_retries = 12
+dead_letter_queue = "analysis-dlq"
+
+[[queues.consumers]]
+queue = "ebay-account-deletion-queue"
+max_batch_size = 5
+max_batch_timeout = 2
+max_retries = 12
+
+# Remote production resources are isolated from local/development bindings.
+[env.production]
+name = "project-scout-worker-production"
+workers_dev = true
+
+[[env.production.durable_objects.bindings]]
+name = "EBAY_RATE_LIMITER"
+class_name = "EbayRateLimitDurableObject"
+
+[[env.production.migrations]]
+tag = "v1"
+new_sqlite_classes = ["EbayRateLimitDurableObject"]
+
+[env.production.vars]
+EBAY_CONNECTOR_MODE = "mock"
+EBAY_MARKETPLACE_ID = "EBAY_US"
+EBAY_GLOBAL_REQUESTS_PER_MINUTE = "2"
+EBAY_NOTIFICATION_ENVIRONMENT = "production"
+PUBLIC_API_ENABLED = "false"
+TEXT_ANALYZER_MODE = "deterministic"
+
+[[env.production.kv_namespaces]]
+binding = "SCOUT_CACHE"
+id = "afe7d7cf80be4edb86ec43f5eb8c858d"
+
+[[env.production.r2_buckets]]
+binding = "IMAGE_BUCKET"
+bucket_name = "project-scout-images-prod"
+
+[[env.production.r2_buckets]]
+binding = "RAW_BUCKET"
+bucket_name = "project-scout-raw-prod"
+
+[[env.production.queues.producers]]
+queue = "project-scout-ebay-collect-prod"
+binding = "COLLECT_QUEUE"
+
+[[env.production.queues.producers]]
+queue = "project-scout-ebay-account-deletion-prod"
+binding = "EBAY_DELETION_QUEUE"
+
+[[env.production.queues.consumers]]
+queue = "project-scout-ebay-collect-prod"
+max_batch_size = 5
+max_batch_timeout = 2
+max_retries = 12
+dead_letter_queue = "project-scout-ebay-collect-dlq-prod"
+
+[[env.production.queues.consumers]]
+queue = "project-scout-ebay-account-deletion-prod"
+max_batch_size = 5
+max_batch_timeout = 2
+max_retries = 12

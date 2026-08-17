@@ -1,0 +1,37 @@
+{
+  "name": "project-scout-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint \"apps/**/*.{ts,tsx}\" \"packages/**/*.{ts,tsx}\" \"tests/**/*.ts\"",
+    "test": "vitest run",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "db:start": "npx supabase start",
+    "db:stop": "npx supabase stop",
+    "db:reset": "npx supabase db reset --local",
+    "db:migrate": "npx supabase migration up --local",
+    "db:seed": "npx supabase db reset --local",
+    "db:test": "vitest run tests/database-unit.test.ts tests/database-integration.test.ts tests/milestone6-1-ebay-deletion.test.ts tests/milestone7-database.test.ts tests/f0-database.test.ts tests/f0-repository.test.ts tests/f3-valuation-database.test.ts tests/f2-observation-review-database.test.ts tests/f2-triage-review-database.test.ts tests/f2-cross-source-candidate-database.test.ts tests/f4-repair-proposal-database.test.ts tests/f4-repair-sandbox-database.test.ts tests/f6-negotiation-database.test.ts tests/f7-authorization-ledger-database.test.ts",
+    "ebay:smoke": "npm run smoke --workspace @scout/ebay-connector",
+    "ebay:setup": "vite-node packages/ebay-connector/src/setup.ts",
+    "ml:setup": "vite-node packages/ml-connector/src/setup.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.56.0",
+    "eslint-config-next": "^14.1.0",
+    "prettier": "^3.2.5",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.2"
+  }
+}
