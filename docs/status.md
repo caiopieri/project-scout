@@ -33,7 +33,7 @@
 
 | Fonte                                     | Estado | Observação                                                                               |
 | ----------------------------------------- | ------ | ---------------------------------------------------------------------------------------- |
-| eBay                                      | 🟡     | Adapter live-capable e smoke passou. Coleta contínua ainda em `EBAY_CONNECTOR_MODE=mock` |
+| eBay                                      | ✅     | Coleta local Production persistiu 4 anúncios reais; 4 criados, telemetria sanitizada e 3 URLs conferidas no Chrome |
 | Mercado Livre                             | 🟡     | Adapter + OAuth escritos, nunca rodaram live; suspenso por decisão de 2026-08-15         |
 | Xianyu                                    | ❌     | Apenas boundary "indisponível"                                                           |
 | OLX, Facebook Marketplace                 | ❌     | Nunca iniciados                                                                          |
@@ -87,3 +87,6 @@
 4. `npm run format:check` global está vermelho por ~25 arquivos legados.
 5. Quota efetiva do eBay, alerta de DLQ e política de replay/retention seguem
    pendentes.
+6. `collection_runs.estimated_cost` permanece em zero; a telemetria de chamadas
+   da S1.1 fica apenas em log sanitizado e será tratada junto do histórico/tela
+   nas próximas fatias.
