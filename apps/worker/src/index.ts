@@ -30,6 +30,8 @@ import {
   UnavailableEbayConnector,
   isEbayMarketplaceId,
   sharedEbayTokenCache,
+  type EbayRateLimiter,
+  type EbayRequestTelemetryEvent,
 } from '@scout/ebay-connector';
 import {
   MercadoLivreApiAdapter,
@@ -70,7 +72,9 @@ const configuredTextAnalyzer = (env: Env) =>
 
 const sharedMercadoLivreTokenState: MercadoLivreTokenState = {};
 
-export const configuredEbayConnector = (env: Env) => {
+type EbayRequestTelemetryLogger = (event: EbayRequestTelemetryEvent) => void;
+
+export const configuredEbayConnector = (env: Env, onRequest?: EbayRequestTelemetryLogger) => {
   const mode = env.EBAY_CONNECTOR_MODE ?? 'mock';
   if (mode === 'mock') return new MockEbayConnector();
   if (mode !== 'sandbox' && mode !== 'production') {
@@ -90,31 +94,86 @@ export const configuredEbayConnector = (env: Env) => {
   ) {
     return new UnavailableEbayConnector(mode, 'EBAY_RATE_LIMIT_CONFIGURATION_MISSING');
   }
+  const maxBrowseRequests = 6;
+  const rateLimiter =
+    mode === 'production' && env.EBAY_RATE_LIMITER
+      ? new DurableObjectEbayRateLimiter(env.EBAY_RATE_LIMITER, {
+          key: `scout:ebay:rate:v2:${mode}:${marketplaceId}`,
+          maxRequests: requestsPerMinute,
+          windowSeconds: 60,
+        })
+      : env.SCOUT_CACHE && Number.isSafeInteger(requestsPerMinute) && requestsPerMinute > 0
+        ? new KvEbayRateLimiter(env.SCOUT_CACHE, {
+            maxRequests: requestsPerMinute,
+            windowSeconds: 60,
+            keyPrefix: `scout:ebay:rate:v1:${mode}:${marketplaceId}`,
+          })
+        : undefined;
   return new EbayApiAdapter(
     {
       environment: mode,
       clientId: env.EBAY_APP_ID_CLIENT_ID,
       clientSecret: env.EBAY_CERT_ID_CLIENT_SECRET,
       marketplaceId,
+      maxBrowseRequests,
     },
     {
       tokenCache: sharedEbayTokenCache,
-      rateLimiter:
-        mode === 'production' && env.EBAY_RATE_LIMITER
-          ? new DurableObjectEbayRateLimiter(env.EBAY_RATE_LIMITER, {
-              key: `scout:ebay:rate:v2:${mode}:${marketplaceId}`,
-              maxRequests: requestsPerMinute,
-              windowSeconds: 60,
-            })
-          : env.SCOUT_CACHE && Number.isSafeInteger(requestsPerMinute) && requestsPerMinute > 0
-            ? new KvEbayRateLimiter(env.SCOUT_CACHE, {
-                maxRequests: requestsPerMinute,
-                windowSeconds: 60,
-                keyPrefix: `scout:ebay:rate:v1:${mode}:${marketplaceId}`,
-              })
-            : undefined,
+      onRequest,
+      rateLimiter: withEbayRateLimitTelemetry(rateLimiter, onRequest, maxBrowseRequests),
     },
   );
+};
+
+const logEbayRequestTelemetry: EbayRequestTelemetryLogger = (event) => {
+  console.log('eBay Browse telemetry', {
+    operation: event.operation,
+    attempt: event.attempt,
+    requestNumber: event.requestNumber,
+    maxRequests: event.maxRequests,
+    outcome: event.outcome,
+    ...(event.status === undefined ? {} : { status: event.status }),
+    ...(event.errorCode === undefined ? {} : { errorCode: event.errorCode }),
+  });
+};
+
+const withEbayRateLimitTelemetry = (
+  rateLimiter: EbayRateLimiter | undefined,
+  onRequest: EbayRequestTelemetryLogger | undefined,
+  maxRequests: number,
+): EbayRateLimiter | undefined => {
+  if (!rateLimiter || !onRequest) return rateLimiter;
+  let requestsUsed = 0;
+  return {
+    async acquire(input) {
+      try {
+        await rateLimiter.acquire(input);
+        requestsUsed += 1;
+      } catch (error) {
+        if (
+          error &&
+          typeof error === 'object' &&
+          'code' in error &&
+          error.code === 'EBAY_GLOBAL_RATE_LIMITED'
+        ) {
+          try {
+            onRequest({
+              operation: input.operation,
+              attempt: 1,
+              requestNumber: requestsUsed,
+              maxRequests,
+              observedAt: Date.now(),
+              outcome: 'error',
+              errorCode: 'EBAY_GLOBAL_RATE_LIMITED',
+            });
+          } catch {
+            // Observability must never change connector behavior.
+          }
+        }
+        throw error;
+      }
+    },
+  };
 };
 
 export const configuredMercadoLivreConnector = (env: Env) => {
@@ -143,12 +202,12 @@ const SOURCE_IDS = {
   xianyu: '00000000-0000-4000-a000-000000000003',
 } as const;
 
-const configuredCollectionGateways = (env: Env) =>
+const configuredCollectionGateways = (env: Env, onEbayRequest?: EbayRequestTelemetryLogger) =>
   new SourceCollectionGatewayRegistry([
     [
       SOURCE_IDS.ebay,
       new DefaultCollectionGateway(
-        configuredEbayConnector(env),
+        configuredEbayConnector(env, onEbayRequest),
         env.EBAY_CONNECTOR_MODE === 'mock'
           ? undefined
           : { maxPages: 1, pageSize: 5, maxItems: 4, maxQueries: 1 },
@@ -511,7 +570,7 @@ export default {
         }
         const processor = new CollectionTaskProcessor(
           repository,
-          configuredCollectionGateways(env),
+          configuredCollectionGateways(env, logEbayRequestTelemetry),
           3,
           new ListingIngestionService(
             new Map([
