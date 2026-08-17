@@ -340,3 +340,23 @@ This document records the architectural choices proposed for **Project Scout**, 
   autorizados. O sistema deve marcar o que está fora de alcance no volume atual
   do usuário, e não prometer canal de fábrica onde ele não existe (produto novo
   de marca só tem distribuição autorizada credenciada).
+
+### 1.61 Custo total na porta tem especificação própria (2026-08-17)
+
+- **Decisão**: O landed cost sai de dentro de uma fatia genérica e ganha spec
+  dedicada (`docs/custo-total.md`) e fatia própria (S3.1), executada antes de
+  score e ranking. Regra central: **componente ausente não é zero, é
+  desconhecido**, e desconhecido impede ranqueamento como oportunidade. Todo
+  componente carrega origem (`informado`/`tabelado`/`estimado`/`desconhecido`);
+  câmbio é persistido com data, fonte e spread; tabelas fiscais por rota exigem
+  conferência humana e nunca entram hard-coded. Motivo: é o único erro do sistema
+  que faz o usuário perder dinheiro de verdade — custo subestimado transforma
+  prejuízo em "oportunidade" no topo do feed.
+
+### 1.62 Fatias grandes quebradas em rounds (2026-08-17)
+
+- **Decisão**: S1, S2 e S3 passam a ser blocos com sub-fatias numeradas
+  (S1.1–S1.3, S2.1–S2.3, S3.1–S3.7). Um round = uma sub-fatia, do handoff à
+  evidência. Motivo: a S3 original reunia landed cost, métricas, score, feed,
+  dossiê, inventário, agente e exportação — o que viola a própria regra de diff
+  mínimo e torna impossível declarar "pronto".

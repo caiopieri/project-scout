@@ -42,43 +42,51 @@ sourcing) devem ser avaliados antes de investir em raspagem.
 Regra: **nenhuma fonte de tier C antes de duas fontes de tier B estarem estáveis
 e a auto-cura existir.** O produto vale com A + B; C é ampliação, não requisito.
 
+## O que é um round
+
+**Um round = uma fatia numerada, do handoff à evidência.** Fecha quando o gate do
+[AGENTS.md §5](AGENTS.md) está verde e a linha entra no `LOG-VERIFICACAO.md` com
+o nível de evidência correto. Uma fatia que não cabe em ~300 linhas de diff é
+quebrada antes de começar, não durante.
+
+Round seguinte só abre com o anterior fechado. Se um round travar por dependência
+externa (credencial, decisão do fundador), ele é marcado como bloqueado e o
+próximo **independente** assume — nunca se abre um round adiantado do "Depois".
+
+---
+
 ## Agora — primeiro garimpo real
 
-### S1 — eBay real, memória de preço e execução visível
+### Round 1 — eBay deixa de ser mock
 
-Coleta contínua persistindo dado real, com orçamento de chamadas medido, health
-por fonte e alerta de DLQ. **Grava observação de preço com data desde a primeira
-coleta** — histórico não se recupera depois. Entra também a tela de execução: o
-funil ao vivo, fonte por fonte.
+| #        | Fatia                             | Pronto quando                                                                                                                                        |
+| -------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **S1.1** | Coleta real do eBay persistida    | Uma pesquisa real grava anúncios reais no banco; 3 URLs conferidas manualmente existem; consumo de chamadas medido; nenhum segredo em log            |
+| **S1.2** | Memória de preço desde o dia zero | `price_history` recebe uma observação por anúncio observado; recoletar no dia seguinte acrescenta observação sem duplicar snapshot quando nada mudou |
+| **S1.3** | Tela de execução                  | O usuário vê o funil ao vivo: total coletado, o que sobrou em cada camada, estado por fonte, e o custo gasto                                         |
 
-**Pronto quando:** uma pesquisa real grava anúncios reais no banco, o usuário vê
-o funil acontecendo na tela, o custo de chamadas está medido e `price_history`
-tem linhas.
-Handoff: [docs/handoffs/HANDOFF-S1.md](docs/handoffs/HANDOFF-S1.md)
+Handoffs: [S1.1](docs/handoffs/HANDOFF-S1.1.md) ·
+[S1.2](docs/handoffs/HANDOFF-S1.2.md) · [S1.3](docs/handoffs/HANDOFF-S1.3.md)
 
-### S2 — IA de texto de verdade
+### Round 2 — IA de texto de verdade
 
-LLM real atrás da porta de extração, **dirigida por schema** (o chamador passa o
-schema de saída; o extrator não conhece "defeito de iPhone"). Análise **em lote**
-de 10–20 anúncios por requisição, com isolamento por item. Defesa de injeção
-obrigatória. Testes com resposta gravada, nunca com rede. Medidor de cota que
-para antes do 429 e degrada sem falhar.
+| #        | Fatia                                        | Pronto quando                                                                                                                                                                |
+| -------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **S2.1** | Porta de extração + provedor real            | Um provedor LLM real responde atrás da porta, com cassete nos testes (a suíte não chama rede), medidor de cota que para antes do 429 e degradação sem falha                  |
+| **S2.2** | Extração dirigida por schema, em lote        | 10–20 anúncios por requisição, cada um envelopado; saída em array validado com id de retorno; anúncio malicioso não altera o comportamento nem contamina os vizinhos do lote |
+| **S2.3** | Evidência e defeito a partir de anúncio real | Um anúncio real do eBay produz defeitos e evidências com origem e grau persistidos, e o desconhecido é registrado como desconhecido                                          |
 
-**Pronto quando:** um anúncio real produz defeitos, evidências e afirmações do
-vendedor com origem e grau — e um anúncio malicioso não muda o comportamento do
-sistema nem contamina os outros do lote.
+### Round 3 — Decisão na tela
 
-### S3 — Decisão na tela
-
-O maior salto de valor. Reúne: custo total real (landed cost multi-país), score
-explicável, feed ranqueado com cards, dossiê, inventário do acervo, coração,
-métricas de mercado por segmento e o agente conversacional.
-
-Inclui a correção de `user_listing_actions` para favoritar por `(user, listing)`,
-e a exportação CSV/XLSX.
-
-**Pronto quando:** o Caio abre a tela, pergunta ao agente "achou algo bom?", e
-decide o que comprar sem abrir o site da fonte.
+| #        | Fatia                                                  | Pronto quando                                                                                                                                                                     |
+| -------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **S3.1** | **Custo total na porta** ([spec](docs/custo-total.md)) | Um item importado tem a conta aberta linha a linha com origem por componente; componente ausente bloqueia o ranqueamento em vez de virar zero; câmbio persistido com data e fonte |
+| **S3.2** | Métricas de mercado                                    | Mediana limpa por IQR por segmento, com `n` e janela visíveis; abaixo do mínimo responde "amostra insuficiente"                                                                   |
+| **S3.3** | Score explicável                                       | Todo score abre a conta: fatores positivos, negativos, ausentes e contraditórios, com a versão da política                                                                        |
+| **S3.4** | Feed, cards e filtros                                  | Lista ranqueada, filtro como lente, paginação estável, triagem por teclado, estados de vazio/parcial/degradado                                                                    |
+| **S3.5** | Dossiê, inventário e coração                           | Acervo navegável fora da pesquisa; favoritar corrigido para `(user, listing)`; dossiê com evidência graduada                                                                      |
+| **S3.6** | Agente conversacional ([contrato](docs/agente.md))     | Responde por filtro estruturado citando IDs, mostra o filtro aplicado, e exige confirmação antes de gastar                                                                        |
+| **S3.7** | Exportação                                             | CSV/XLSX da seleção atual                                                                                                                                                         |
 
 ### S4 — Checkup visual
 

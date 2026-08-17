@@ -55,7 +55,12 @@ Corolários, todos obrigatórios:
 
 ---
 
-## 3. Ciclo de uma fatia
+## 3. Ciclo de uma fatia (um round)
+
+**Uma fatia é um round.** Ele fecha com o gate do §5 verde e a linha no
+`LOG-VERIFICACAO.md`. Round seguinte só abre com o anterior fechado; se um travar
+por dependência externa, marque como bloqueado e assuma o próximo **independente**
+— nunca um round adiantado do "Depois".
 
 ```
 1. Ler status.md + ROADMAP.md   → verificar: sei o que existe e qual é a fatia

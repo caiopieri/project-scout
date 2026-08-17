@@ -1,4 +1,4 @@
-# HANDOFF-S1 — eBay sai do mock
+# HANDOFF-S1.1 — Coleta real do eBay persistida
 
 > Primeira fatia depois da reestruturação de 2026-08-17. Ler antes:
 > [AGENTS.md](../../AGENTS.md), [docs/status.md](../status.md),
@@ -7,8 +7,7 @@
 ## Objetivo
 
 Fazer uma pesquisa real do Caio coletar anúncios reais do eBay e persistir no
-banco, com custo de chamadas medido, limite respeitado, **histórico de preço
-gravado desde a primeira coleta** e o funil visível na tela.
+banco, com custo de chamadas medido e limite respeitado.
 
 ## Pronto quando
 
@@ -21,12 +20,7 @@ Executar, com credencial Production server-side:
 4. `GET /api/projects/:id/listings` devolve anúncios que **existem de verdade no
    eBay** — conferidos abrindo a URL de pelo menos 3 deles.
 5. A telemetria mostra quantas chamadas foram gastas e onde o orçamento parou.
-6. `price_history` tem uma linha por anúncio observado, com data. Recoletar a
-   mesma busca no dia seguinte acrescenta observações sem duplicar snapshot
-   quando nada mudou.
-7. A tela mostra o funil da execução ao vivo: total coletado, quanto sobrou em
-   cada camada e o estado de cada fonte.
-8. Nenhum segredo aparece em log.
+6. Nenhum segredo aparece em log.
 
 Evidência exigida no `LOG-VERIFICACAO.md`: nível **live**.
 
@@ -44,14 +38,15 @@ Evidência exigida no `LOG-VERIFICACAO.md`: nível **live**.
 
 ## Caminho de usuário
 
-`apps/web` → criar projeto → disparar coleta → ver a lista de anúncios. Se a
-tela ainda não mostra o resultado da coleta, ela entra nesta fatia — sem
-caminho de usuário, a fatia não fecha.
+`apps/web` → criar projeto → disparar coleta → ver a lista de anúncios reais. Se
+a tela ainda não mostra o resultado da coleta, o mínimo para exercitar o caminho
+entra nesta fatia — sem caminho de usuário, a fatia não fecha.
 
 ## Fora de escopo
 
-- Ranking, score e filtro (é S3).
-- LLM e imagem (é S2/S4).
+- Histórico de preço (é S1.2) e tela de execução (é S1.3).
+- Ranking, score e filtro (é o Round 3).
+- LLM e imagem (Rounds 2 e S4).
 - Qualquer fonte que não seja eBay.
 - Deploy remoto de produção e habilitar `/api/*` público.
 - Aumentar volume de coleta antes de medir a quota.
