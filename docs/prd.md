@@ -44,6 +44,38 @@ fácil de achar.
 
 ## 2. Problema
 
+### 2.0 A tese: assimetria de informação entre mercados que não se falam
+
+O caso que resume o produto, contado pelo fundador:
+
+> Precisei de uma CNC. Paguei R$ 50 mil. No mesmo período havia um leilão nos
+> Estados Unidos com várias unidades a US$ 400, e a logística sairia por US$ 2
+> mil.
+
+As duas ofertas existiam **ao mesmo tempo**. O que separava uma da outra não era
+dinheiro, capacidade logística ou burocracia — era **não saber que a outra
+existia naquele momento**.
+
+Isso define o produto com mais precisão do que "buscar anúncios":
+
+> **O sistema existe para eliminar a assimetria de informação entre mercados que
+> não se falam.** O valor entregue é a diferença entre o preço que o comprador
+> pagaria no mercado que ele enxerga e o melhor caminho global disponível, já com
+> o custo real na porta.
+
+Três consequências diretas de projeto:
+
+1. **A resposta não é uma lista, é uma decisão de sourcing.** "Local: R$ 50 mil.
+   Melhor caminho: leilão US, US$ 400 + US$ 2 mil de logística e taxas = R$ X.
+   Economia: R$ Y. Prazo: Z. Risco: W."
+2. **Cobertura vale mais que sofisticação.** Estar presente onde o comprador
+   local não olha (leilão corporativo, ITAD, liquidação, mercado interno chinês)
+   é o diferencial — não o algoritmo.
+3. **Para oportunidade rara, monitorar vale mais que buscar.** Ninguém procura
+   uma CNC a US$ 400: espera-se meses até uma aparecer. A dor não foi "não
+   encontrei", foi "não soube na hora". Isso é produto de monitoramento
+   contínuo, não de busca pontual.
+
 Hoje o garimpo é manual: abrir dezenas de sites, testar palavras-chave, ler
 anúncio por anúncio, interpretar foto, desconfiar de golpe, calcular custo total
 e comparar com o preço de mercado — repetidamente, todos os dias, em vários
