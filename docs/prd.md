@@ -65,6 +65,13 @@ Funil obrigatório, do mais barato ao mais caro:
 
 Meta nominal: 1000 cards → 500 relevantes → 150 candidatos → 25 fortes.
 
+**Filtrar não é esconder.** O funil decide onde o sistema gasta, nunca o que
+existe. Todo anúncio permanece no acervo etiquetado com a camada que alcançou e o
+motivo de ter parado ali; o usuário vê ou não vê conforme o filtro que ele
+escolher. Um vendedor de preço normal, que hoje não é oportunidade, continua
+disponível para amanhã. Detalhe completo em
+[funil-e-risco.md](./funil-e-risco.md).
+
 ### 3.4 Entender o anúncio
 
 - **Texto**: modelo, capacidade, defeito declarado, o que o vendedor afirma que
@@ -103,6 +110,43 @@ Faltando dado para a conta, o sistema declara o que falta em vez de inventar.
 
 Após a compra: o que chegou, defeito real, custo real de reparo, valor de
 revenda, lucro, e se a análise acertou. É esse dado que calibra o sistema.
+
+### 3.8 Acumular memória de mercado
+
+Cada pesquisa alimenta um acervo permanente. Dele saem as referências que fazem
+"barato" e "caro" existirem: preço de referência por produto, condição e grade;
+tendência; liquidez; pressão do vendedor. É o único componente do sistema que
+melhora sozinho, e o histórico não se recupera depois — por isso a gravação
+começa na primeira coleta real. Ver [memoria-de-mercado.md](./memoria-de-mercado.md).
+
+### 3.9 Leilões
+
+Leilão é uma categoria própria porque **o preço mostrado não é o custo real**. O
+sistema precisa:
+
+- ler o edital e converter lance em custo total (comissão do leiloeiro, taxa
+  administrativa, impostos e débitos quando aplicáveis, retirada, regularização,
+  reparo estimado);
+- versionar o edital e apontar mudança material entre versões;
+- monitorar o lote registrando todos os lances, com intensidade maior perto do
+  fechamento;
+- calcular custo por unidade útil no lote.
+
+Somente leitura. Lance automático é ação vinculante e depende de autorização
+explícita, fora do escopo atual.
+
+### 3.10 Fornecedores e cadeia
+
+Mostrar o mesmo produto nos níveis fábrica → fornecedor → distribuidor →
+revendedor, com preço, MOQ, prazo e rota logística, para que a compra aconteça o
+mais perto possível da origem.
+
+### 3.11 Conversar com o sistema
+
+Um agente que lê o que o sistema produziu e manda o sistema trabalhar — nunca
+coleta, analisa ou age por conta própria. Toda afirmação dele nasce de uma
+consulta e vem com o registro citado. Contrato completo em
+[agente.md](./agente.md).
 
 ## 4. Critérios de sucesso
 

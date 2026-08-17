@@ -8,16 +8,21 @@
 
 ## 1. Leia nesta ordem
 
-| Documento                                    | Responde                                                          |
-| -------------------------------------------- | ----------------------------------------------------------------- |
-| [docs/vision.md](docs/vision.md)             | O que estamos construindo e por quê                               |
-| [docs/prd.md](docs/prd.md)                   | O que a primeira aplicação precisa fazer                          |
-| [docs/status.md](docs/status.md)             | O que **existe** hoje — a única fonte de verdade sobre capacidade |
-| [ROADMAP.md](ROADMAP.md)                     | Qual é a próxima fatia                                            |
-| [docs/architecture.md](docs/architecture.md) | Como construir                                                    |
-| [docs/decisions.md](docs/decisions.md)       | O que já foi decidido e não se rediscute sem ADR                  |
-| [LOG-VERIFICACAO.md](LOG-VERIFICACAO.md)     | O que foi realmente verificado                                    |
-| [docs/security-DoD.md](docs/security-DoD.md) | Checklist de segurança                                            |
+| Documento                                                  | Responde                                                             |
+| ---------------------------------------------------------- | -------------------------------------------------------------------- |
+| [docs/vision.md](docs/vision.md)                           | O que estamos construindo e por quê                                  |
+| [docs/prd.md](docs/prd.md)                                 | O que a primeira aplicação precisa fazer                             |
+| [docs/status.md](docs/status.md)                           | O que **existe** hoje — a única fonte de verdade sobre capacidade    |
+| [ROADMAP.md](ROADMAP.md)                                   | Qual é a próxima fatia                                               |
+| [docs/architecture.md](docs/architecture.md)               | Como construir                                                       |
+| [docs/funil-e-risco.md](docs/funil-e-risco.md)             | Custo, imagens, golpe, risco de vendedor, identidade                 |
+| [docs/memoria-de-mercado.md](docs/memoria-de-mercado.md)   | Preço de referência, séries, métricas                                |
+| [docs/interface.md](docs/interface.md)                     | Telas, cards, estados, contrato de dado                              |
+| [docs/agente.md](docs/agente.md)                           | O agente conversacional e como ele busca                             |
+| [docs/pesquisa-de-mercado.md](docs/pesquisa-de-mercado.md) | Equações, sourcing, logística e compliance — referência quantitativa |
+| [docs/decisions.md](docs/decisions.md)                     | O que já foi decidido e não se rediscute sem ADR                     |
+| [LOG-VERIFICACAO.md](LOG-VERIFICACAO.md)                   | O que foi realmente verificado                                       |
+| [docs/security-DoD.md](docs/security-DoD.md)               | Checklist de segurança                                               |
 
 Histórico anterior (M1–M7, F0–F7) está em `docs/archive/`. É contexto, não
 instrução: **não trate documento arquivado como requisito**.
@@ -176,7 +181,7 @@ qualquer volume que degrade o serviço da fonte.
 
 Comprar, dar lance, pagar e enviar mensagem exigem autorização humana explícita
 por ação, com limite e expiração. Nenhum agente executa ação vinculante hoje —
-o executor não existe e não deve ser criado fora da fatia S12.
+o executor não existe e não deve ser criado fora da fatia S13.
 
 ---
 
@@ -186,10 +191,15 @@ Proibido hoje:
 
 - Executor de compra, lance ou pagamento (ver §7.4).
 - Envio automático de mensagem a vendedor.
-- Categorias fora de eletrônicos: veículo, imóvel, máquina industrial.
+- Categorias fora de eletrônicos: veículo, imóvel, máquina industrial. A vertical
+  de veículos está **pendente de decisão do fundador** — até haver decisão, não
+  começar.
 - MCP público ou API para terceiros.
-- Gerador automático de connector. Connector novo é escrito e revisado por
-  humano até existirem ao menos quatro fontes maduras.
+- **Fábrica que gera código de connector.** Código gerado sem revisão vira dívida
+  invisível. Isto **não** proíbe o extrator genérico dirigido por schema (S7), em
+  que o usuário cola uma URL, declara o que quer e um único extrator resolve sem
+  produzir código novo. Fonte que se provar recorrente vira connector dedicado,
+  escrito e revisado por humano.
 
 **Revogado em 2026-08-17** — estas proibições existiam no regulamento anterior e
 contradiziam a visão do fundador:

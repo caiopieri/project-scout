@@ -242,3 +242,67 @@ This document records the architectural choices proposed for **Project Scout**, 
   pediria outra coisa. Motivo: é o mesmo custo de implementação e evita que o
   núcleo nasça amarrado a eletrônicos. Testes usam resposta gravada; a suíte não
   chama a rede.
+
+### 1.50 Filtrar é lente, não exclusão (2026-08-17)
+
+- **Decisão**: O funil decide **onde o sistema gasta**, nunca **o que existe**.
+  Todo anúncio permanece no acervo etiquetado com a camada alcançada e o motivo
+  de ter parado ali; a UI decide o que exibir. Consequências: cota de IA esgotada
+  não é erro (o item fica na camada atual e é analisado depois), e o vendedor de
+  preço normal continua disponível para uma decisão futura do usuário.
+
+### 1.51 Golpe vira lápide, não exclusão (2026-08-17)
+
+- **Decisão**: Anúncio identificado como golpe conserva apenas id, url, hash
+  perceptual, motivo, data e fonte; payload e imagens são descartados. Motivo:
+  sem o registro mínimo, o sistema paga para redescobrir o mesmo golpe em toda
+  pesquisa futura. Alinhado ao DOCX v1.1 §9.
+
+### 1.52 Imagem: exibir, baixar e analisar são coisas separadas (2026-08-17)
+
+- **Decisão**: Exibir usa a URL da fonte, sem download. A camada de risco baixa
+  apenas a miniatura, calcula hash perceptual e descarta o binário. Alta
+  resolução (~1024px) só para até três imagens dos finalistas. Preservação
+  permanente em R2 apenas para itens marcados pelo usuário. Motivo: o custo
+  proibitivo não é armazenamento, e sim volume de requests (bloqueio pela fonte)
+  e tokens multimodais.
+
+### 1.53 Análise de texto em lote, com isolamento por item (2026-08-17)
+
+- **Decisão**: Requisições de análise carregam 10–20 anúncios, cada um envelopado
+  individualmente, com saída em array validado e id de retorno. Motivo: o limite
+  do free tier é requisições por dia, não tokens; lote reduz o consumo em ~95%.
+  Risco aceito e mitigado: injeção cruzada entre itens do mesmo lote.
+
+### 1.54 Recuperação estruturada antes de vetorial (2026-08-17)
+
+- **Decisão**: O agente responde por filtro estruturado (95% dos casos), depois
+  busca lexical (`tsvector`/`pg_trgm`), e só então vetores (`pgvector`) —
+  reservados a identidade semântica, similaridade e pergunta vaga. Motivo:
+  o pipeline existe para transformar texto em coluna; RAG sobre dado estruturado
+  descarta essa estrutura e não sabe contar. A inteligência está na extração, não
+  na recuperação.
+
+### 1.55 Extrator genérico sob demanda é permitido; fábrica de connector não (2026-08-17)
+
+- **Decisão**: Um único extrator dirigido por schema pode receber uma URL colada
+  pelo usuário e devolver dado estruturado (S7). Continua proibido gerar **código
+  de connector** automaticamente. Motivo: o primeiro não cria dívida de código
+  não revisado; o segundo cria. Fonte recorrente vira connector dedicado escrito
+  por humano.
+
+### 1.56 Memória de mercado começa a ser gravada na S1 (2026-08-17)
+
+- **Decisão**: Observação de preço com data passa a ser persistida desde a
+  primeira coleta real, muito antes de existir qualquer métrica na tela. Séries
+  de **preço pedido** e **preço realizado** nunca são misturadas. Estatística usa
+  mediana com limpeza por IQR, janela móvel e `n` sempre visível. Motivo:
+  histórico não se recupera — começar seis meses depois custa seis meses.
+
+### 1.57 Acervo é global, favorito é por usuário e anúncio (2026-08-17)
+
+- **Decisão**: O anúncio pertence ao acervo, não à pesquisa; a pesquisa é uma
+  consulta sobre ele. `user_listing_actions` deve ser único por
+  `(user_id, listing_id)` e não por projeto, corrigido na S3 antes de existir
+  dado. Semântica separada: coração = "quero olhar depois"; `decision` = "o que
+  eu fiz".

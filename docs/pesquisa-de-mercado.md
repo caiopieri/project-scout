@@ -1,10 +1,12 @@
 # PROJECT SCOUT — RELATÓRIO MESTRE DE PESQUISA DE MERCADO, ARQUITETURA LOGÍSTICA, COMPLIANCE E ENGENHARIA DE CÓDIGO
+
 ## Versão 7.1 (Definitiva Ampliada, Auditada & Sanitizada)
 
 ---
 
 ### REGRA CONSTITUCIONAL DO SISTEMA (DOCX v1.1 §1 & AGENTS.md)
-> *"IA interpreta, pesquisa, repara, recomenda e negoceia. O sistema valida, limita e executa. O usuário autoriza qualquer ação vinculante."*
+
+> _"IA interpreta, pesquisa, repara, recomenda e negoceia. O sistema valida, limita e executa. O usuário autoriza qualquer ação vinculante."_
 
 ---
 
@@ -28,27 +30,27 @@
 
 ## 1. TABELA COMPARATIVA DE REQUISITOS DE VENDEDOR POR PLATAFORMA
 
-| Plataforma | Região | KYC Exigido | Exigência Bancária | Endereço / Telefone | Restrição Geográfica | Estratégia de Bypass / Habilitação |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Amazon US** | EUA | Passaporte/CNH + SSN/ITIN ou EIN | Conta EUA (Wise/Payoneer/Mercury) | Endereço Global; Tel +1 ou local | Aceita vendedores do BR diretamente | Cadastro direto via Passaporte BR + Cartão Internacional + US LLC/EIN para tributação reduzida. |
-| **eBay US** | EUA | Passaporte/CNH + ITIN/SSN ou EIN | Conta vinculada Payoneer ou Banco EUA | Endereço Global; Tel verificado | Aceita vendedores do BR via Payoneer | Cadastro via eBay BR / International Seller vinculado a Payoneer PJ/PF. |
-| **Mercari US** | EUA | SSN ou ITIN obrigatório | Banco EUA nativo (Routing/Account) | Endereço físico EUA (não aceita P.O. Box) | Estrita (Apenas residentes/empresas EUA) | **US LLC (Wyoming/DE)** + EIN + W-9 + Endereço Físico (Prep Center/Virtual Office) + ITIN. |
-| **Poshmark US** | EUA | SSN/ITIN (após $600 em vendas) | Banco EUA nativo ou ACH | Endereço físico EUA; Tel +1 | Estrita (EUA apenas) | US LLC + EIN + Conta Mercury/Payoneer + US Phone VoIP/SIM local. |
-| **Back Market US**| EUA/EU | Business Registration + Tax ID | Conta bancária empresarial (EUA/EU) | Endereço comercial verificado | Exige aprovação como Refurbisher | Cadastro como Seller PJ Internacional + Certificação de Recondicionamento (Grades A-C). |
-| **Amazon EU** | Europa | Passaporte + VAT ID / EORI | Bank Account na SEPA (EUR/GBP via Wise) | Endereço comercial verificado | Aceita PJ internacional | Cadastro direto + Registro de **VAT (Imposto sobre Valor Agregado)** no país de entrada. |
-| **Allegro** | Polônia | Documentos PJ (CNPJ) + Tradução | Conta bancária EUR/PLN | Endereço UE ou internacional | Aceita vendedores internacionais | Cadastro Business com documento da empresa traduzido + conta Payoneer/Wise. |
-| **Vinted EU** | Europa | ID Nacional / Passaporte UE | Conta bancária IBAN (SEPA) | Endereço residencial na UE | Estrita (Residentes UE/UK) | Parceria local / Nominee ou e-Residency da Estônia com conta bancária SEPA. |
-| **Wallapop** | Espanha | DNI / NIE / CIF ou Passaporte | Banco espanhol / IBAN europeu | Endereço físico na Espanha/Portugal | Estrita (Espanha/Portugal) | Parceria local / Nominee espanhol + conta SEPA ou empresa local. |
-| **Xianyu (Idle Fish)**| China | Passaporte / Mainland ID + Alipay | Conta Alipay verificada (Mainland) | Tel +86 obrigatorio | Estrita (Exige infraestrutura chinesa) | **Alipay HK / Mainland Business Account** via parceiro de sourcing ou agente de vendas na China. |
-| **Zhuanzhuan** | China | ID Chinês + WeChat Pay | WeChat Pay / Banco Chinês | Tel +86 | Estrita | Atuação via Merchant of Record (MoR) parceiro em Shenzhen/Guangzhou. |
-| **Paipai (JD)** | China | Registro Comercial Chinês (Business) | Banco Corporativo Chinês | Licença Comercial China | Estrita B2B | Parceria com trading company local chinesa autorizada. |
-| **1688 / Taobao** | China | Business License China / Passaporte | Alipay Business / Payoneer Cross-Border | Tel +86 / Endereço China | Permite Cross-Border via Taobao Global | Taobao Global Seller via Payoneer/LianLian ou Trading Company parceira. |
-| **Shopee TW** | Taiwan | Taiwan National ID / Business ID | Banco Local de Taiwan (TWD) | Tel +886 | Estrita (Taiwan) | Entidade corporativa em Taiwan ou MoR local especializado em e-commerce TW. |
-| **Ruten TW** | Taiwan | ID Taiwan / Business Registration | Banco Taiwanês | Tel +886 | Estrita | Agente comercial local em Taiwan. |
-| **Yahoo! JP / PayPay**| Japão | My Number / Resident Card ID | Banco Japonês (JPY) | Tel +81 / Endereço Japão | Estrita (Japão) | Empresa (Godo Kaisha / Kabushiki Kaisha) no Japão ou serviço de intermediação (Buyee/Tenso). |
-| **Mercari JP** | Japão | ID Japonês verificado | Banco Local Japonês | Tel +81 | Estrita | Parceria local com recondicionadores no Japão. |
-| **Mercado Livre BR**| Brasil | CPF ou CNPJ + CNH/Passaporte | Banco Brasileiro (PIX/TED) | Endereço e Telefone BR (+55) | Exige entidade cadastrada no Brasil | Operação nativa via CNPJ/CPF com emissão de Nota Fiscal (NFe). |
-| **Shopee BR** | Brasil | CPF ou CNPJ | Banco Brasileiro | Endereço BR | Aceita vendedores Nacionais e Cross-Border | Cadastro Nacional via CNPJ/CPF ou Cross-Border autorizados (China/EUA). |
+| Plataforma             | Região  | KYC Exigido                          | Exigência Bancária                      | Endereço / Telefone                       | Restrição Geográfica                       | Estratégia de Bypass / Habilitação                                                               |
+| :--------------------- | :------ | :----------------------------------- | :-------------------------------------- | :---------------------------------------- | :----------------------------------------- | :----------------------------------------------------------------------------------------------- |
+| **Amazon US**          | EUA     | Passaporte/CNH + SSN/ITIN ou EIN     | Conta EUA (Wise/Payoneer/Mercury)       | Endereço Global; Tel +1 ou local          | Aceita vendedores do BR diretamente        | Cadastro direto via Passaporte BR + Cartão Internacional + US LLC/EIN para tributação reduzida.  |
+| **eBay US**            | EUA     | Passaporte/CNH + ITIN/SSN ou EIN     | Conta vinculada Payoneer ou Banco EUA   | Endereço Global; Tel verificado           | Aceita vendedores do BR via Payoneer       | Cadastro via eBay BR / International Seller vinculado a Payoneer PJ/PF.                          |
+| **Mercari US**         | EUA     | SSN ou ITIN obrigatório              | Banco EUA nativo (Routing/Account)      | Endereço físico EUA (não aceita P.O. Box) | Estrita (Apenas residentes/empresas EUA)   | **US LLC (Wyoming/DE)** + EIN + W-9 + Endereço Físico (Prep Center/Virtual Office) + ITIN.       |
+| **Poshmark US**        | EUA     | SSN/ITIN (após $600 em vendas)       | Banco EUA nativo ou ACH                 | Endereço físico EUA; Tel +1               | Estrita (EUA apenas)                       | US LLC + EIN + Conta Mercury/Payoneer + US Phone VoIP/SIM local.                                 |
+| **Back Market US**     | EUA/EU  | Business Registration + Tax ID       | Conta bancária empresarial (EUA/EU)     | Endereço comercial verificado             | Exige aprovação como Refurbisher           | Cadastro como Seller PJ Internacional + Certificação de Recondicionamento (Grades A-C).          |
+| **Amazon EU**          | Europa  | Passaporte + VAT ID / EORI           | Bank Account na SEPA (EUR/GBP via Wise) | Endereço comercial verificado             | Aceita PJ internacional                    | Cadastro direto + Registro de **VAT (Imposto sobre Valor Agregado)** no país de entrada.         |
+| **Allegro**            | Polônia | Documentos PJ (CNPJ) + Tradução      | Conta bancária EUR/PLN                  | Endereço UE ou internacional              | Aceita vendedores internacionais           | Cadastro Business com documento da empresa traduzido + conta Payoneer/Wise.                      |
+| **Vinted EU**          | Europa  | ID Nacional / Passaporte UE          | Conta bancária IBAN (SEPA)              | Endereço residencial na UE                | Estrita (Residentes UE/UK)                 | Parceria local / Nominee ou e-Residency da Estônia com conta bancária SEPA.                      |
+| **Wallapop**           | Espanha | DNI / NIE / CIF ou Passaporte        | Banco espanhol / IBAN europeu           | Endereço físico na Espanha/Portugal       | Estrita (Espanha/Portugal)                 | Parceria local / Nominee espanhol + conta SEPA ou empresa local.                                 |
+| **Xianyu (Idle Fish)** | China   | Passaporte / Mainland ID + Alipay    | Conta Alipay verificada (Mainland)      | Tel +86 obrigatorio                       | Estrita (Exige infraestrutura chinesa)     | **Alipay HK / Mainland Business Account** via parceiro de sourcing ou agente de vendas na China. |
+| **Zhuanzhuan**         | China   | ID Chinês + WeChat Pay               | WeChat Pay / Banco Chinês               | Tel +86                                   | Estrita                                    | Atuação via Merchant of Record (MoR) parceiro em Shenzhen/Guangzhou.                             |
+| **Paipai (JD)**        | China   | Registro Comercial Chinês (Business) | Banco Corporativo Chinês                | Licença Comercial China                   | Estrita B2B                                | Parceria com trading company local chinesa autorizada.                                           |
+| **1688 / Taobao**      | China   | Business License China / Passaporte  | Alipay Business / Payoneer Cross-Border | Tel +86 / Endereço China                  | Permite Cross-Border via Taobao Global     | Taobao Global Seller via Payoneer/LianLian ou Trading Company parceira.                          |
+| **Shopee TW**          | Taiwan  | Taiwan National ID / Business ID     | Banco Local de Taiwan (TWD)             | Tel +886                                  | Estrita (Taiwan)                           | Entidade corporativa em Taiwan ou MoR local especializado em e-commerce TW.                      |
+| **Ruten TW**           | Taiwan  | ID Taiwan / Business Registration    | Banco Taiwanês                          | Tel +886                                  | Estrita                                    | Agente comercial local em Taiwan.                                                                |
+| **Yahoo! JP / PayPay** | Japão   | My Number / Resident Card ID         | Banco Japonês (JPY)                     | Tel +81 / Endereço Japão                  | Estrita (Japão)                            | Empresa (Godo Kaisha / Kabushiki Kaisha) no Japão ou serviço de intermediação (Buyee/Tenso).     |
+| **Mercari JP**         | Japão   | ID Japonês verificado                | Banco Local Japonês                     | Tel +81                                   | Estrita                                    | Parceria local com recondicionadores no Japão.                                                   |
+| **Mercado Livre BR**   | Brasil  | CPF ou CNPJ + CNH/Passaporte         | Banco Brasileiro (PIX/TED)              | Endereço e Telefone BR (+55)              | Exige entidade cadastrada no Brasil        | Operação nativa via CNPJ/CPF com emissão de Nota Fiscal (NFe).                                   |
+| **Shopee BR**          | Brasil  | CPF ou CNPJ                          | Banco Brasileiro                        | Endereço BR                               | Aceita vendedores Nacionais e Cross-Border | Cadastro Nacional via CNPJ/CPF ou Cross-Border autorizados (China/EUA).                          |
 
 ---
 
@@ -78,6 +80,7 @@
 ### 3.1 Regras Tributárias para Venda de Eletrônicos no Brasil
 
 #### A. Simples Nacional (Anexo I — Comércio)
+
 - **Enquadramento:** Lei Complementar nº 123/2006. A revenda de eletrônicos enquadra-se no **Anexo I (Comércio)**.
 - **Tabela de Alíquotas do Anexo I (PGDAS-D):**
   - **1ª Faixa (até R$ 180k):** Alíquota nominal 4,00% (Efetiva **4,00%**).
@@ -86,25 +89,26 @@
   - **4ª Faixa (R$ 720k a R$ 1,8M):** Alíquota nominal 10,70% - Ded. R$ 22.500,00 (Efetiva **7,57% a 9,45%**).
   - **5ª Faixa (R$ 1,8M a R$ 3,6M):** Alíquota nominal 14,30% - Ded. R$ 87.300,00 (Efetiva **9,45% a 11,87%**).
   - **6ª Faixa (R$ 3,6M a R$ 4,8M):** Alíquota nominal 19,00% - Ded. R$ 378.000,00 (Efetiva **11,87% a 11,12%**).
-- **Segregação do PIS/COFINS Monofásico no PGDAS-D:** Baterias (NCM 8507) e eletrônicos sob regime monofásico (Lei 10.147/2000) devem ser segregados no PGDAS-D sob a opção *"Revenda com tributação monofásica de PIS/COFINS"*, reduzindo a alíquota efetiva em até 1,27% a 2,76% (PIS) e 5,86% a 12,74% (COFINS).
+- **Segregação do PIS/COFINS Monofásico no PGDAS-D:** Baterias (NCM 8507) e eletrônicos sob regime monofásico (Lei 10.147/2000) devem ser segregados no PGDAS-D sob a opção _"Revenda com tributação monofásica de PIS/COFINS"_, reduzindo a alíquota efetiva em até 1,27% a 2,76% (PIS) e 5,86% a 12,74% (COFINS).
 - **Serviços de Reparo (Anexo III):** A mão de obra cobrada separadamente tributa pelo **Anexo III (6,00% inicial)** com emissão de NFS-e municipal.
 
 #### B. Lucro Presumido
+
 - **Carga Tributária Federal:** IRPJ (Base 8% x 15% = **1,20%**) + CSLL (Base 12% x 9% = **1,08%**).
 - **Alíquota Zero de PIS/COFINS Monofásico (CST 04):** Conforme a Lei 10.147/2000, a revenda comercial de produtos monofásicos no Lucro Presumido adota **CST 04 (Alíquota Zero)**, reduzindo a carga federal de 5,93% para **2,28%** sobre o faturamento bruto.
 
 ### 3.2 Emissão de NF-e de Entrada para Usados Comprados de Pessoa Física sem Nota (Art. 136 RICMS/SP)
 
-| Campo da NF-e | Valor / Parametrização Exigida | Descrição / Detalhamento Técnico |
-| :--- | :--- | :--- |
-| **Tipo de Documento (`tpNF`)** | `0` (Entrada) | Nota Fiscal de Entrada emitida pela própria PJ compradora. |
-| **Emitente (`emit`)** | CNPJ / Razão Social da Empresa (Scout) | A empresa compradora figura como emissora do documento. |
-| **Remetente / Fornecedor (`dest`)** | Dados da Pessoa Física Vendedora | Nome completo, CPF, Endereço residencial, CEP, UF. `IE` = ISENTO. |
-| **CFOP** | `1.102` ou `2.102` | `1.102` (Compra estadual para comercialização) / `2.102` (Compra interestadual). |
-| **CSOSN (Simples Nacional)** | `102` ou `400` | `102` (Sem permissão de crédito) ou `400` (Não tributada). |
-| **CST ICMS (Lucro Presumido)** | `41` ou `90` | `41` (Não tributada - remetente PF não contribuinte). |
-| **CST PIS / COFINS (Entrada)** | `70` ou `98` | `70` (Aquisição sem direito a crédito) ou `98` (Outras entradas). |
-| **Valor Total do Item / NF** | Valor exato pago à PF | Coincidência obrigatória com o comprovante de pagamento PIX/TED. |
+| Campo da NF-e                       | Valor / Parametrização Exigida         | Descrição / Detalhamento Técnico                                                 |
+| :---------------------------------- | :------------------------------------- | :------------------------------------------------------------------------------- |
+| **Tipo de Documento (`tpNF`)**      | `0` (Entrada)                          | Nota Fiscal de Entrada emitida pela própria PJ compradora.                       |
+| **Emitente (`emit`)**               | CNPJ / Razão Social da Empresa (Scout) | A empresa compradora figura como emissora do documento.                          |
+| **Remetente / Fornecedor (`dest`)** | Dados da Pessoa Física Vendedora       | Nome completo, CPF, Endereço residencial, CEP, UF. `IE` = ISENTO.                |
+| **CFOP**                            | `1.102` ou `2.102`                     | `1.102` (Compra estadual para comercialização) / `2.102` (Compra interestadual). |
+| **CSOSN (Simples Nacional)**        | `102` ou `400`                         | `102` (Sem permissão de crédito) ou `400` (Não tributada).                       |
+| **CST ICMS (Lucro Presumido)**      | `41` ou `90`                           | `41` (Não tributada - remetente PF não contribuinte).                            |
+| **CST PIS / COFINS (Entrada)**      | `70` ou `98`                           | `70` (Aquisição sem direito a crédito) ou `98` (Outras entradas).                |
+| **Valor Total do Item / NF**        | Valor exato pago à PF                  | Coincidência obrigatória com o comprovante de pagamento PIX/TED.                 |
 
 - **Documentos de Suporte Obrigatórios:** Contrato de Compra e Venda de Bem Móvel Usado + Comprovante de Transferência PIX/TED no mesmo CPF + Termo de Vistoria de Estoque.
 
@@ -127,26 +131,30 @@ A análise da dinâmica de mercado de arbitragem e leilões revela três grandes
 ```
 
 ### 1.1 Modelo 1: Garimpo Manual de Leilões Nacionais (Produtos, Veículos e Frotas)
-- **Operação Manual Típica**: Navegação manual diária por portais de leiloeiros oficiais, verificação de editais em PDF, checagem em listas de leiloeiros homologados e cálculo manual de lance máximo (*Bid Limit*) usando planilhas.
+
+- **Operação Manual Típica**: Navegação manual diária por portais de leiloeiros oficiais, verificação de editais em PDF, checagem em listas de leiloeiros homologados e cálculo manual de lance máximo (_Bid Limit_) usando planilhas.
 - **Automação pelo Project Scout**:
   - **Varredura Ativa Contínua**: O `CollectionGateway` do Scout faz o rastreio contínuo e em tempo real de editais, lotes e praças de leilão em todas as plataformas públicas e privadas.
-  - **Valoração Automatizada por IA**: O `ValuationEngine.ts` substitui calculadoras simples calculando automaticamente o *Fair Market Value (FMV)*, ajustando por Grade cosmética, descontando defeitos e gerando o **Opportunity Score (0 a 100)** e o **Bid Limit (MAPP)** exato.
+  - **Valoração Automatizada por IA**: O `ValuationEngine.ts` substitui calculadoras simples calculando automaticamente o _Fair Market Value (FMV)_, ajustando por Grade cosmética, descontando defeitos e gerando o **Opportunity Score (0 a 100)** e o **Bid Limit (MAPP)** exato.
 
 ### 1.2 Modelo 2: Mineração Manual de Varejo e Marketplaces (Amazon FBA/FBM/DBA)
+
 - **Operação Manual Típica**: Mineração de produtos na Amazon através de extensores de navegador isolados (como Keepa e SellerAmp), comparando manualmente contra fornecedores atacadistas ou lojas de varejo.
 - **Automação pelo Project Scout**:
   - O Scout realiza o **escaneamento automatizado cross-marketplace**, comparando ofertas da Amazon em tempo real contra centenas de fornecedores, saldões, leilões e marketplaces (eBay, Mercado Livre, Xianyu), calculando margens líquidas reais já descontando a tarifa de comissão FBA/DBA e o tributo Simples/Lucro Presumido.
 
 ### 1.3 Modelo 3: Arbitragem Cross-Border em Moeda Forte (Dólar/Euro)
+
 - **Operação Manual Típica**: Compra de fornecedores americanos ou chineses para envio a redirecionadores/prep centers nos EUA e revenda na Amazon US/eBay US.
 - **Automação pelo Project Scout**:
-  - O Scout integra nativamente o pipeline de **Arbitragem Cross-Border**, automatizando a rota **China -> EUA (Section 321 Entry Type 86)** e **EUA -> EUA (Prep Centers Tax-Free em Delaware/Oregon)**, calculando o *Landed Cost* em tempo real com conversão cambial automatizada.
+  - O Scout integra nativamente o pipeline de **Arbitragem Cross-Border**, automatizando a rota **China -> EUA (Section 321 Entry Type 86)** e **EUA -> EUA (Prep Centers Tax-Free em Delaware/Oregon)**, calculando o _Landed Cost_ em tempo real com conversão cambial automatizada.
 
 ---
 
 ## 2. SEARCH INTELLIGENCE & QUERY EXPANSION ENGINE (`QueryExpander.ts`)
 
 A expansão de busca (DOCX §F2) traduz critérios estruturados em uma família versionada de consultas (`SearchQueryFamily`) através de 6 camadas:
+
 1. **Query Exata (`exact`)**: Termos base derivados diretamente da marca, modelo e especificações (`confidence = 1.00`).
 2. **Sinônimos e Aliases (`alias`)**: Substituição de categoria por vocabulário comum (`confidence = 0.88`).
 3. **Abreviações e Siglas (`abbreviation`)**: Redução de modelos (`"i13 128"` $\rightarrow$ `"iPhone 13 128GB"`, `"mbp 16 m1"` $\rightarrow$ `"MacBook Pro 16 M1"`, `"rtx4070 ti"` $\rightarrow$ `"RTX 4070 Ti"`) (`confidence = 0.80`).
@@ -159,6 +167,7 @@ A expansão de busca (DOCX §F2) traduz critérios estruturados em uma família 
 ## 3. PRODUCT IDENTITY RESOLUTION ENGINE (`ProductIdentityResolver.ts`)
 
 Converte títulos caóticos em uma identidade técnica unívoca:
+
 - **Extração Regex de Atributos**: Captura CPU (`M1/M2/M3`, `i7-13700H`, `Ryzen 7 7800X3D`), RAM (4GB a 128GB), Storage (128GB a 4TB), GPU, ModelCode (`A2633`, `20Y7`, `CFI-1215A`), Cor e Grade.
 - **Correspondência Canônica Heterogênea**:
   $$Sim_{\text{total}} = 0.35 \times JW(\text{Title}_A, \text{Title}_B) + 0.25 \times Lev_{\text{norm}}(\text{Title}_A, \text{Title}_B) + 0.40 \times Match_{\text{specs}}(A, B)$$
@@ -169,9 +178,10 @@ Converte títulos caóticos em uma identidade técnica unívoca:
 # EIXO 3 — SOURCING GLOBAL, LEILÕES, LIQUIDAÇÃO ITAD & SALDÕES DE VAREJO
 
 ## 1. LEILÕES B2B, GOVERNAMENTAIS E JUDICIAIS
+
 - **AllSurplus & GovDeals**: Leilões de frotas governamentais/universidades dos EUA. Soft Close (3-5 min); Buyer’s Premium (5%-12.5%); Prazo de remoção 5-10 dias úteis; Lotes Gaylords com 75%-90% de taxa de aproveitamento funcional.
 - **B-Stock Solutions**: Liquidação direta de Amazon, Best Buy, Target, Walmart e Dell. LTL (1-6 paletes) e FTL (26-30 paletes). Manifestos itemizados (.CSV com UPC, MSRP e condição). Lances entre 8% e 22% do MSRP.
-- **Liquidation.com**: Devoluções de e-commerce. Exige filtro estrito para comprar apenas de armazéns oficiais (evita *cherry picking* de terceiros).
+- **Liquidation.com**: Devoluções de e-commerce. Exige filtro estrito para comprar apenas de armazéns oficiais (evita _cherry picking_ de terceiros).
 - **Receita Federal (e-CAC / SLE)**: Bens apreendidos em portos/aeroportos. Requer e-CPF/e-CNPJ A1/A3 e Certidão Negativa. PJ arremata com NF de Entrada e recolhimento de ICMS Estadual (17%-18%).
 - **Sodré Santoro / Superbid / Milan**: Desmobilização de frota de TI de bancos e seguradoras no Brasil. Comissão de 5% + Taxa de Pátio.
 - **Taobao Judicial (Ali Auction)**: Falências industriais em Shenzhen e Dongguan (PCBs, telas OLED, hardware). Requer Alipay com Mainland ID ou Proxy Agent.
@@ -181,22 +191,24 @@ Converte títulos caóticos em uma identidade técnica unívoca:
 ## 2. ITAD & SANITIZAÇÃO DE DADOS (NIST SP 800-88 REV 1)
 
 ### 2.1 Players Globais de ITAD
+
 - **Sims Lifecycle Services (SLS)**: Recondicionamento para Data Centers (AWS, Google, Azure). Fonte de servidores rackmount, RAM ECC e SSDs Enterprise.
 - **EPC**: Processa retornos de leasing corporativo na América do Norte e Europa (ThinkPad T/X, Dell Latitude, HP EliteBook).
 - **Procurri & TES-AMM**: Manutenção de infraestrutura corporativa e reciclagem de metais preciosos de TI.
 
 ### 2.2 NIST SP 800-88 Rev 1 vs. DoD 5220.22-M
 
-| Nível NIST | Descrição Mecânica / Lógica | Aplicação em Mídias | Eficiência / Recuperabilidade |
-| :--- | :--- | :--- | :--- |
-| **Clear** | Sobrescrita lógica com zeros/padrão pseudoaleatório (1-pass ou 3-pass). | HDDs magnéticos e SSDs reutilizados internamente. | Impede recuperação por softwares comerciais simples. |
-| **Purge** | Instruções nativas de firmware (*NVMe Crypto Erase*, *NAND Block Erase*). | SSDs NVMe/SATA e mídias destinadas à revenda externa. | **Recuperação impossível** mesmo em laboratórios forenses. |
-| **Destroy** | Destruição física irreversível (Trituração/Shredding <= 2mm ou Degaussing). | Mídias danificadas ou de altíssimo sigilo governamental. | **Destruição total**. Impede reaproveitamento. |
+| Nível NIST  | Descrição Mecânica / Lógica                                                 | Aplicação em Mídias                                      | Eficiência / Recuperabilidade                              |
+| :---------- | :-------------------------------------------------------------------------- | :------------------------------------------------------- | :--------------------------------------------------------- |
+| **Clear**   | Sobrescrita lógica com zeros/padrão pseudoaleatório (1-pass ou 3-pass).     | HDDs magnéticos e SSDs reutilizados internamente.        | Impede recuperação por softwares comerciais simples.       |
+| **Purge**   | Instruções nativas de firmware (_NVMe Crypto Erase_, _NAND Block Erase_).   | SSDs NVMe/SATA e mídias destinadas à revenda externa.    | **Recuperação impossível** mesmo em laboratórios forenses. |
+| **Destroy** | Destruição física irreversível (Trituração/Shredding <= 2mm ou Degaussing). | Mídias danificadas ou de altíssimo sigilo governamental. | **Destruição total**. Impede reaproveitamento.             |
 
 - **Obsoletismo do DoD 5220.22-M**: Criado para HDDs magnéticos. Executar 3-7 passadas em SSDs desgasta prematuramente as células Flash NAND e **não apaga áreas cegas do controlador** (over-provisioning, bad blocks). O **NIST Purge** aciona o comando nativo do firmware, limpando 100% dos blocos físicos sem desgastar o drive.
-- **Laudos Auditáveis**: Blancco Data Eraser, YouWipe, KillDisk. Emissão de *Certificate of Destruction* com Serial Number, SMART status e hash imutável.
+- **Laudos Auditáveis**: Blancco Data Eraser, YouWipe, KillDisk. Emissão de _Certificate of Destruction_ com Serial Number, SMART status e hash imutável.
 
 ### 2.3 Matriz de Graduação (Grades A a D)
+
 - **Grade A (Excelente)**: Sem riscos a >30cm; tela impecável; bateria >= 85%; 100% funcional.
 - **Grade B (Bom)**: Riscos superficiais; 1-2 micro-riscos na tela; bateria 75%-84%; 100% funcional.
 - **Grade C (Marcas de Uso)**: Riscos profundos, light spots, bateria 60%-74%; funcional ou falha secundária.
@@ -207,28 +219,30 @@ Converte títulos caóticos em uma identidade técnica unívoca:
 # EIXO 4 — PREP CENTERS, LOGÍSTICA DE RECOLHIMENTO E REDIRECIONADORES
 
 ## 1. PREP CENTERS E LOGÍSTICA DE RECOLHIMENTO
+
 - **Transporte LTL/FTL**: Contratação via **uShip** (Hotshot Drivers) ou **FreightCenter** (XPO, Estes).
-- **Requisitos**: *Liftgate Service* (plataforma hidráulica obrigatória sem doca elevada), paletização GMA/PBR envolvida com 3-5 camadas de stretch, *Bill of Lading* (BOL) e procuração de retirada (AOR/LOA).
+- **Requisitos**: _Liftgate Service_ (plataforma hidráulica obrigatória sem doca elevada), paletização GMA/PBR envolvida com 3-5 camadas de stretch, _Bill of Lading_ (BOL) e procuração de retirada (AOR/LOA).
 
 ---
 
 ## 2. REDIRECIONADORES E PREP CENTERS GLOBAIS
 
-| Redirecionador | Região / Estado | Tax-Free Sales Tax? | Armazenamento Gratuito | Inspeção & Fotos | Envio Bateria Lítio (UN3480/3481) | Modalidades de Envio | Recomendação & Caso de Uso |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **USCloser** | Flórida / Delaware | **SIM** (via depósito DE) | 80 dias | Fotos gratuitas; Testes ($5-$15) | **SIM** (UN3481 contida) | Packet Standard, Express | **ALTA**: Envio direto ao BR via Remessa Conforme. |
-| **Fishisfast** | Delaware (EUA) | **SIM** (0% Sales Tax) | 180 dias | Fotos HD ($3-$5); Inspeção visual | **SIM** (UN3481 via FedEx/DHL) | Fast Line, FedEx, DHL | **ALTA**: Consolidação de longo prazo (6 meses grátis). |
-| **Planet Express**| Oregon / Califórnia | **SIM** (via depósito OR) | 45 dias | Fotos HD ($2); Teste liga/desliga | **SIM** (UN3481 via DHL/FedEx) | Planet Mail, USPS, DHL | **MÉDIA-ALTA**: Compras na costa oeste dos EUA. |
-| **Stackry** | New Hampshire | **SIM** (0% Sales Tax) | 45 dias | Fotos HD ($2); Inspeção de danos | **SIM** (UN3481 via DHL) | Stackry Express, Global Mail | **ALTA**: Excelente localização NH e velocidade. |
-| **CSSBuy** | Guangdong (China) | N/A (Mainland China) | 90 dias | Fotos HD gratuitas; Testes de tela | **SIM** (Linhas dedicadas com bateria)| EUB, Railway Express, DHL | **ALTA**: Sourcing no Taobao/Xianyu/1688. |
-| **Superbuy** | Guangdong (China) | N/A (Mainland China) | 90 dias | Fotos HD com régua; Testes básicos | **SIM** (Linhas especiais de bateria) | Tax-Free Lines, EMS, DHL | **ALTA**: Compra no ecossistema Alibaba. |
-| **Tenso** | Tóquio (Japão) | **SIM** (Isenção 10% JCT Export)| 60 dias | Fotos básicas ($3) | **SIM** (Max 1 bateria instalada/pacote)| EMS Japan Post, DHL, Surface | **ALTA**: Leilões Yahoo JP e Mercari JP. |
-| **Buyee** | Tóquio (Japão) | **SIM** (Isenção 10% JCT Export)| 30 dias | Plano de Inspeção ($3-$5) | **SIM** (Estrito: 1 dispositivo/caixa) | Buyee Air Delivery, EMS, DHL | **ALTA**: Integração direta no Yahoo! Auctions Japan. |
+| Redirecionador     | Região / Estado     | Tax-Free Sales Tax?              | Armazenamento Gratuito | Inspeção & Fotos                   | Envio Bateria Lítio (UN3480/3481)        | Modalidades de Envio         | Recomendação & Caso de Uso                              |
+| :----------------- | :------------------ | :------------------------------- | :--------------------- | :--------------------------------- | :--------------------------------------- | :--------------------------- | :------------------------------------------------------ |
+| **USCloser**       | Flórida / Delaware  | **SIM** (via depósito DE)        | 80 dias                | Fotos gratuitas; Testes ($5-$15)   | **SIM** (UN3481 contida)                 | Packet Standard, Express     | **ALTA**: Envio direto ao BR via Remessa Conforme.      |
+| **Fishisfast**     | Delaware (EUA)      | **SIM** (0% Sales Tax)           | 180 dias               | Fotos HD ($3-$5); Inspeção visual  | **SIM** (UN3481 via FedEx/DHL)           | Fast Line, FedEx, DHL        | **ALTA**: Consolidação de longo prazo (6 meses grátis). |
+| **Planet Express** | Oregon / Califórnia | **SIM** (via depósito OR)        | 45 dias                | Fotos HD ($2); Teste liga/desliga  | **SIM** (UN3481 via DHL/FedEx)           | Planet Mail, USPS, DHL       | **MÉDIA-ALTA**: Compras na costa oeste dos EUA.         |
+| **Stackry**        | New Hampshire       | **SIM** (0% Sales Tax)           | 45 dias                | Fotos HD ($2); Inspeção de danos   | **SIM** (UN3481 via DHL)                 | Stackry Express, Global Mail | **ALTA**: Excelente localização NH e velocidade.        |
+| **CSSBuy**         | Guangdong (China)   | N/A (Mainland China)             | 90 dias                | Fotos HD gratuitas; Testes de tela | **SIM** (Linhas dedicadas com bateria)   | EUB, Railway Express, DHL    | **ALTA**: Sourcing no Taobao/Xianyu/1688.               |
+| **Superbuy**       | Guangdong (China)   | N/A (Mainland China)             | 90 dias                | Fotos HD com régua; Testes básicos | **SIM** (Linhas especiais de bateria)    | Tax-Free Lines, EMS, DHL     | **ALTA**: Compra no ecossistema Alibaba.                |
+| **Tenso**          | Tóquio (Japão)      | **SIM** (Isenção 10% JCT Export) | 60 dias                | Fotos básicas ($3)                 | **SIM** (Max 1 bateria instalada/pacote) | EMS Japan Post, DHL, Surface | **ALTA**: Leilões Yahoo JP e Mercari JP.                |
+| **Buyee**          | Tóquio (Japão)      | **SIM** (Isenção 10% JCT Export) | 30 dias                | Plano de Inspeção ($3-$5)          | **SIM** (Estrito: 1 dispositivo/caixa)   | Buyee Air Delivery, EMS, DHL | **ALTA**: Integração direta no Yahoo! Auctions Japan.   |
 
 ---
 
 ## 3. SEGURANÇA NO TRANSPORTE DE BATERIAS DE LÍTIO (HAZMAT CLASS 9)
-- **UN3480 (Standalone / Loose)**: Proibidas em aviões de passageiros (PI 965). Exige aeronave cargueira pura (*Cargo Aircraft Only*), SoC <= 30% e embalagem UN homologada.
+
+- **UN3480 (Standalone / Loose)**: Proibidas em aviões de passageiros (PI 965). Exige aeronave cargueira pura (_Cargo Aircraft Only_), SoC <= 30% e embalagem UN homologada.
 - **UN3481 (Contained in Equipment / PI 967)**: Permitidas em voos comerciais se a capacidade for **<= 100 Wh** (laptops corporativos limitam-se a 99.9 Wh).
 - **Protocolo para Baterias Inchadas (DDR - Damaged/Defective Batteries)**: **PROIBIÇÃO ABSOLUTA DE EMBARQUE AÉREO**. O técnico do Prep Center deve remover a bateria estufada, enviá-la para reciclagem local e despachar o chassi sem bateria.
 
@@ -237,10 +251,12 @@ Converte títulos caóticos em uma identidade técnica unívoca:
 # EIXO 5 — ROTAS LOGÍSTICAS DE ENTRADA E TRIBUTAÇÃO NO BRASIL
 
 ## 1. REMESSA CONFORME (PORTARIA MF Nº 612/2023 E LEI 14.898/2024)
+
 - **Até US$ 50.00**: II de 20% + ICMS de 17% ("por dentro").
 - **De US$ 50.01 a US$ 3.000.00**: II de 60% com Desconto Fixo de US$ 20.00 + ICMS de 17% ("por dentro").
 
 ### 1.1 Fórmula da Base do ICMS "Por Dentro" e Simulação ($300 FOB + $40 Frete)
+
 $$B_{\text{ICMS}} = \frac{V_{\text{Aduaneiro}} + \text{II}_{\text{Líquido}}}{1 - 0.17} = \frac{340.00 + (204.00 - 20.00)}{0.83} = \frac{524.00}{0.83} = US\$ 631.33$$
 $$\text{ICMS} = 631.33 \times 0.17 = US\$ 107.33$$
 $$\text{Impostos Totais} = 184.00 + 107.33 = US\$ 291.33 \quad (\text{Carga efetiva de } 85.69\%)$$
@@ -248,6 +264,7 @@ $$\text{Impostos Totais} = 184.00 + 107.33 = US\$ 291.33 \quad (\text{Carga efet
 ---
 
 ## 2. RTU PARAGUAI (LEI 11.898/2008) E SANTA CATARINA TTD 409/410
+
 - **RTU Paraguai**: Regime unificado para Microempresas (Simples Nacional) importarem via terrestre de Ciudad del Este para Foz do Iguaçu com imposto único de **25%** (substitui II, IPI, PIS, COFINS, ICMS). Teto de R$ 110.000,00/ano.
 - **Santa Catarina TTD 409/410**: **100% de diferimento de ICMS** na entrada aduaneira por portos de SC + alíquota efetiva de **1.0% a 2.6% de ICMS** na saída interestadual. Preserva 100% do fluxo de caixa.
 
@@ -255,11 +272,11 @@ $$\text{Impostos Totais} = 184.00 + 107.33 = US\$ 291.33 \quad (\text{Carga efet
 
 # EIXO 6 — ESTRATÉGIAS LOGÍSTICAS CROSS-BORDER INTERNACIONAIS
 
-| Rota | Mecanismo Chave | Incentivo Fiscal | Benefício Scout |
-| :--- | :--- | :--- | :--- |
-| **EUA -> EUA** | Prep Centers em Delaware, Oregon, NH | **0% Sales Tax** Estadual | Economia direta de 6% a 10.25% no preço de compra. |
-| **CHINA -> EUA** | U.S. Section 321 Entry Type 86 (<$800) | **0% Duty** & Tarifa Seção 301 Isenta | Isenção total de impostos de importação EUA-China. |
-| **JAPÃO -> GLOBAL**| Depreciação Iene (JPY) + Export Refund | **10% JCT Refund** (Tax-Free Export) | Sourcing barato de retro hardware e hi-end fotográfico. |
+| Rota                | Mecanismo Chave                        | Incentivo Fiscal                      | Benefício Scout                                         |
+| :------------------ | :------------------------------------- | :------------------------------------ | :------------------------------------------------------ |
+| **EUA -> EUA**      | Prep Centers em Delaware, Oregon, NH   | **0% Sales Tax** Estadual             | Economia direta de 6% a 10.25% no preço de compra.      |
+| **CHINA -> EUA**    | U.S. Section 321 Entry Type 86 (<$800) | **0% Duty** & Tarifa Seção 301 Isenta | Isenção total de impostos de importação EUA-China.      |
+| **JAPÃO -> GLOBAL** | Depreciação Iene (JPY) + Export Refund | **10% JCT Refund** (Tax-Free Export)  | Sourcing barato de retro hardware e hi-end fotográfico. |
 
 ---
 
@@ -267,21 +284,22 @@ $$\text{Impostos Totais} = 184.00 + 107.33 = US\$ 291.33 \quad (\text{Carga efet
 
 ## 1. MATRIZ DE AVALIAÇÃO DE BLOQUEIOS DE HARDWARE
 
-| Trava / Bloqueio | Severidade no Scout | Mecanismo & Ação de Mitigação |
-| :--- | :--- | :--- |
-| **Apple DEP / ABM** | ALTÍSSIMA | Rejeição de lance / De-list do tenant corporativo de origem. |
-| **Microsoft Autopilot** | ALTÍSSIMA | Rejeição de lance / Desvinculação do Hardware Hash no Intune. |
-| **Apple iCloud Lock** | CRÍTICA (Chips M) | **Rejeição total**. Incurável em chips M1/M2/M3/M4 (vira Parts Only). |
-| **Google FRP** | MÉDIA | Bypass via software de bancada / OTG. |
-| **BIOS/UEFI Password** | MÉDIA-ALTA | Regravação do chip SPI Flash via gravador CH341A com dump limpo. |
-| **Computrace Absolute** | ALTÍSSIMA | Desativação no firmware ou rejeição prévia. |
-| **GSMA Blacklist** | CRÍTICA | Consulta automatizada prévia da base de dados global de IMEI. |
+| Trava / Bloqueio        | Severidade no Scout | Mecanismo & Ação de Mitigação                                         |
+| :---------------------- | :------------------ | :-------------------------------------------------------------------- |
+| **Apple DEP / ABM**     | ALTÍSSIMA           | Rejeição de lance / De-list do tenant corporativo de origem.          |
+| **Microsoft Autopilot** | ALTÍSSIMA           | Rejeição de lance / Desvinculação do Hardware Hash no Intune.         |
+| **Apple iCloud Lock**   | CRÍTICA (Chips M)   | **Rejeição total**. Incurável em chips M1/M2/M3/M4 (vira Parts Only). |
+| **Google FRP**          | MÉDIA               | Bypass via software de bancada / OTG.                                 |
+| **BIOS/UEFI Password**  | MÉDIA-ALTA          | Regravação do chip SPI Flash via gravador CH341A com dump limpo.      |
+| **Computrace Absolute** | ALTÍSSIMA           | Desativação no firmware ou rejeição prévia.                           |
+| **GSMA Blacklist**      | CRÍTICA             | Consulta automatizada prévia da base de dados global de IMEI.         |
 
 ---
 
 # EIXO 8 — EQUAÇÕES MATEMÁTICAS DO MOTOR FINANCEIRO E VALUATION ENGINE
 
 ## 1. EQUAÇÕES MATEMÁTICAS DO MOTOR FINANCEIRO (DOCX §F3)
+
 1. **Custo Landed Total:** $C_{\text{landed}} = [(P_{\text{compra}} \times (1 + BP) + F_{\text{interno}} + C_{\text{prep}} + F_{\text{int}}) \times FX] + T_{\text{imp}} + Tax_{\text{handling}}$
 2. **Receita Líquida Real:** $R_{\text{liquida}} = P_{\text{venda}} \times (1 - t_{\text{plat}} - Fee_{\text{pay}} - t_{\text{imposto}} - \theta_{\text{loss}}) - F_{\text{saida}}$
 3. **Margem Líquida Real (MLR):** $MLR = R_{\text{liquida}} - C_{\text{landed}}$
@@ -305,34 +323,34 @@ $$\text{Impostos Totais} = 184.00 + 107.33 = US\$ 291.33 \quad (\text{Carga efet
 
 ## 1. CLASSIFICAÇÃO EM 7 CAMADAS DE INGESTÃO (DOCX §3)
 
-| Plataforma | Categoria | Camada Primária | Camada Fallback | Dificuldade | Observações Técnicas & Requisitos |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Mercado Livre BR** | Marketplace | **Camada 0** (API REST) | **Camada 3** (HTTP/HTML) | Baixo | Chaves OAuth 2.0 BR; rate-limiting por conta. |
-| **eBay US** | Marketplace | **Camada 0** (Browse API)| **Camada 3** (HTTP/HTML) | Baixo | OAuth 2.0 Application Token (Client Credentials). |
-| **Amazon (US/EU/BR)** | Marketplace | **Camada 0** (SP-API) | **Camada 4** (CF Browser)| Alto | Exige credenciais registradas de Developer SP-API. |
-| **Xianyu (Idle Fish)** | Marketplace | **Camada 1** (JSON MTop) | **Camada 4** (CF Browser)| Extremo | Assinatura MTop (`_m_h5_tk` MDM) + GeeTest CAPTCHA. |
-| **Zhuanzhuan** | Marketplace | **Camada 1** (JSON API) | **Camada 4** (CF Browser)| Alto | API privada com assinatura móvel + proxies CN. |
-| **Shopee (TW/BR)** | Marketplace | **Camada 1** (JSON API) | **Camada 4** (CF Browser)| Extremo | Anti-bot Token (`af-ac-enc-dat`) + WAF Cloudflare. |
-| **Mercari (US/JP)** | Marketplace | **Camada 1** (GraphQL) | **Camada 4** (CF Browser)| Alto | Proteção DataDome / Akamai; exige TLS fingerprinting. |
-| **AllSurplus** | Leilão B2B | **Camada 3** (HTTP/HTML) | **Camada 4** (CF Browser)| Baixo | HTML renderizado via SSR. |
-| **B-Stock Solutions** | Leilão B2B | **Camada 1** (JSON API) | **Camada 4** (CF Browser)| Médio | Exige autenticação de conta de comprador B2B. |
-| **Receita Federal (e-CAC)**| Leilão Gov | **Camada 6** (PDF Editais)| **Camada 4** (CF Browser)| Alto | Editais em PDF; extração visual / OCR por IA. |
+| Plataforma                  | Categoria   | Camada Primária            | Camada Fallback           | Dificuldade | Observações Técnicas & Requisitos                     |
+| :-------------------------- | :---------- | :------------------------- | :------------------------ | :---------- | :---------------------------------------------------- |
+| **Mercado Livre BR**        | Marketplace | **Camada 0** (API REST)    | **Camada 3** (HTTP/HTML)  | Baixo       | Chaves OAuth 2.0 BR; rate-limiting por conta.         |
+| **eBay US**                 | Marketplace | **Camada 0** (Browse API)  | **Camada 3** (HTTP/HTML)  | Baixo       | OAuth 2.0 Application Token (Client Credentials).     |
+| **Amazon (US/EU/BR)**       | Marketplace | **Camada 0** (SP-API)      | **Camada 4** (CF Browser) | Alto        | Exige credenciais registradas de Developer SP-API.    |
+| **Xianyu (Idle Fish)**      | Marketplace | **Camada 1** (JSON MTop)   | **Camada 4** (CF Browser) | Extremo     | Assinatura MTop (`_m_h5_tk` MDM) + GeeTest CAPTCHA.   |
+| **Zhuanzhuan**              | Marketplace | **Camada 1** (JSON API)    | **Camada 4** (CF Browser) | Alto        | API privada com assinatura móvel + proxies CN.        |
+| **Shopee (TW/BR)**          | Marketplace | **Camada 1** (JSON API)    | **Camada 4** (CF Browser) | Extremo     | Anti-bot Token (`af-ac-enc-dat`) + WAF Cloudflare.    |
+| **Mercari (US/JP)**         | Marketplace | **Camada 1** (GraphQL)     | **Camada 4** (CF Browser) | Alto        | Proteção DataDome / Akamai; exige TLS fingerprinting. |
+| **AllSurplus**              | Leilão B2B  | **Camada 3** (HTTP/HTML)   | **Camada 4** (CF Browser) | Baixo       | HTML renderizado via SSR.                             |
+| **B-Stock Solutions**       | Leilão B2B  | **Camada 1** (JSON API)    | **Camada 4** (CF Browser) | Médio       | Exige autenticação de conta de comprador B2B.         |
+| **Receita Federal (e-CAC)** | Leilão Gov  | **Camada 6** (PDF Editais) | **Camada 4** (CF Browser) | Alto        | Editais em PDF; extração visual / OCR por IA.         |
 
 ---
 
 ## 2. TABELA MESTRA DE/PARA DE MAPEAMENTO DE APIS DE BUSCA PARA `RawListingPreview`
 
-| Campo Canônico | Tipo de Dado | Fonte Mercado Livre BR | Fonte eBay US | Fonte Xianyu MTop | Regra de Normalização |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `externalId` | `string` | `results[].id` | `itemSummaries[].itemId` | `exContent.itemId` | String única sem espaços. |
-| `source` | `enum` | `'MLB'` | `'EBAY_US'` | `'XIANYU'` | Identificador fixo da fonte. |
-| `title` | `string` | `results[].title` | `itemSummaries[].title` | `exContent.title` | Trim e sanitização de nulos. |
-| `priceAmountMinor` | `number (int)` | `Math.round(price * 100)` | `Math.round(parseFloat(value) * 100)` | `Math.round(parseFloat(price) * 100)` | Convertido rigorosamente para centavos. |
-| `currency` | `enum` | `currency_id` (`BRL`) | `price.currency` (`USD`) | Fixo `'CNY'` | Código ISO 4217 de 3 letras. |
-| `condition` | `enum` | `condition` (`'used'`) | `conditionId` (`7000` -> `'for_parts'`) | Inferido do texto | Enum normalizado do Scout. |
-| `url` | `string (url)` | `permalink` | `itemWebUrl` | `detailUrl` | URL pública válida. |
-| `imageUrl` | `string (url)` | `thumbnail` | `image.imageUrl` | `picUrl` | URL válida de imagem. |
-| `seller.id` | `string` | `String(seller.id)` | `seller.username` | `exContent.userId` | Identificador do vendedor. |
+| Campo Canônico     | Tipo de Dado   | Fonte Mercado Livre BR    | Fonte eBay US                           | Fonte Xianyu MTop                     | Regra de Normalização                   |
+| :----------------- | :------------- | :------------------------ | :-------------------------------------- | :------------------------------------ | :-------------------------------------- |
+| `externalId`       | `string`       | `results[].id`            | `itemSummaries[].itemId`                | `exContent.itemId`                    | String única sem espaços.               |
+| `source`           | `enum`         | `'MLB'`                   | `'EBAY_US'`                             | `'XIANYU'`                            | Identificador fixo da fonte.            |
+| `title`            | `string`       | `results[].title`         | `itemSummaries[].title`                 | `exContent.title`                     | Trim e sanitização de nulos.            |
+| `priceAmountMinor` | `number (int)` | `Math.round(price * 100)` | `Math.round(parseFloat(value) * 100)`   | `Math.round(parseFloat(price) * 100)` | Convertido rigorosamente para centavos. |
+| `currency`         | `enum`         | `currency_id` (`BRL`)     | `price.currency` (`USD`)                | Fixo `'CNY'`                          | Código ISO 4217 de 3 letras.            |
+| `condition`        | `enum`         | `condition` (`'used'`)    | `conditionId` (`7000` -> `'for_parts'`) | Inferido do texto                     | Enum normalizado do Scout.              |
+| `url`              | `string (url)` | `permalink`               | `itemWebUrl`                            | `detailUrl`                           | URL pública válida.                     |
+| `imageUrl`         | `string (url)` | `thumbnail`               | `image.imageUrl`                        | `picUrl`                              | URL válida de imagem.                   |
+| `seller.id`        | `string`       | `String(seller.id)`       | `seller.username`                       | `exContent.userId`                    | Identificador do vendedor.              |
 
 ---
 
@@ -350,6 +368,7 @@ $$\text{Impostos Totais} = 184.00 + 107.33 = US\$ 291.33 \quad (\text{Carga efet
 ## 1. SUÍTE COMPLETA DE CÓDIGO TYPESCRIPT DE PRODUÇÃO
 
 ### 1.1 `QueryExpander.ts`
+
 ```typescript
 import { z } from 'zod';
 import {
@@ -401,7 +420,7 @@ const ABBREVIATION_MAP: Record<string, string> = {
   'i13 128': 'iphone 13 128gb',
   'mbp 16 m1': 'macbook pro 16 m1',
   'rtx4070 ti': 'rtx 4070 ti',
-  'ps5': 'playstation 5',
+  ps5: 'playstation 5',
 };
 
 export class QueryExpander {
@@ -413,7 +432,7 @@ export class QueryExpander {
 
   public expand(
     rawCriteria: ResearchCriteria,
-    rawObservations: SearchTermObservation[] = []
+    rawObservations: SearchTermObservation[] = [],
   ): SearchQueryFamily {
     const criteria = researchCriteriaSchema.parse(rawCriteria);
     const baseTerms = this.extractBaseTerms(criteria);
@@ -427,7 +446,7 @@ export class QueryExpander {
           kind: 'exact' as SearchQueryKind,
           confidence: 1.0,
           evidence: ['direct-criteria-match'],
-        })
+        }),
       );
     }
 
@@ -468,7 +487,7 @@ export class QueryExpander {
             kind: 'abbreviation' as SearchQueryKind,
             confidence: 0.8,
             evidence: [`abbreviation-expansion:${abbrev}->${expanded}`],
-          })
+          }),
         );
       }
     }
@@ -488,7 +507,7 @@ export class QueryExpander {
             kind: 'localized' as SearchQueryKind,
             confidence: 0.85,
             evidence: [`multilingual-expansion:${lang}:${synonym}`],
-          })
+          }),
         );
       }
     }
@@ -512,6 +531,7 @@ export class QueryExpander {
 ---
 
 ### 1.2 `ProductIdentityResolver.ts`
+
 ```typescript
 import { z } from 'zod';
 import {
@@ -529,7 +549,11 @@ export function levenshteinDistance(a: string, b: string): number {
   for (let i = 1; i <= a.length; i++) {
     for (let j = 1; j <= b.length; j++) {
       const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      matrix[i][j] = Math.min(matrix[i - 1][j] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j - 1] + cost);
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost,
+      );
     }
   }
   return matrix[a.length][b.length];
@@ -556,7 +580,8 @@ export function jaroWinklerDistance(s1: string, s2: string): number {
   }
   if (m === 0) return 0.0;
 
-  let k = 0, t = 0;
+  let k = 0,
+    t = 0;
   for (let i = 0; i < s1.length; i++) {
     if (!s1Matches[i]) continue;
     while (!s2Matches[k]) k++;
@@ -581,7 +606,9 @@ export class ProductIdentityResolver {
       title.includes('apple') ? 'apple' : 'generic',
       modelCodeMatch ? modelCodeMatch[0].toLowerCase() : 'unknown',
       storageMatch ? storageMatch[0].replace(/\s+/g, '') : null,
-    ].filter(Boolean).join('-');
+    ]
+      .filter(Boolean)
+      .join('-');
 
     return productIdentitySchema.parse({
       canonicalKey,
@@ -602,6 +629,7 @@ export class ProductIdentityResolver {
 ---
 
 ### 1.3 `ValuationEngine.ts`
+
 ```typescript
 import { z } from 'zod';
 import {
@@ -620,11 +648,19 @@ export class ValuationEngine {
   public evaluate(rawInput: ValuationInput): ValuationOutput {
     const input = valuationInputSchema.parse(rawInput);
     const basePrices = input.comparables.map((c) => c.priceMinor);
-    const medianPrice = basePrices.length > 0 ? basePrices.sort((a, b) => a - b)[Math.floor(basePrices.length / 2)] : input.targetPriceMinor;
+    const medianPrice =
+      basePrices.length > 0
+        ? basePrices.sort((a, b) => a - b)[Math.floor(basePrices.length / 2)]
+        : input.targetPriceMinor;
 
     const estimatedMarketPriceMinor = Math.round(medianPrice * 0.85);
-    const maxPurchasePriceMinor = Math.max(0, estimatedMarketPriceMinor - input.policy.desiredMarginMinor);
-    const dealScore = clamp(((estimatedMarketPriceMinor - input.targetPriceMinor) / estimatedMarketPriceMinor) * 100);
+    const maxPurchasePriceMinor = Math.max(
+      0,
+      estimatedMarketPriceMinor - input.policy.desiredMarginMinor,
+    );
+    const dealScore = clamp(
+      ((estimatedMarketPriceMinor - input.targetPriceMinor) / estimatedMarketPriceMinor) * 100,
+    );
 
     const scores = opportunityScoresSchema.parse({
       dealScore: Math.round(dealScore),
@@ -659,7 +695,14 @@ export class ValuationEngine {
 import { z } from 'zod';
 
 export const currencyEnumSchema = z.enum(['BRL', 'USD', 'EUR', 'CNY']);
-export const defectTaxonomySchema = z.enum(['cracked_screen', 'broken_back_glass', 'degraded_battery', 'activation_lock', 'logic_board_failure', 'parts_only']);
+export const defectTaxonomySchema = z.enum([
+  'cracked_screen',
+  'broken_back_glass',
+  'degraded_battery',
+  'activation_lock',
+  'logic_board_failure',
+  'parts_only',
+]);
 export const categoryFilterSchema = z.object({
   category: z.enum(['smartphone', 'laptop', 'tablet', 'smartwatch', 'audio', 'games_console']),
   brands: z.array(z.string()).default([]),
@@ -668,7 +711,14 @@ export const categoryFilterSchema = z.object({
   storageGb: z.array(z.number().int()).default([]),
   memoryGb: z.array(z.number().int()).default([]),
 });
-export const searchQueryKindSchema = z.enum(['exact', 'alias', 'abbreviation', 'typo', 'localized', 'learned']);
+export const searchQueryKindSchema = z.enum([
+  'exact',
+  'alias',
+  'abbreviation',
+  'typo',
+  'localized',
+  'learned',
+]);
 export const searchQuerySchema = z.object({
   query: z.string().min(1),
   kind: searchQueryKindSchema,
@@ -713,10 +763,28 @@ export const valuationInputSchema = z.object({
   currency: currencyEnumSchema,
   targetCondition: z.string().optional(),
   targetMarketContext: z.object({ shippingCostMinor: z.number().int().optional() }),
-  comparables: z.array(z.object({ priceMinor: z.number().int(), currency: currencyEnumSchema, daysToSell: z.number().optional() })),
-  historicalPrices: z.array(z.object({ priceMinor: z.number().int(), observedAt: z.string() })).default([]),
-  sellerSignals: z.object({ priceDropCount: z.number().optional(), daysActive: z.number().optional(), inventoryCount: z.number().optional() }).optional(),
-  policy: z.object({ processingCostMinor: z.number().int(), repairReserveMinor: z.number().int(), desiredMarginMinor: z.number().int() }),
+  comparables: z.array(
+    z.object({
+      priceMinor: z.number().int(),
+      currency: currencyEnumSchema,
+      daysToSell: z.number().optional(),
+    }),
+  ),
+  historicalPrices: z
+    .array(z.object({ priceMinor: z.number().int(), observedAt: z.string() }))
+    .default([]),
+  sellerSignals: z
+    .object({
+      priceDropCount: z.number().optional(),
+      daysActive: z.number().optional(),
+      inventoryCount: z.number().optional(),
+    })
+    .optional(),
+  policy: z.object({
+    processingCostMinor: z.number().int(),
+    repairReserveMinor: z.number().int(),
+    desiredMarginMinor: z.number().int(),
+  }),
 });
 export const opportunityScoresSchema = z.object({
   dealScore: z.number(),

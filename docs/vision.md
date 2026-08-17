@@ -14,7 +14,12 @@ O núcleo faz três coisas:
    técnica disponível — de API oficial a navegador com sessão do usuário.
 2. **Entende** o que coletou: identifica o item, gradua a evidência, avalia
    condição, risco e oportunidade — com IA de texto e de imagem.
-3. **Se cura**: quando uma fonte quebra, o sistema detecta, diagnostica e propõe
+3. **Acumula memória**: cada coleta alimenta um acervo permanente de preços,
+   vendedores e comportamento de mercado. É o que faz "barato" e "caro"
+   existirem, e é o único componente que fica melhor sozinho com o tempo — o
+   ativo que um concorrente novo não copia. Ver
+   [memoria-de-mercado.md](./memoria-de-mercado.md).
+4. **Se cura**: quando uma fonte quebra, o sistema detecta, diagnostica e propõe
    correção sem esperar alguém perceber.
 
 A primeira aplicação em cima do núcleo é **garimpo de eletrônicos para uma loja

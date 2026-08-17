@@ -7,7 +7,8 @@
 ## Objetivo
 
 Fazer uma pesquisa real do Caio coletar anúncios reais do eBay e persistir no
-banco, com custo de chamadas medido e limite respeitado.
+banco, com custo de chamadas medido, limite respeitado, **histórico de preço
+gravado desde a primeira coleta** e o funil visível na tela.
 
 ## Pronto quando
 
@@ -20,7 +21,12 @@ Executar, com credencial Production server-side:
 4. `GET /api/projects/:id/listings` devolve anúncios que **existem de verdade no
    eBay** — conferidos abrindo a URL de pelo menos 3 deles.
 5. A telemetria mostra quantas chamadas foram gastas e onde o orçamento parou.
-6. Nenhum segredo aparece em log.
+6. `price_history` tem uma linha por anúncio observado, com data. Recoletar a
+   mesma busca no dia seguinte acrescenta observações sem duplicar snapshot
+   quando nada mudou.
+7. A tela mostra o funil da execução ao vivo: total coletado, quanto sobrou em
+   cada camada e o estado de cada fonte.
+8. Nenhum segredo aparece em log.
 
 Evidência exigida no `LOG-VERIFICACAO.md`: nível **live**.
 

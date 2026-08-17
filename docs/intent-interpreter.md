@@ -14,15 +14,15 @@ The Worker generates persisted provider/model/version/timestamp metadata. It ign
 
 ## Initial aliases
 
-| User wording | Canonical value |
-| --- | --- |
-| `icloud`, `bloqueado no icloud`, `Activation Lock` | `activation_lock` |
-| `não liga`, `sem ligar` | `no_power` |
-| `defeito de placa`, `placa ruim` | `logic_board_failure` |
-| `tela quebrada`, `tela trincada` | `cracked_screen` |
-| `traseira quebrada`, `vidro traseiro quebrado` | `broken_back_glass` |
-| `bateria ruim`, `bateria degradada` | `degraded_battery` |
-| `para peças` | condition/defect `parts_only` |
+| User wording                                       | Canonical value               |
+| -------------------------------------------------- | ----------------------------- |
+| `icloud`, `bloqueado no icloud`, `Activation Lock` | `activation_lock`             |
+| `não liga`, `sem ligar`                            | `no_power`                    |
+| `defeito de placa`, `placa ruim`                   | `logic_board_failure`         |
+| `tela quebrada`, `tela trincada`                   | `cracked_screen`              |
+| `traseira quebrada`, `vidro traseiro quebrado`     | `broken_back_glass`           |
+| `bateria ruim`, `bateria degradada`                | `degraded_battery`            |
+| `para peças`                                       | condition/defect `parts_only` |
 
 The rules recognize iPhone, iPhone 13, MacBook, MacBook Pro, MacBook Pro 16, GB/TB capacities, BRL/USD/EUR/CNY ceilings, working requirements and the initial condition vocabulary. For MacBooks, capacities below 256 GB are initially treated as memory and capacities of 256 GB or more as storage.
 

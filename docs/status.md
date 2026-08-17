@@ -53,6 +53,14 @@
 | Valuation / oportunidade                   | 🟡     | `DeterministicValuationEngine` roda no consumidor, mas sem dados históricos suficientes |
 | Score final e ranking de oportunidades     | ❌     | `packages/scoring` era só uma constante; removido                                       |
 | Exportação CSV/XLSX                        | ❌     | `packages/exports` era só uma constante; removido                                       |
+| Memória de mercado / histórico de preço    | ❌     | `price_history` e `listing_snapshots` existem no banco, nada escreve neles              |
+| Preço de referência por produto            | ❌     | Depende do acervo acumular ao longo do tempo                                            |
+| Detecção de golpe                          | ❌     | 13 sinais especificados no PRD original §17, nenhum implementado                        |
+| Risco de vendedor                          | ❌     | Nenhuma implementação                                                                   |
+| Agente conversacional                      | ❌     | Contrato definido em `agente.md`; nada construído                                       |
+| Leilões (edital, custo real, lances)       | ❌     | Removido em `1291a6e`; volta na S11                                                     |
+| Fornecedores / cadeia de suprimento        | ❌     | Nunca iniciado                                                                          |
+| Favoritar (coração)                        | ❌     | `user_listing_actions` existe desde o M1, sem endpoint nem tela                         |
 
 ## Plataforma
 
