@@ -19,9 +19,6 @@ import {
 
 export * from './ListingIngestionService';
 export * from './GenericListingMapper';
-export * from './FailureClassifier';
-export * from './RepairProposalBuilder';
-export * from './RepairSandboxRunner';
 
 export class SourceCollectionGatewayRegistry implements CollectionGatewayResolver {
   private readonly gateways: ReadonlyMap<string, CollectionGateway>;

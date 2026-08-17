@@ -6,8 +6,6 @@ import { DATABASE_PACKAGE_MARKER } from '@scout/database';
 import { EBAY_CONNECTOR_MARKER } from '@scout/ebay-connector';
 import { COLLECTION_PACKAGE_MARKER } from '@scout/collection';
 import { AI_PACKAGE_MARKER } from '@scout/ai';
-import { SCORING_PACKAGE_MARKER } from '@scout/scoring';
-import { EXPORTS_PACKAGE_MARKER } from '@scout/exports';
 
 describe('Milestone 1 Foundation Verification Tests', () => {
   it('should import workspace config constants correctly', () => {
@@ -23,7 +21,5 @@ describe('Milestone 1 Foundation Verification Tests', () => {
     expect(EBAY_CONNECTOR_MARKER).toBe('@scout/ebay-connector');
     expect(COLLECTION_PACKAGE_MARKER).toBe('@scout/collection');
     expect(AI_PACKAGE_MARKER).toBe('@scout/ai');
-    expect(SCORING_PACKAGE_MARKER).toBe('@scout/scoring');
-    expect(EXPORTS_PACKAGE_MARKER).toBe('@scout/exports');
   });
 });

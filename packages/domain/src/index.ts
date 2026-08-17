@@ -43,18 +43,6 @@ import {
   ObservationEventType,
   CollectorHealth,
   CollectorHealthState,
-  CollectorFailureClass,
-  CollectorFailureInput,
-  CollectorFailureClassification,
-  RepairProposal,
-  RepairProposalInput,
-  RepairProposalStatus,
-  RepairProposalFixture,
-  RepairProposalCanary,
-  RepairProposalBudget,
-  RepairReplayResult,
-  RepairSandboxRunResult,
-  RepairSandboxRun,
   ConnectorLayer,
   ConnectorFallback,
   ConnectorLimits,
@@ -78,29 +66,6 @@ import {
   ListingTriageReviewTransport,
   CrossSourceIdentityDecision,
   CrossSourceIdentityCandidateTransport,
-  AuctionLotInput,
-  AuctionLotCostPolicy,
-  AuctionLotDossier,
-  AuctionDocument,
-  AuctionEvidenceNormalization,
-  AuctionMonitorEvent,
-  AuctionMonitorSummary,
-  NegotiationSource,
-  NegotiationEvidence,
-  NegotiationContext,
-  NegotiationSuggestion,
-  NegotiationDraft,
-  NegotiationFreshnessInput,
-  NegotiationFreshnessResult,
-  NegotiationInteraction,
-  NegotiationFollowUp,
-  AuthorizationRequest,
-  AuthorizationEnvelope,
-  AuthorizationGateInput,
-  AuthorizationGateResult,
-  AuthorizationLedgerRecord,
-  AuthorizationSessionGateInput,
-  AuthorizationSessionGateResult,
 } from '@scout/schemas';
 
 export type {
@@ -148,18 +113,6 @@ export type {
   ObservationEventType,
   CollectorHealth,
   CollectorHealthState,
-  CollectorFailureClass,
-  CollectorFailureInput,
-  CollectorFailureClassification,
-  RepairProposal,
-  RepairProposalInput,
-  RepairProposalStatus,
-  RepairProposalFixture,
-  RepairProposalCanary,
-  RepairProposalBudget,
-  RepairReplayResult,
-  RepairSandboxRunResult,
-  RepairSandboxRun,
   ConnectorLayer,
   ConnectorFallback,
   ConnectorLimits,
@@ -183,29 +136,6 @@ export type {
   ListingTriageReviewTransport,
   CrossSourceIdentityDecision,
   CrossSourceIdentityCandidateTransport,
-  AuctionLotInput,
-  AuctionLotCostPolicy,
-  AuctionLotDossier,
-  AuctionDocument,
-  AuctionEvidenceNormalization,
-  AuctionMonitorEvent,
-  AuctionMonitorSummary,
-  NegotiationSource,
-  NegotiationEvidence,
-  NegotiationContext,
-  NegotiationSuggestion,
-  NegotiationDraft,
-  NegotiationFreshnessInput,
-  NegotiationFreshnessResult,
-  NegotiationInteraction,
-  NegotiationFollowUp,
-  AuthorizationRequest,
-  AuthorizationEnvelope,
-  AuthorizationGateInput,
-  AuthorizationGateResult,
-  AuthorizationLedgerRecord,
-  AuthorizationSessionGateInput,
-  AuthorizationSessionGateResult,
 };
 
 // Repository Ports
@@ -357,86 +287,6 @@ export interface ObservationEventRepository {
 
 export interface CollectorHealthRepository {
   record(check: CollectorHealth): Promise<void>;
-}
-
-export interface CollectorFailureClassifier {
-  classify(input: unknown): CollectorFailureClassification;
-  classifyError(
-    error: ConnectorError,
-    context: Omit<CollectorFailureInput, 'code' | 'kind'>,
-  ): CollectorFailureClassification;
-}
-
-export interface RepairProposalBuilder {
-  build(input: unknown): RepairProposal;
-}
-
-export interface RepairProposalRepository {
-  save(proposal: RepairProposal): Promise<RepairProposal>;
-  findBySourceAndProvider(source: string, provider: string): Promise<RepairProposal[]>;
-}
-
-export interface RepairSandboxRunner {
-  run(
-    input: unknown,
-    replay: (fixture: RepairProposalFixture) => Promise<unknown>,
-  ): Promise<RepairSandboxRunResult>;
-}
-
-export interface RepairSandboxRunRepository {
-  save(run: Omit<RepairSandboxRun, 'id' | 'createdAt'>): Promise<RepairSandboxRun>;
-  findBySourceAndProvider(source: string, provider: string): Promise<RepairSandboxRun[]>;
-}
-
-export interface AuctionLotEvaluator {
-  evaluate(input: unknown, policy: unknown): AuctionLotDossier;
-}
-
-export interface AuctionEvidenceNormalizer {
-  normalize(input: unknown): AuctionEvidenceNormalization;
-}
-
-export interface AuctionMonitorAggregator {
-  aggregate(input: unknown): AuctionMonitorSummary;
-}
-
-export interface NegotiationAssistant {
-  suggest(input: unknown): NegotiationSuggestion;
-}
-
-export interface NegotiationDraftRepository {
-  save(
-    userId: string,
-    context: NegotiationContext,
-    suggestion: NegotiationSuggestion,
-  ): Promise<NegotiationDraft>;
-  findByUserId(userId: string): Promise<NegotiationDraft[]>;
-}
-
-export interface NegotiationFreshnessChecker {
-  check(input: unknown): NegotiationFreshnessResult;
-}
-
-export interface NegotiationFollowUpAssistant {
-  suggest(input: unknown): NegotiationFollowUp;
-}
-
-export interface AuthorizationEnvelopeBuilder {
-  build(input: unknown): AuthorizationEnvelope;
-}
-
-export interface AuthorizationEnvelopeValidator {
-  validate(input: unknown): AuthorizationGateResult;
-}
-
-export interface AuthorizationLedgerRepository {
-  record(userId: string, envelope: AuthorizationEnvelope): Promise<AuthorizationLedgerRecord>;
-  findByUserId(userId: string): Promise<AuthorizationLedgerRecord[]>;
-  markConsumed(userId: string, idempotencyKey: string): Promise<AuthorizationLedgerRecord | null>;
-}
-
-export interface AuthorizationSessionGate {
-  validate(input: unknown): AuthorizationSessionGateResult;
 }
 
 export interface OpportunityValuationRepository {
