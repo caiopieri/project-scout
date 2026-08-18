@@ -54,6 +54,11 @@ export const SAFE_COLLECTION_LIMITS: CollectionLimits = {
   maxQueries: 1,
 };
 
+const previewOnlyRecord = (preview: import('@scout/schemas').RawListingPreview) => ({
+  preview,
+  payload: { previewOnly: true },
+});
+
 export const createConnectorManifest = (input: ConnectorManifest): ConnectorManifest =>
   connectorManifestSchema.parse(input);
 
@@ -82,28 +87,51 @@ export class DefaultCollectionGateway implements CollectionGateway {
 
   private readonly limits: CollectionLimits;
 
+  get collectionLimits(): CollectionLimits {
+    return this.limits;
+  }
+
   async collect(criteria: ResearchCriteria, limit = this.limits.maxItems, query?: string) {
     const effectiveLimit = Math.min(limit, this.limits.maxItems);
     const items = [];
     let cursor: string | undefined;
     let pagesFetched = 0;
     const seenCursors = new Set<string>();
+    let truncated = false;
 
     do {
       const remaining = effectiveLimit - items.length;
-      const page = connectorSearchPageSchema.parse(
-        await this.connector.search({
-          criteria,
-          limit: Math.min(this.limits.pageSize, remaining),
-          cursor,
-          query,
-        }),
-      );
+      let page;
+      try {
+        page = connectorSearchPageSchema.parse(
+          await this.connector.search({
+            criteria,
+            limit: Math.min(this.limits.pageSize, remaining),
+            cursor,
+            query,
+          }),
+        );
+      } catch (cause) {
+        if (cause instanceof ConnectorError && cause.code === 'EBAY_REQUEST_BUDGET_EXHAUSTED') {
+          truncated = true;
+          break;
+        }
+        throw cause;
+      }
       pagesFetched += 1;
       for (const preview of page.items.slice(0, remaining)) {
-        const details = rawListingRecordSchema.parse(
-          await this.connector.fetchDetails(preview.externalId),
-        );
+        let details;
+        try {
+          details = rawListingRecordSchema.parse(
+            await this.connector.fetchDetails(preview.externalId),
+          );
+        } catch (cause) {
+          if (cause instanceof ConnectorError && cause.code === 'EBAY_REQUEST_BUDGET_EXHAUSTED') {
+            truncated = true;
+            break;
+          }
+          throw cause;
+        }
         if (details.preview.externalId !== preview.externalId) {
           throw new ConnectorError(
             'Connector detail identifier mismatch.',
@@ -112,6 +140,10 @@ export class DefaultCollectionGateway implements CollectionGateway {
           );
         }
         items.push(details);
+      }
+      if (truncated) break;
+      for (const preview of (page.rejectedItems ?? []).slice(0, effectiveLimit - items.length)) {
+        items.push(rawListingRecordSchema.parse(previewOnlyRecord(preview)));
       }
       if (page.nextCursor && (page.nextCursor === cursor || seenCursors.has(page.nextCursor))) {
         throw new ConnectorError(
@@ -124,7 +156,12 @@ export class DefaultCollectionGateway implements CollectionGateway {
       cursor = page.nextCursor;
     } while (cursor && items.length < effectiveLimit && pagesFetched < this.limits.maxPages);
 
-    return collectionResultSchema.parse({ items, pagesFetched, provider: this.connector.provider });
+    return collectionResultSchema.parse({
+      items,
+      pagesFetched: Math.max(1, pagesFetched),
+      provider: this.connector.provider,
+      truncated,
+    });
   }
 }
 
@@ -133,29 +170,36 @@ export class BoundedCollectionQueryRunner {
     private readonly gateway: CollectionGateway,
     private readonly maxQueries = 1,
     private readonly maxItems = 5,
+    private readonly queryLimit?: number,
   ) {}
 
   async collect(criteria: ResearchCriteria, queries: readonly string[], limit = this.maxItems) {
     const boundedQueries = queries.length > 0 ? queries.slice(0, this.maxQueries) : [undefined];
+    const effectiveLimit = Math.min(limit, this.maxItems);
     const items: import('@scout/schemas').RawListingRecord[] = [];
     const seenExternalIds = new Set<string>();
     let pagesFetched = 0;
+    let truncated = false;
     for (const query of boundedQueries) {
-      const remaining = limit - items.length;
+      const remaining = effectiveLimit - items.length;
       if (remaining <= 0) break;
-      const result = await this.gateway.collect(criteria, remaining, query);
+      const queryBudget = this.queryLimit ?? remaining;
+      const result = await this.gateway.collect(criteria, Math.min(remaining, queryBudget), query);
       pagesFetched += result.pagesFetched;
+      truncated ||= result.truncated;
       for (const item of result.items) {
         if (!seenExternalIds.has(item.preview.externalId)) {
           seenExternalIds.add(item.preview.externalId);
           items.push(item);
         }
       }
+      if (result.truncated) break;
     }
     return collectionResultSchema.parse({
-      items: items.slice(0, limit),
+      items: items.slice(0, effectiveLimit),
       pagesFetched: Math.max(1, pagesFetched),
       provider: this.gateway.provider,
+      truncated,
     });
   }
 }
@@ -183,7 +227,11 @@ export const buildCollectorHealth = (
       pricePercent: completeness,
       titlePercent: completeness,
     },
-    diagnostics: hasResults ? [] : ['Source returned no listings.'],
+    diagnostics: result.truncated
+      ? ['BUDGET_EXHAUSTED']
+      : hasResults
+        ? []
+        : ['Source returned no listings.'],
   });
 };
 
@@ -272,9 +320,14 @@ export class CollectionTaskProcessor {
         ? await new BoundedCollectionQueryRunner(
             gateway,
             gateway instanceof DefaultCollectionGateway
-              ? (gateway.manifest.limits.maxQueries ?? 1)
+              ? (gateway.collectionLimits.maxQueries ?? 1)
               : 1,
-            gateway instanceof DefaultCollectionGateway ? gateway.manifest.limits.maxItems : 5,
+            gateway instanceof DefaultCollectionGateway ? gateway.collectionLimits.maxItems : 5,
+            gateway instanceof DefaultCollectionGateway && gateway.collectionLimits.maxItems > 5
+              ? Math.ceil(
+                  gateway.collectionLimits.maxItems / (gateway.collectionLimits.maxQueries ?? 1),
+                )
+              : undefined,
           ).collect(
             criteria,
             queryFamily.queries.map(({ query }) => query),

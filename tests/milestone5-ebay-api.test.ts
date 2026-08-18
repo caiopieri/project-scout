@@ -168,6 +168,56 @@ describe('Milestone 5 eBay official API adapter', () => {
       limit: 3,
     });
     expect(result.items.map((item) => item.externalId)).toEqual(['v1|device|0']);
+    expect(result.rejectedItems.map((item) => item.externalId)).toEqual([
+      'v1|component|0',
+      'v1|excluded|0',
+    ]);
+  });
+
+  it('applies price, title and rejected-defect gates to search previews', async () => {
+    const fetcher = vi.fn<EbayFetch>(async (input) => {
+      if (String(input).includes('/oauth2/token')) return tokenResponse();
+      return Response.json({
+        itemSummaries: [
+          {
+            itemId: 'v1|keep|0',
+            title: 'Apple iPhone 13 128GB cracked screen',
+            itemWebUrl: 'https://www.ebay.com/itm/keep',
+            price: { value: '120.00', currency: 'USD' },
+          },
+          {
+            itemId: 'v1|wrong|0',
+            title: 'Apple MacBook Pro 16',
+            itemWebUrl: 'https://www.ebay.com/itm/wrong',
+            price: { value: '120.00', currency: 'USD' },
+          },
+          {
+            itemId: 'v1|expensive|0',
+            title: 'Apple iPhone 13 128GB cracked screen',
+            itemWebUrl: 'https://www.ebay.com/itm/expensive',
+            price: { value: '400.00', currency: 'USD' },
+          },
+          {
+            itemId: 'v1|locked|0',
+            title: 'Apple iPhone 13 128GB activation lock',
+            itemWebUrl: 'https://www.ebay.com/itm/locked',
+            price: { value: '100.00', currency: 'USD' },
+          },
+        ],
+      });
+    });
+
+    const result = await adapter(fetcher).search({
+      criteria: { ...criteria, rejectedDefects: ['activation_lock'] },
+      limit: 4,
+    });
+
+    expect(result.items.map((item) => item.externalId)).toEqual(['v1|keep|0']);
+    expect(result.rejectedItems.map((item) => item.externalId)).toEqual([
+      'v1|wrong|0',
+      'v1|expensive|0',
+      'v1|locked|0',
+    ]);
   });
 
   it('emits sanitized request telemetry and reports the real local budget', async () => {

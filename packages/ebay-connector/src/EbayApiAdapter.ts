@@ -22,7 +22,7 @@ import {
   buildEbayItemUrl,
   buildEbaySearchUrl,
   parseEbayAmountMinor,
-  shouldRejectEbayPreviewTitle,
+  shouldFetchEbayPreview,
   type EbayMarketplaceId,
 } from './query';
 import { EBAY_CONNECTOR_MANIFEST } from './manifest';
@@ -131,9 +131,11 @@ export class EbayApiAdapter implements SourceConnector {
       );
     }
     const rawItemCount = response.data.itemSummaries.length;
-    const items = response.data.itemSummaries
-      .filter((item) => !shouldRejectEbayPreviewTitle(item.title, input.criteria))
-      .map((item) => this.mapPreview(item));
+    const previews = response.data.itemSummaries.map((item) => this.mapPreview(item));
+    const items = previews.filter((preview) => shouldFetchEbayPreview(preview, input.criteria));
+    const rejectedItems = previews.filter(
+      (preview) => !shouldFetchEbayPreview(preview, input.criteria),
+    );
     let nextCursor: string | undefined;
     if (response.data.next) {
       const offset = Number(url.searchParams.get('offset'));
@@ -147,7 +149,7 @@ export class EbayApiAdapter implements SourceConnector {
       }
       nextCursor = String(nextOffset);
     }
-    return { items, nextCursor };
+    return { items, rejectedItems, nextCursor };
   }
 
   async fetchDetails(externalId: string) {

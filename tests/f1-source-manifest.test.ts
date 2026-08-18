@@ -7,7 +7,7 @@ describe('F1 connector manifests', () => {
     expect(EBAY_CONNECTOR_MANIFEST).toMatchObject({
       source: 'ebay',
       primaryLayer: 1,
-      limits: { maxPages: 1, pageSize: 5, maxItems: 5 },
+      limits: { maxPages: 10, pageSize: 100, maxItems: 300, maxQueries: 3 },
     });
     expect(EBAY_CONNECTOR_MANIFEST.fallbacks.every(({ enabled }) => !enabled)).toBe(true);
     expect(EBAY_CONNECTOR_MANIFEST.healthStates).toContain('CONTENT_CHANGED');

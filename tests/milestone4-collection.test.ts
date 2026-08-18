@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   CollectionTaskProcessor,
   DefaultCollectionGateway,
+  buildCollectorHealth,
   createCollectionTask,
 } from '@scout/collection';
 import {
@@ -141,6 +142,76 @@ describe('Milestone 4 Collection Gateway', () => {
       'mock-ebay-1002',
       'mock-ebay-1003',
     ]);
+  });
+
+  it('does not fetch details for rejected previews and records a truncated budget run', async () => {
+    const details: string[] = [];
+    const connector: SourceConnector = {
+      source: 'ebay',
+      provider: 'ebay-budget-fixture',
+      manifest: createConnectorManifest({
+        source: 'ebay',
+        primaryLayer: 1,
+        fallbacks: [],
+        limits: { maxPages: 1, pageSize: 3, maxItems: 3 },
+        healthStates: ['NORMAL'],
+      }),
+      async search() {
+        return {
+          items: [
+            {
+              externalId: 'keep',
+              url: 'https://www.ebay.com/itm/keep',
+              title: 'Apple MacBook Pro',
+              price: { amountMinor: 100, currency: 'USD' },
+            },
+          ],
+          rejectedItems: [
+            {
+              externalId: 'reject',
+              url: 'https://www.ebay.com/itm/reject',
+              title: 'MacBook replacement screen',
+              price: { amountMinor: 50, currency: 'USD' },
+            },
+          ],
+        };
+      },
+      async fetchDetails(externalId) {
+        details.push(externalId);
+        if (details.length > 1)
+          throw new ConnectorError('budget', 'permanent', 'EBAY_REQUEST_BUDGET_EXHAUSTED');
+        return {
+          preview: {
+            externalId,
+            url: 'https://www.ebay.com/itm/keep',
+            title: 'Apple MacBook Pro',
+            price: { amountMinor: 100, currency: 'USD' },
+          },
+          payload: { detail: true },
+        };
+      },
+    };
+
+    const result = await new DefaultCollectionGateway(connector).collect(criteria, 3);
+
+    expect(details).toEqual(['keep']);
+    expect(result.items).toHaveLength(2);
+    expect(result.items[1].payload).toEqual({ previewOnly: true });
+    expect(result.truncated).toBe(false);
+
+    const budgetConnector = {
+      ...connector,
+      async search() {
+        throw new ConnectorError('budget', 'permanent', 'EBAY_REQUEST_BUDGET_EXHAUSTED');
+      },
+    };
+    const truncated = await new DefaultCollectionGateway(budgetConnector).collect(criteria, 3);
+    expect(truncated.truncated).toBe(true);
+    expect(truncated.pagesFetched).toBe(1);
+    expect(
+      buildCollectorHealth(runId, 1, 'cccccccc-cccc-4ccc-accc-cccccccccccc', truncated, 1)
+        .diagnostics,
+    ).toContain('BUDGET_EXHAUSTED');
   });
 
   it('caps pagination at three search pages and rejects repeated cursors', async () => {

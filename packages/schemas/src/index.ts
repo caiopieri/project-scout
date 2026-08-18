@@ -1196,6 +1196,7 @@ export const connectorSearchInputSchema = z.object({
 export type ConnectorSearchInput = z.infer<typeof connectorSearchInputSchema>;
 export const connectorSearchPageSchema = z.object({
   items: z.array(rawListingPreviewSchema),
+  rejectedItems: z.array(rawListingPreviewSchema).optional(),
   nextCursor: z.string().optional(),
 });
 export type ConnectorSearchPage = z.infer<typeof connectorSearchPageSchema>;
@@ -1212,6 +1213,7 @@ export const collectionResultSchema = z.object({
   items: z.array(rawListingRecordSchema),
   pagesFetched: z.number().int().positive(),
   provider: z.string().min(1),
+  truncated: z.boolean().default(false),
 });
 export type CollectionResult = z.infer<typeof collectionResultSchema>;
 

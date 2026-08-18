@@ -72,6 +72,13 @@ const componentOrAccessoryPatterns = [
   /\bpartial machine\b/,
 ];
 
+const categoryTerms: Readonly<Record<string, readonly string[]>> = {
+  smartphone: ['smartphone', 'cell phone', 'cellular', 'iphone', 'galaxy'],
+  laptop: ['laptop', 'notebook', 'macbook', 'thinkpad', 'latitude', 'elitebook'],
+};
+
+const normalizeCriterionTerm = (value: string) => normalizeTitle(value).replace(/_/g, ' ');
+
 /**
  * eBay does not document a negative-keyword operator for Browse `q`.
  * Keep this conservative and title-only: accepted repair listings such as
@@ -87,6 +94,38 @@ export const shouldRejectEbayPreviewTitle = (
       normalizedTitle.includes(normalizeTitle(keyword)),
     ) || componentOrAccessoryPatterns.some((pattern) => pattern.test(normalizedTitle))
   );
+};
+
+/**
+ * Search results contain enough bounded data for the first screening pass.
+ * Details are reserved for previews that survive this source-local gate.
+ */
+export const shouldFetchEbayPreview = (
+  preview: { title: string; price: { amountMinor: number; currency: string } },
+  criteria: ResearchCriteria,
+): boolean => {
+  const title = normalizeTitle(preview.title);
+  if (shouldRejectEbayPreviewTitle(preview.title, criteria)) return false;
+  if (criteria.rejectedDefects.some((defect) => title.includes(normalizeCriterionTerm(defect))))
+    return false;
+  if (
+    criteria.maximumPrice?.currency === preview.price.currency &&
+    preview.price.amountMinor > criteria.maximumPrice.amountMinor
+  )
+    return false;
+
+  const specificTerms = [...criteria.models, ...criteria.variants];
+  const titleTerms = [
+    ...(specificTerms.length > 0
+      ? specificTerms
+      : [
+          ...criteria.brands,
+          ...(criteria.category ? (categoryTerms[criteria.category] ?? [criteria.category]) : []),
+        ]),
+  ]
+    .map(normalizeCriterionTerm)
+    .filter(Boolean);
+  return titleTerms.length === 0 || titleTerms.some((term) => title.includes(term));
 };
 
 const formatMinorPrice = (amountMinor: number) =>

@@ -26,9 +26,10 @@ export const EBAY_CONNECTOR_MANIFEST = connectorManifestSchema.parse({
     },
   ],
   limits: {
-    maxPages: 1,
-    pageSize: 5,
-    maxItems: 5,
+    maxPages: 10,
+    pageSize: 100,
+    maxItems: 300,
+    maxQueries: 3,
   },
   healthStates: [
     'NORMAL',

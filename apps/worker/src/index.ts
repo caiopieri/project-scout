@@ -94,7 +94,15 @@ export const configuredEbayConnector = (env: Env, onRequest?: EbayRequestTelemet
   ) {
     return new UnavailableEbayConnector(mode, 'EBAY_RATE_LIMIT_CONFIGURATION_MISSING');
   }
-  const maxBrowseRequests = 6;
+  const configuredBudget = Number(env.EBAY_BROWSE_BUDGET_PER_RUN);
+  if (
+    mode === 'production' &&
+    (!Number.isSafeInteger(configuredBudget) || configuredBudget < 1 || configuredBudget > 1000)
+  ) {
+    return new UnavailableEbayConnector(mode, 'EBAY_BROWSE_BUDGET_CONFIGURATION_MISSING');
+  }
+  const maxBrowseRequests =
+    Number.isSafeInteger(configuredBudget) && configuredBudget > 0 ? configuredBudget : 6;
   const rateLimiter =
     mode === 'production' && env.EBAY_RATE_LIMITER
       ? new DurableObjectEbayRateLimiter(env.EBAY_RATE_LIMITER, {
@@ -208,9 +216,11 @@ const configuredCollectionGateways = (env: Env, onEbayRequest?: EbayRequestTelem
       SOURCE_IDS.ebay,
       new DefaultCollectionGateway(
         configuredEbayConnector(env, onEbayRequest),
-        env.EBAY_CONNECTOR_MODE === 'mock'
-          ? undefined
-          : { maxPages: 1, pageSize: 5, maxItems: 4, maxQueries: 1 },
+        (env.EBAY_CONNECTOR_MODE ?? 'mock') === 'mock'
+          ? { maxPages: 1, pageSize: 5, maxItems: 4, maxQueries: 1 }
+          : env.EBAY_BROWSE_BUDGET_PER_RUN
+            ? { maxPages: 10, pageSize: 100, maxItems: 300, maxQueries: 3 }
+            : { maxPages: 1, pageSize: 5, maxItems: 4, maxQueries: 1 },
       ),
     ],
     [SOURCE_IDS.mercadolivre, new DefaultCollectionGateway(configuredMercadoLivreConnector(env))],
