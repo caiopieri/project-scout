@@ -62,10 +62,12 @@ próximo **independente** assume — nunca se abre um round adiantado do "Depois
 | #        | Fatia                             | Pronto quando                                                                                                                                        |
 | -------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **S1.1** | Coleta real do eBay persistida    | Uma pesquisa real grava anúncios reais no banco; 3 URLs conferidas manualmente existem; consumo de chamadas medido; nenhum segredo em log            |
+| **S1.1b** | Coleta com volume real            | Uma execução real devolve ≥100 anúncios persistidos dentro de orçamento de chamadas explícito; detalhe só para quem sobreviveu ao filtro barato                                                          |
 | **S1.2** | Memória de preço desde o dia zero | `price_history` recebe uma observação por anúncio observado; recoletar no dia seguinte acrescenta observação sem duplicar snapshot quando nada mudou |
 | **S1.3** | Tela de execução                  | O usuário vê o funil ao vivo: total coletado, o que sobrou em cada camada, estado por fonte, e o custo gasto                                         |
 
 Handoffs: [S1.1](docs/handoffs/HANDOFF-S1.1.md) ·
+[S1.1b](docs/handoffs/HANDOFF-S1.1b.md) ·
 [S1.2](docs/handoffs/HANDOFF-S1.2.md) · [S1.3](docs/handoffs/HANDOFF-S1.3.md)
 
 ### Round 2 — IA de texto de verdade
