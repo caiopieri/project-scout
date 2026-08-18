@@ -84,6 +84,25 @@ describe('Milestone 5 Worker eBay adapter wiring', () => {
     expect(connector).toBeInstanceOf(EbayApiAdapter);
   });
 
+  it('fails closed for a missing or invalid live Browse budget', () => {
+    const namespace = {
+      idFromName: vi.fn(() => ({ toString: () => 'rate-limit-id' })),
+      get: vi.fn(),
+    };
+    const base = {
+      EBAY_CONNECTOR_MODE: 'production',
+      EBAY_APP_ID_CLIENT_ID: 'client-id',
+      EBAY_CERT_ID_CLIENT_SECRET: 'client-secret',
+      EBAY_MARKETPLACE_ID: 'EBAY_US',
+      EBAY_GLOBAL_REQUESTS_PER_MINUTE: '2',
+      EBAY_RATE_LIMITER: namespace,
+    };
+    expect(configuredEbayConnector(base as never)).toBeInstanceOf(UnavailableEbayConnector);
+    expect(
+      configuredEbayConnector({ ...base, EBAY_BROWSE_BUDGET_PER_RUN: '0' } as never),
+    ).toBeInstanceOf(UnavailableEbayConnector);
+  });
+
   it('keeps Mercado Livre unavailable without an explicit production token', () => {
     expect(configuredMercadoLivreConnector({} as never)).toBeInstanceOf(
       UnavailableMercadoLivreConnector,
@@ -202,13 +221,23 @@ describe('Milestone 5 Worker eBay adapter wiring', () => {
       EBAY_APP_ID_CLIENT_ID: 'worker-wire-client',
       EBAY_CERT_ID_CLIENT_SECRET: 'worker-wire-secret',
       EBAY_MARKETPLACE_ID: 'EBAY_US',
+      EBAY_BROWSE_BUDGET_PER_RUN: '250',
       RAW_BUCKET: { put: rawPut },
       EBAY_IDENTITY_HASH_SECRET: 'test-only-identity-hash-secret-32-chars',
     } as never;
 
     await worker.queue({ messages: [{ body: { version: '1', runId }, ack, retry }] } as never, env);
     expect(rawPut).toHaveBeenCalledOnce();
-    expect(apiCalls).toEqual(['oauth', 'search', 'details', 'ingest']);
+    expect(apiCalls).toEqual([
+      'oauth',
+      'search',
+      'details',
+      'search',
+      'details',
+      'search',
+      'details',
+      'ingest',
+    ]);
     expect(collectionPatches).toEqual([{ provider: 'ebay-api-sandbox-v1' }]);
     expect(completionBody).toEqual(
       expect.objectContaining({
@@ -414,6 +443,7 @@ describe('Milestone 5 Worker eBay adapter wiring', () => {
       EBAY_APP_ID_CLIENT_ID: 'production-client',
       EBAY_CERT_ID_CLIENT_SECRET: 'production-secret',
       EBAY_MARKETPLACE_ID: 'EBAY_US',
+      EBAY_BROWSE_BUDGET_PER_RUN: '6',
     } as never;
 
     const denied = await worker.fetch(

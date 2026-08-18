@@ -93,7 +93,7 @@ export class DefaultCollectionGateway implements CollectionGateway {
 
   async collect(criteria: ResearchCriteria, limit = this.limits.maxItems, query?: string) {
     const effectiveLimit = Math.min(limit, this.limits.maxItems);
-    const items = [];
+    const items: import('@scout/schemas').RawListingRecord[] = [];
     let cursor: string | undefined;
     let pagesFetched = 0;
     const seenCursors = new Set<string>();
@@ -101,7 +101,7 @@ export class DefaultCollectionGateway implements CollectionGateway {
 
     do {
       const remaining = effectiveLimit - items.length;
-      let page;
+      let page: ReturnType<typeof connectorSearchPageSchema.parse>;
       try {
         page = connectorSearchPageSchema.parse(
           await this.connector.search({
@@ -112,21 +112,25 @@ export class DefaultCollectionGateway implements CollectionGateway {
           }),
         );
       } catch (cause) {
-        if (cause instanceof ConnectorError && cause.code === 'EBAY_REQUEST_BUDGET_EXHAUSTED') {
+        if (cause instanceof ConnectorError && cause.truncatable) {
           truncated = true;
           break;
         }
         throw cause;
       }
       pagesFetched += 1;
-      for (const preview of page.items.slice(0, remaining)) {
-        let details;
+      for (const preview of (page.rejectedItems ?? []).slice(0, remaining)) {
+        items.push(rawListingRecordSchema.parse(previewOnlyRecord(preview)));
+      }
+      const detailLimit = effectiveLimit - items.length;
+      for (const preview of page.items.slice(0, detailLimit)) {
+        let details: ReturnType<typeof rawListingRecordSchema.parse>;
         try {
           details = rawListingRecordSchema.parse(
             await this.connector.fetchDetails(preview.externalId),
           );
         } catch (cause) {
-          if (cause instanceof ConnectorError && cause.code === 'EBAY_REQUEST_BUDGET_EXHAUSTED') {
+          if (cause instanceof ConnectorError && cause.truncatable) {
             truncated = true;
             break;
           }
@@ -142,9 +146,6 @@ export class DefaultCollectionGateway implements CollectionGateway {
         items.push(details);
       }
       if (truncated) break;
-      for (const preview of (page.rejectedItems ?? []).slice(0, effectiveLimit - items.length)) {
-        items.push(rawListingRecordSchema.parse(previewOnlyRecord(preview)));
-      }
       if (page.nextCursor && (page.nextCursor === cursor || seenCursors.has(page.nextCursor))) {
         throw new ConnectorError(
           'Connector returned a repeated cursor.',

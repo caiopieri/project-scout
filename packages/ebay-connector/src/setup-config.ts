@@ -22,6 +22,7 @@ export const ebaySetupInputSchema = z.object({
   environment: z.enum(['sandbox', 'production']),
   clientId: credentialSchema(256),
   clientSecret: credentialSchema(512),
+  browseBudget: z.number().int().positive(),
 });
 export type EbaySetupInput = z.infer<typeof ebaySetupInputSchema>;
 
@@ -30,6 +31,7 @@ const managedKeys = [
   'EBAY_MARKETPLACE_ID',
   'EBAY_APP_ID_CLIENT_ID',
   'EBAY_CERT_ID_CLIENT_SECRET',
+  'EBAY_BROWSE_BUDGET_PER_RUN',
 ] as const;
 
 const quoteDotenv = (value: string) => JSON.stringify(value);
@@ -41,6 +43,7 @@ export const updateDevVars = (current: string, rawInput: EbaySetupInput): string
     ['EBAY_MARKETPLACE_ID', 'EBAY_US'],
     ['EBAY_APP_ID_CLIENT_ID', input.clientId],
     ['EBAY_CERT_ID_CLIENT_SECRET', input.clientSecret],
+    ['EBAY_BROWSE_BUDGET_PER_RUN', String(input.browseBudget)],
   ]);
   const seen = new Set<string>();
   const lines = current

@@ -79,6 +79,13 @@ export class CheapListingFilter {
   ): CheapFilterResult {
     const record = rawListingRecordSchema.parse(rawRecord);
     const criteria = researchCriteriaSchema.parse(rawCriteria);
+    const payload = jsonObjectSchema.parse(record.payload);
+    if (payload.previewOnly === true) {
+      return cheapFilterResultSchema.parse({
+        decision: 'REJECT',
+        reasons: ['INSUFFICIENT_IDENTITY_EVIDENCE'],
+      });
+    }
     const title = normalize(record.preview.title);
     const reasons: CheapFilterResult['reasons'] = [];
 

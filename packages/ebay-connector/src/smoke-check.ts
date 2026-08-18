@@ -1,7 +1,16 @@
-import { EbayApiAdapter, type EbayApiAdapterConfig } from './EbayApiAdapter';
+import { EbayApiAdapter, parseEbayBrowseBudget, type EbayApiAdapterConfig } from './EbayApiAdapter';
 
 export const runEbayConnectionSmoke = async (config: EbayApiAdapterConfig) => {
-  const connector = new EbayApiAdapter({ ...config, marketplaceId: 'EBAY_US', maxAttempts: 2 });
+  const browseBudget = parseEbayBrowseBudget(config.maxBrowseRequests);
+  if (browseBudget === undefined) {
+    throw new Error('EBAY_BROWSE_BUDGET_CONFIGURATION_MISSING');
+  }
+  const connector = new EbayApiAdapter({
+    ...config,
+    marketplaceId: 'EBAY_US',
+    maxAttempts: 2,
+    maxBrowseRequests: browseBudget,
+  });
   const result = await connector.search({
     criteria: {
       category: 'smartphone',

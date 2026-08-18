@@ -87,6 +87,35 @@ describe('F2 triage persistence boundary', () => {
     ).resolves.toBeUndefined();
   });
 
+  it('persists a rejection for a shallow preview-only listing', async () => {
+    const saved: ListingTriageDecision[] = [];
+    const service = new CollectionTriageService({
+      save: async (input) =>
+        saved.push(listingTriageDecisionSchema.parse({ ...input, createdAt: new Date() })),
+    });
+
+    await service.process({
+      projectId: '11111111-1111-4111-a111-111111111111',
+      sourceId: '22222222-2222-4222-a222-222222222222',
+      criteria,
+      result: {
+        items: [{ ...listing, payload: { previewOnly: true } }],
+        pagesFetched: 1,
+        provider: 'fixture',
+      },
+      persistence: {
+        itemsCreated: 1,
+        itemsUpdated: 0,
+        listingIds: ['33333333-3333-4333-a333-333333333333'],
+        listingIdsByExternalId: { MLB123: '33333333-3333-4333-a333-333333333333' },
+      },
+    });
+
+    expect(saved[0]).toMatchObject({
+      filter: { decision: 'REJECT', reasons: ['INSUFFICIENT_IDENTITY_EVIDENCE'] },
+    });
+  });
+
   it('persists only reviewable cross-source candidates against prior decisions', async () => {
     const previous: ListingTriageDecisionTransport = {
       id: '66666666-6666-4666-a666-666666666666',

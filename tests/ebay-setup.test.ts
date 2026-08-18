@@ -15,6 +15,7 @@ const input = {
   environment: 'sandbox' as const,
   clientId: 'fixture-client-id-not-real',
   clientSecret: 'fixture-client-secret-not-real',
+  browseBudget: 250,
 };
 
 afterEach(async () => {
@@ -40,6 +41,7 @@ describe('eBay local setup assistant', () => {
     expect(result).toContain('EBAY_CONNECTOR_MODE="sandbox"');
     expect(result).toContain('EBAY_MARKETPLACE_ID="EBAY_US"');
     expect(result).toContain('EBAY_CERT_ID_CLIENT_SECRET="fixture-client-secret-not-real"');
+    expect(result).toContain('EBAY_BROWSE_BUDGET_PER_RUN="250"');
     expect(result.match(/EBAY_APP_ID_CLIENT_ID=/g)).toHaveLength(1);
     expect(result).not.toContain('old-client');
     expect(result).not.toContain('duplicate-client');

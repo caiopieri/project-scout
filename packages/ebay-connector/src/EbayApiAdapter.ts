@@ -35,8 +35,13 @@ export interface EbayApiAdapterConfig {
   marketplaceId?: EbayMarketplaceId;
   maxAttempts?: number;
   requestTimeoutMs?: number;
-  maxBrowseRequests?: number;
+  maxBrowseRequests: number;
 }
+
+export const parseEbayBrowseBudget = (value: string | number | undefined): number | undefined => {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
+};
 
 export type EbayRequestOperation = 'search' | 'details';
 export type EbayRequestTelemetryOutcome = 'success' | 'retry' | 'error';
@@ -106,7 +111,7 @@ export class EbayApiAdapter implements SourceConnector {
   }
 
   getRequestBudgetSnapshot(): EbayRequestBudgetSnapshot {
-    const maxRequests = this.config.maxBrowseRequests ?? 6;
+    const maxRequests = this.config.maxBrowseRequests;
     return {
       requestsUsed: this.browseRequests,
       maxRequests,
@@ -211,7 +216,7 @@ export class EbayApiAdapter implements SourceConnector {
 
   private async requestJson(url: URL, operation: EbayRequestOperation): Promise<unknown> {
     const maxAttempts = this.config.maxAttempts ?? 3;
-    const maxRequests = this.config.maxBrowseRequests ?? 6;
+    const maxRequests = this.config.maxBrowseRequests;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), this.config.requestTimeoutMs ?? 10_000);
@@ -231,6 +236,7 @@ export class EbayApiAdapter implements SourceConnector {
             'eBay request budget exhausted.',
             'permanent',
             'EBAY_REQUEST_BUDGET_EXHAUSTED',
+            true,
           );
         }
         if (this.rateLimiter) await this.rateLimiter.acquire({ operation });

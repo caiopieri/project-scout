@@ -57,6 +57,7 @@ const adapter = (
       clientId: 'sandbox-client-id',
       clientSecret: 'sandbox-client-secret',
       marketplaceId: 'EBAY_US',
+      maxBrowseRequests: 6,
       ...extra,
     },
     {
@@ -135,6 +136,41 @@ describe('Milestone 5 eBay official API adapter', () => {
     expect(first.nextCursor).toBe('2');
     expect(second.items).toHaveLength(2);
     expect(calls.filter((url) => url.pathname.endsWith('/oauth2/token'))).toHaveLength(1);
+  });
+
+  it('uses the 200-item Browse page size and advances the second page offset', async () => {
+    const searchUrls: URL[] = [];
+    let page = 0;
+    const fetcher = vi.fn<EbayFetch>(async (input) => {
+      if (String(input).includes('/oauth2/token')) return tokenResponse();
+      searchUrls.push(new URL(String(input)));
+      page += 1;
+      return Response.json({
+        ...(page === 1
+          ? { next: 'https://api.ebay.com/buy/browse/v1/item_summary/search?offset=200' }
+          : {}),
+        itemSummaries: Array.from({ length: page === 1 ? 200 : 1 }, (_, index) => ({
+          itemId: `v1|page-${page}|${index}`,
+          title: 'Apple iPhone 13 128GB cracked screen',
+          itemWebUrl: `https://www.ebay.com/itm/page-${page}-${index}`,
+          price: { value: '120.00', currency: 'USD' },
+        })),
+      });
+    });
+    const connector = adapter(fetcher, { maxAttempts: 1 });
+
+    const first = await connector.search({ criteria, limit: 200 });
+    const second = await connector.search({ criteria, limit: 200, cursor: first.nextCursor });
+
+    expect(first.items).toHaveLength(200);
+    expect(first.nextCursor).toBe('200');
+    expect(second.items).toHaveLength(1);
+    expect(
+      searchUrls.map((url) => [url.searchParams.get('limit'), url.searchParams.get('offset')]),
+    ).toEqual([
+      ['200', '0'],
+      ['200', '200'],
+    ]);
   });
 
   it('filters explicit exclusions and obvious component-only titles before details', async () => {

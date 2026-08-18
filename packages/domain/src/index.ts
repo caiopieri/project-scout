@@ -196,6 +196,7 @@ export class ConnectorError extends Error {
     message: string,
     readonly kind: CollectionErrorKind,
     readonly code: string,
+    readonly truncatable = false,
   ) {
     super(message);
     this.name = 'ConnectorError';

@@ -76,4 +76,57 @@ describe('F1 source routing and generic normalization boundary', () => {
     expect(result.items).toHaveLength(3);
     expect(new Set(result.items.map(({ preview }) => preview.externalId)).size).toBe(3);
   });
+
+  it('executes more than one query when the family has distinct candidates', async () => {
+    const queries: string[] = [];
+    const result = await new BoundedCollectionQueryRunner(
+      {
+        provider: 'query-fixture',
+        collect: async (_criteria, _limit, query) => {
+          queries.push(query ?? '');
+          const externalId = `fixture-${queries.length}`;
+          return {
+            items: [
+              {
+                preview: {
+                  externalId,
+                  url: `https://example.com/${externalId}`,
+                  title: query ?? externalId,
+                  price: { amountMinor: 100, currency: 'USD' },
+                },
+                payload: { query: query ?? null },
+              },
+            ],
+            pagesFetched: 1,
+            provider: 'query-fixture',
+          };
+        },
+      },
+      3,
+      3,
+    ).collect(
+      {
+        category: 'smartphone',
+        brands: [],
+        models: [],
+        variants: [],
+        storageGb: [],
+        memoryGb: [],
+        maximumPrice: undefined,
+        acceptedDefects: [],
+        rejectedDefects: [],
+        acceptedConditions: [],
+        countries: [],
+        regions: [],
+        requiredFunctionalStates: [],
+        preferredEvidence: [],
+        additionalKeywords: [],
+        excludedKeywords: [],
+      },
+      ['query-one', 'query-two', 'query-three'],
+    );
+
+    expect(queries).toEqual(['query-one', 'query-two', 'query-three']);
+    expect(result.items).toHaveLength(3);
+  });
 });

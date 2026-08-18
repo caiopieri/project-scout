@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { DefaultCollectionGateway } from '@scout/collection';
 import { ConnectorError } from '@scout/domain';
-import { EbayApiAdapter, isEbayMarketplaceId } from '@scout/ebay-connector';
+import { EbayApiAdapter, isEbayMarketplaceId, parseEbayBrowseBudget } from '@scout/ebay-connector';
 import { manualEbayProbeInputSchema } from '@scout/schemas';
 import type { JsonObject, ResearchCriteria } from '@scout/schemas';
 import type { Env } from './env';
@@ -57,6 +57,8 @@ export async function handleManualEbayProbe(request: Request, env: Env): Promise
     return json({ error: 'Probe is unavailable.' }, 503);
   const marketplaceId = env.EBAY_MARKETPLACE_ID ?? 'EBAY_US';
   if (!isEbayMarketplaceId(marketplaceId)) return json({ error: 'Probe is unavailable.' }, 503);
+  const browseBudget = parseEbayBrowseBudget(env.EBAY_BROWSE_BUDGET_PER_RUN);
+  if (browseBudget === undefined) return json({ error: 'Probe is unavailable.' }, 503);
 
   const criteria: ResearchCriteria = {
     category: 'laptop',
@@ -81,7 +83,7 @@ export async function handleManualEbayProbe(request: Request, env: Env): Promise
     clientSecret: env.EBAY_CERT_ID_CLIENT_SECRET,
     marketplaceId,
     maxAttempts: 1,
-    maxBrowseRequests: 6,
+    maxBrowseRequests: browseBudget,
   });
 
   try {
@@ -89,14 +91,14 @@ export async function handleManualEbayProbe(request: Request, env: Env): Promise
       criteria,
       input.data.maxResults,
     );
-    const browseBudget = connector.getRequestBudgetSnapshot();
+    const budgetSnapshot = connector.getRequestBudgetSnapshot();
     return json(
       {
         provider: result.provider,
         marketplaceId,
         query: input.data.query,
-        browseRequests: browseBudget.requestsUsed,
-        browseBudget,
+        browseRequests: budgetSnapshot.requestsUsed,
+        browseBudget: budgetSnapshot,
         items: result.items.map(({ preview, payload }) => ({
           title: preview.title,
           url: preview.url,

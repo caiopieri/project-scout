@@ -165,6 +165,12 @@ describe('Milestone 4 Collection Gateway', () => {
               title: 'Apple MacBook Pro',
               price: { amountMinor: 100, currency: 'USD' },
             },
+            {
+              externalId: 'second',
+              url: 'https://www.ebay.com/itm/second',
+              title: 'Apple MacBook Pro second',
+              price: { amountMinor: 110, currency: 'USD' },
+            },
           ],
           rejectedItems: [
             {
@@ -179,13 +185,13 @@ describe('Milestone 4 Collection Gateway', () => {
       async fetchDetails(externalId) {
         details.push(externalId);
         if (details.length > 1)
-          throw new ConnectorError('budget', 'permanent', 'EBAY_REQUEST_BUDGET_EXHAUSTED');
+          throw new ConnectorError('budget', 'permanent', 'SOURCE_BUDGET_EXHAUSTED', true);
         return {
           preview: {
             externalId,
-            url: 'https://www.ebay.com/itm/keep',
-            title: 'Apple MacBook Pro',
-            price: { amountMinor: 100, currency: 'USD' },
+            url: `https://www.ebay.com/itm/${externalId}`,
+            title: `Apple MacBook Pro ${externalId}`,
+            price: { amountMinor: externalId === 'keep' ? 100 : 110, currency: 'USD' },
           },
           payload: { detail: true },
         };
@@ -194,15 +200,15 @@ describe('Milestone 4 Collection Gateway', () => {
 
     const result = await new DefaultCollectionGateway(connector).collect(criteria, 3);
 
-    expect(details).toEqual(['keep']);
+    expect(details).toEqual(['keep', 'second']);
     expect(result.items).toHaveLength(2);
-    expect(result.items[1].payload).toEqual({ previewOnly: true });
-    expect(result.truncated).toBe(false);
+    expect(result.items[0].payload).toEqual({ previewOnly: true });
+    expect(result.truncated).toBe(true);
 
     const budgetConnector = {
       ...connector,
       async search() {
-        throw new ConnectorError('budget', 'permanent', 'EBAY_REQUEST_BUDGET_EXHAUSTED');
+        throw new ConnectorError('budget', 'permanent', 'SOURCE_BUDGET_EXHAUSTED', true);
       },
     };
     const truncated = await new DefaultCollectionGateway(budgetConnector).collect(criteria, 3);

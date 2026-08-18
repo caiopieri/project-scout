@@ -172,6 +172,7 @@ describe('eBay global rate limiter', () => {
         environment: 'sandbox',
         clientId: 'client',
         clientSecret: 'secret',
+        maxBrowseRequests: 1,
         maxAttempts: 1,
       },
       {

@@ -79,7 +79,13 @@ const main = async () => {
     (await ask('Ambiente [sandbox/production] (sandbox): ')).trim() || 'sandbox';
   const clientId = (await ask('App ID / Client ID: ')).trim();
   const clientSecret = await askHidden('Cert ID / Client Secret (oculto): ');
-  const input = ebaySetupInputSchema.parse({ environment: rawEnvironment, clientId, clientSecret });
+  const browseBudget = Number((await ask('Orçamento Browse por execução: ')).trim());
+  const input = ebaySetupInputSchema.parse({
+    environment: rawEnvironment,
+    clientId,
+    clientSecret,
+    browseBudget,
+  });
 
   const repositoryRoot = process.cwd();
   const targetPath = resolve(repositoryRoot, 'apps', 'worker', '.dev.vars');
@@ -97,6 +103,7 @@ const main = async () => {
         environment: input.environment,
         clientId: input.clientId,
         clientSecret: input.clientSecret,
+        maxBrowseRequests: input.browseBudget,
       });
       console.log(
         `Conexão válida: provider=${smoke.provider} marketplace=${smoke.marketplaceId} items=${smoke.itemCount}`,

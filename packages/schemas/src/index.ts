@@ -1189,7 +1189,7 @@ export type RawListingRecord = z.infer<typeof rawListingRecordSchema>;
 
 export const connectorSearchInputSchema = z.object({
   criteria: researchCriteriaSchema,
-  limit: z.number().int().min(1).max(100).default(20),
+  limit: z.number().int().min(1).max(200).default(20),
   cursor: z.string().optional(),
   query: z.string().trim().min(1).max(200).optional(),
 });
