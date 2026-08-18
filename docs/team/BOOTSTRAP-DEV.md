@@ -25,6 +25,8 @@ REGRAS QUE NÃO SE NEGOCIAM:
 - Proibido tocar: migrations já aplicadas, RLS, autenticação, verificação de
   assinatura, segredos, .dev.vars, .github/workflows, docs/**, package-lock.json
   (a menos que o plano mande), e qualquer arquivo fora do escopo do plano.
+- .dev.vars é proibido para LER também, não só para editar. Nada de `source`,
+  `cat`, `grep` ou export a partir dele. Sonda live é do Engenheiro.
 - Diff mínimo. Toda linha alterada tem que rastrear ao plano.
 - Não implemente nada além do pedido. Se achar que falta algo, escreva no
   relatório — não codifique.

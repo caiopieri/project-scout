@@ -93,6 +93,11 @@ abaixo não são sugestões:
   `docs/**` (documentação é do arquiteto), e qualquer coisa fora do escopo
   declarado no plano.
 - **`package-lock.json`** só muda se o plano disser explicitamente.
+- **A sonda live é do engenheiro, nunca do dev.** O dev não lê, não carrega e não
+  executa `apps/worker/.dev.vars` — nem para "só testar". Se a spec exige prova
+  live, quem roda com credencial real é o engenheiro, e o dev entrega o código.
+  Isto não é desconfiança do dev: é que `--yolo` mais credencial de produção na
+  mesma sessão é uma superfície que não precisa existir.
 - **O engenheiro nunca confia no gate auto-reportado.** Roda `npm run typecheck`,
   `npm run lint`, `npm test` e `npm run build` ele mesmo, em estado limpo, antes
   de aprovar.
