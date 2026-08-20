@@ -62,6 +62,7 @@ describe('Milestone 5 Worker eBay adapter wiring', () => {
       EBAY_CERT_ID_CLIENT_SECRET: 'client-secret',
       EBAY_MARKETPLACE_ID: 'EBAY_US',
       EBAY_GLOBAL_REQUESTS_PER_MINUTE: '2',
+      EBAY_BROWSE_BUDGET_PER_RUN: '6',
       SCOUT_CACHE: {} as never,
     } as never);
     expect(connector).toBeInstanceOf(UnavailableEbayConnector);
@@ -78,6 +79,7 @@ describe('Milestone 5 Worker eBay adapter wiring', () => {
       EBAY_CERT_ID_CLIENT_SECRET: 'client-secret',
       EBAY_MARKETPLACE_ID: 'EBAY_US',
       EBAY_GLOBAL_REQUESTS_PER_MINUTE: '2',
+      EBAY_BROWSE_BUDGET_PER_RUN: '6',
       EBAY_RATE_LIMITER: namespace,
     } as never);
     expect(connector).toBeInstanceOf(EbayApiAdapter);
@@ -310,6 +312,7 @@ describe('Milestone 5 Worker eBay adapter wiring', () => {
       EBAY_CERT_ID_CLIENT_SECRET: 'worker-wire-production-secret',
       EBAY_MARKETPLACE_ID: 'EBAY_US',
       EBAY_GLOBAL_REQUESTS_PER_MINUTE: '10',
+      EBAY_BROWSE_BUDGET_PER_RUN: '6',
       EBAY_RATE_LIMITER: rateLimiter,
       RAW_BUCKET: { put: rawPut },
       EBAY_IDENTITY_HASH_SECRET: 'test-only-identity-hash-secret-32-chars',

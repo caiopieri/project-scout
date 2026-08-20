@@ -21,6 +21,7 @@ export interface Env extends Omit<
   | 'PUBLIC_API_ENABLED'
   | 'TEXT_ANALYZER_MODE'
   | 'EBAY_GLOBAL_REQUESTS_PER_MINUTE'
+  | 'EBAY_BROWSE_BUDGET_PER_RUN'
   | 'EBAY_RATE_LIMITER'
 > {
   COLLECT_QUEUE: Queue<import('@scout/schemas').CollectionTask>;
@@ -44,6 +45,7 @@ export interface Env extends Omit<
   PUBLIC_API_ENABLED?: 'true' | 'false';
   TEXT_ANALYZER_MODE?: 'deterministic' | 'mock';
   EBAY_GLOBAL_REQUESTS_PER_MINUTE?: string;
+  EBAY_BROWSE_BUDGET_PER_RUN?: string;
   EBAY_RATE_LIMITER?: DurableObjectNamespace;
   WEB_ORIGIN?: string;
 }

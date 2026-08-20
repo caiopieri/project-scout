@@ -57,6 +57,9 @@ export const SAFE_COLLECTION_LIMITS: CollectionLimits = {
 export const createConnectorManifest = (input: ConnectorManifest): ConnectorManifest =>
   connectorManifestSchema.parse(input);
 
+const isRequestBudgetExhausted = (cause: unknown): boolean =>
+  cause instanceof ConnectorError && cause.code === 'REQUEST_BUDGET_EXHAUSTED';
+
 export class DefaultCollectionGateway implements CollectionGateway {
   readonly provider: string;
   readonly ingestionLayer: number;
@@ -80,51 +83,63 @@ export class DefaultCollectionGateway implements CollectionGateway {
     this.ingestionLayer = ingestionLayer ?? this.manifest.primaryLayer;
   }
 
-  private readonly limits: CollectionLimits;
+  readonly limits: CollectionLimits;
 
   async collect(criteria: ResearchCriteria, limit = this.limits.maxItems, query?: string) {
     const effectiveLimit = Math.min(limit, this.limits.maxItems);
     const items = [];
     let cursor: string | undefined;
     let pagesFetched = 0;
+    let truncated = false;
     const seenCursors = new Set<string>();
 
     do {
       const remaining = effectiveLimit - items.length;
-      const page = connectorSearchPageSchema.parse(
-        await this.connector.search({
-          criteria,
-          limit: Math.min(this.limits.pageSize, remaining),
-          cursor,
-          query,
-        }),
-      );
-      pagesFetched += 1;
-      for (const preview of page.items.slice(0, remaining)) {
-        const details = rawListingRecordSchema.parse(
-          await this.connector.fetchDetails(preview.externalId),
+      try {
+        const page = connectorSearchPageSchema.parse(
+          await this.connector.search({
+            criteria,
+            limit: Math.min(this.limits.pageSize, remaining),
+            cursor,
+            query,
+          }),
         );
-        if (details.preview.externalId !== preview.externalId) {
+        pagesFetched += 1;
+        for (const preview of page.items.slice(0, remaining)) {
+          const details = rawListingRecordSchema.parse(
+            await this.connector.fetchDetails(preview.externalId),
+          );
+          if (details.preview.externalId !== preview.externalId) {
+            throw new ConnectorError(
+              'Connector detail identifier mismatch.',
+              'permanent',
+              'DETAIL_ID_MISMATCH',
+            );
+          }
+          items.push(details);
+        }
+        if (page.nextCursor && (page.nextCursor === cursor || seenCursors.has(page.nextCursor))) {
           throw new ConnectorError(
-            'Connector detail identifier mismatch.',
+            'Connector returned a repeated cursor.',
             'permanent',
-            'DETAIL_ID_MISMATCH',
+            'CURSOR_LOOP',
           );
         }
-        items.push(details);
+        if (cursor) seenCursors.add(cursor);
+        cursor = page.nextCursor;
+      } catch (cause) {
+        if (!isRequestBudgetExhausted(cause) || items.length === 0) throw cause;
+        truncated = true;
+        break;
       }
-      if (page.nextCursor && (page.nextCursor === cursor || seenCursors.has(page.nextCursor))) {
-        throw new ConnectorError(
-          'Connector returned a repeated cursor.',
-          'permanent',
-          'CURSOR_LOOP',
-        );
-      }
-      if (cursor) seenCursors.add(cursor);
-      cursor = page.nextCursor;
     } while (cursor && items.length < effectiveLimit && pagesFetched < this.limits.maxPages);
 
-    return collectionResultSchema.parse({ items, pagesFetched, provider: this.connector.provider });
+    return collectionResultSchema.parse({
+      items,
+      pagesFetched: Math.max(1, pagesFetched),
+      provider: this.connector.provider,
+      truncated,
+    });
   }
 }
 
@@ -140,22 +155,26 @@ export class BoundedCollectionQueryRunner {
     const items: import('@scout/schemas').RawListingRecord[] = [];
     const seenExternalIds = new Set<string>();
     let pagesFetched = 0;
+    let truncated = false;
     for (const query of boundedQueries) {
       const remaining = limit - items.length;
       if (remaining <= 0) break;
       const result = await this.gateway.collect(criteria, remaining, query);
       pagesFetched += result.pagesFetched;
+      truncated = truncated || result.truncated;
       for (const item of result.items) {
         if (!seenExternalIds.has(item.preview.externalId)) {
           seenExternalIds.add(item.preview.externalId);
           items.push(item);
         }
       }
+      if (truncated) break;
     }
     return collectionResultSchema.parse({
       items: items.slice(0, limit),
       pagesFetched: Math.max(1, pagesFetched),
       provider: this.gateway.provider,
+      truncated,
     });
   }
 }
@@ -183,7 +202,13 @@ export const buildCollectorHealth = (
       pricePercent: completeness,
       titlePercent: completeness,
     },
-    diagnostics: hasResults ? [] : ['Source returned no listings.'],
+    // Varredura truncada continua sendo sucesso, mas não pode se apresentar
+    // como se tivesse visto o mercado inteiro.
+    diagnostics: hasResults
+      ? result.truncated
+        ? ['Request budget exhausted before the source was fully swept.']
+        : []
+      : ['Source returned no listings.'],
   });
 };
 
@@ -271,10 +296,8 @@ export class CollectionTaskProcessor {
       const result = queryFamily
         ? await new BoundedCollectionQueryRunner(
             gateway,
-            gateway instanceof DefaultCollectionGateway
-              ? (gateway.manifest.limits.maxQueries ?? 1)
-              : 1,
-            gateway instanceof DefaultCollectionGateway ? gateway.manifest.limits.maxItems : 5,
+            gateway instanceof DefaultCollectionGateway ? (gateway.limits.maxQueries ?? 1) : 1,
+            gateway instanceof DefaultCollectionGateway ? gateway.limits.maxItems : 5,
           ).collect(
             criteria,
             queryFamily.queries.map(({ query }) => query),

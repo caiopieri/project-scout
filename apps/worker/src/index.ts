@@ -12,6 +12,7 @@ import {
   GenericListingMapper,
   ListingIngestionService,
   SourceCollectionGatewayRegistry,
+  type CollectionLimits,
 } from '@scout/collection';
 import { SupabaseRestCollectionRunRepository } from '@scout/database/collection';
 import { SupabaseRestListingIngestionRepository } from '@scout/database/ingestion';
@@ -24,6 +25,7 @@ import { SupabaseRestTriageDecisionRepository } from '@scout/database/triage';
 import { SupabaseRestSearchQueryFamilyRepository } from '@scout/database/search-intelligence';
 import {
   EbayApiAdapter,
+  EBAY_CONNECTOR_MANIFEST,
   EbayListingMapper,
   KvEbayRateLimiter,
   MockEbayConnector,
@@ -94,7 +96,12 @@ export const configuredEbayConnector = (env: Env, onRequest?: EbayRequestTelemet
   ) {
     return new UnavailableEbayConnector(mode, 'EBAY_RATE_LIMIT_CONFIGURATION_MISSING');
   }
-  const maxBrowseRequests = 6;
+  // Orçamento de chamadas Browse por execução. Sem literal de fallback: em
+  // production a ausência falha fechado, igual à política de rate limit.
+  const maxBrowseRequests = Number(env.EBAY_BROWSE_BUDGET_PER_RUN);
+  if (!Number.isSafeInteger(maxBrowseRequests) || maxBrowseRequests < 1) {
+    return new UnavailableEbayConnector(mode, 'EBAY_BROWSE_BUDGET_CONFIGURATION_MISSING');
+  }
   const rateLimiter =
     mode === 'production' && env.EBAY_RATE_LIMITER
       ? new DurableObjectEbayRateLimiter(env.EBAY_RATE_LIMITER, {
@@ -202,15 +209,31 @@ const SOURCE_IDS = {
   xianyu: '00000000-0000-4000-a000-000000000003',
 } as const;
 
+// Uma varredura gasta 1 chamada de busca por página mais 1 de detalhe por
+// anúncio. O orçamento por execução é o teto de tudo; o resto sai dele.
+const ebayCollectionLimits = (env: Env): CollectionLimits | undefined => {
+  const budget = Number(env.EBAY_BROWSE_BUDGET_PER_RUN);
+  if (!Number.isSafeInteger(budget) || budget < 2) return undefined;
+  const manifestLimits = EBAY_CONNECTOR_MANIFEST.limits;
+  const maxPages = Math.max(
+    1,
+    Math.min(manifestLimits.maxPages, Math.ceil(budget / manifestLimits.pageSize)),
+  );
+  return {
+    maxPages,
+    pageSize: manifestLimits.pageSize,
+    maxItems: Math.max(1, Math.min(manifestLimits.maxItems, budget - maxPages)),
+    maxQueries: 1,
+  };
+};
+
 const configuredCollectionGateways = (env: Env, onEbayRequest?: EbayRequestTelemetryLogger) =>
   new SourceCollectionGatewayRegistry([
     [
       SOURCE_IDS.ebay,
       new DefaultCollectionGateway(
         configuredEbayConnector(env, onEbayRequest),
-        env.EBAY_CONNECTOR_MODE === 'mock'
-          ? undefined
-          : { maxPages: 1, pageSize: 5, maxItems: 4, maxQueries: 1 },
+        env.EBAY_CONNECTOR_MODE === 'mock' ? undefined : ebayCollectionLimits(env),
       ),
     ],
     [SOURCE_IDS.mercadolivre, new DefaultCollectionGateway(configuredMercadoLivreConnector(env))],

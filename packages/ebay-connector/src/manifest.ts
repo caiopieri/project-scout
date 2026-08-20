@@ -26,9 +26,14 @@ export const EBAY_CONNECTOR_MANIFEST = connectorManifestSchema.parse({
     },
   ],
   limits: {
-    maxPages: 1,
-    pageSize: 5,
-    maxItems: 5,
+    // A Browse API aceita até 200 por página, mas o schema do núcleo limita a
+    // 100 e a diferença custa uma chamada de busca a cada 100 anúncios —
+    // irrelevante perto de uma chamada de detalhe por anúncio. Não vale alargar
+    // a fronteira do núcleo por isso. O orçamento real por execução é
+    // configuração do Worker (EBAY_BROWSE_BUDGET_PER_RUN), não literal aqui.
+    maxPages: 20,
+    pageSize: 100,
+    maxItems: 500,
   },
   healthStates: [
     'NORMAL',
