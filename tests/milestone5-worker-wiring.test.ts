@@ -480,7 +480,7 @@ describe('Milestone 5 Worker eBay adapter wiring', () => {
     expect(retry).not.toHaveBeenCalled();
   });
 
-  it('runs the authenticated manual production probe within six Browse calls', async () => {
+  it('requires and applies the configured manual probe Browse budget', async () => {
     const token = 'a'.repeat(64);
     const fetcher = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
@@ -516,12 +516,12 @@ describe('Milestone 5 Worker eBay adapter wiring', () => {
       throw new Error(`Unexpected fetch: ${url}`);
     });
     vi.stubGlobal('fetch', fetcher);
-    const env = {
+    const baseEnv = {
       EBAY_PROBE_TOKEN: token,
       EBAY_APP_ID_CLIENT_ID: 'production-client',
       EBAY_CERT_ID_CLIENT_SECRET: 'production-secret',
       EBAY_MARKETPLACE_ID: 'EBAY_US',
-    } as never;
+    };
 
     const denied = await worker.fetch(
       new Request('https://worker.test/internal/ebay/probe', {
@@ -529,7 +529,7 @@ describe('Milestone 5 Worker eBay adapter wiring', () => {
         headers: { Authorization: 'Bearer invalid', 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: 'MacBook Pro M4 Max' }),
       }),
-      env,
+      baseEnv as never,
       {} as never,
     );
     expect(denied.status).toBe(404);
@@ -541,11 +541,25 @@ describe('Milestone 5 Worker eBay adapter wiring', () => {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: 'MacBook Pro M4 Max', maxResults: 6 }),
       }),
-      env,
+      baseEnv as never,
       {} as never,
     );
     expect(invalid.status).toBe(422);
     expect(fetcher).not.toHaveBeenCalled();
+
+    const missingBudget = await worker.fetch(
+      new Request('https://worker.test/internal/ebay/probe', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: 'MacBook Pro M4 Max', maxResults: 5 }),
+      }),
+      baseEnv as never,
+      {} as never,
+    );
+    expect(missingBudget.status).toBe(503);
+    expect(fetcher).not.toHaveBeenCalled();
+
+    const env = { ...baseEnv, EBAY_BROWSE_BUDGET_PER_RUN: '3' } as never;
 
     const response = await worker.fetch(
       new Request('https://worker.test/internal/ebay/probe', {
@@ -560,11 +574,15 @@ describe('Milestone 5 Worker eBay adapter wiring', () => {
     expect(await response.json()).toMatchObject({
       provider: 'ebay-api-production-v1',
       query: 'MacBook Pro M4 Max',
-      browseRequests: 6,
+      browseRequests: 3,
+      browseBudget: {
+        maxRequests: 3,
+        exhausted: true,
+      },
       items: expect.arrayContaining([
         expect.objectContaining({ title: expect.stringContaining('MacBook Pro M4 Max') }),
       ]),
     });
-    expect(fetcher).toHaveBeenCalledTimes(7);
+    expect(fetcher).toHaveBeenCalledTimes(4);
   });
 });

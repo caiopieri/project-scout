@@ -31,7 +31,11 @@ const optionalText = (payload: JsonObject, key: string) => {
   return typeof value === 'string' ? value : undefined;
 };
 
-export async function handleManualEbayProbe(request: Request, env: Env): Promise<Response> {
+export async function handleManualEbayProbe(
+  request: Request,
+  env: Env,
+  browseBudgetConfig = env.EBAY_BROWSE_BUDGET_PER_RUN,
+): Promise<Response> {
   const configuredToken = env.EBAY_PROBE_TOKEN;
   if (!configuredToken || !TOKEN_PATTERN.test(configuredToken))
     return json({ error: 'Route not found.' }, 404);
@@ -53,6 +57,9 @@ export async function handleManualEbayProbe(request: Request, env: Env): Promise
   }
   const input = manualEbayProbeInputSchema.safeParse(raw);
   if (!input.success) return json({ error: 'Invalid probe input.' }, 422);
+  const maxBrowseRequests = Number(browseBudgetConfig);
+  if (!Number.isSafeInteger(maxBrowseRequests) || maxBrowseRequests < 1)
+    return json({ error: 'Probe is unavailable.' }, 503);
   if (!env.EBAY_APP_ID_CLIENT_ID || !env.EBAY_CERT_ID_CLIENT_SECRET)
     return json({ error: 'Probe is unavailable.' }, 503);
   const marketplaceId = env.EBAY_MARKETPLACE_ID ?? 'EBAY_US';
@@ -81,7 +88,7 @@ export async function handleManualEbayProbe(request: Request, env: Env): Promise
     clientSecret: env.EBAY_CERT_ID_CLIENT_SECRET,
     marketplaceId,
     maxAttempts: 1,
-    maxBrowseRequests: 6,
+    maxBrowseRequests,
   });
 
   try {
