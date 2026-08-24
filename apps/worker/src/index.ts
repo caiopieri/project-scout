@@ -233,7 +233,9 @@ const configuredCollectionGateways = (env: Env, onEbayRequest?: EbayRequestTelem
       SOURCE_IDS.ebay,
       new DefaultCollectionGateway(
         configuredEbayConnector(env, onEbayRequest),
-        env.EBAY_CONNECTOR_MODE === 'mock' ? undefined : ebayCollectionLimits(env),
+        // O conector trata modo ausente como mock; os limites precisam concordar,
+        // ou modo indefinido pega conector mock com teto de produção.
+        (env.EBAY_CONNECTOR_MODE ?? 'mock') === 'mock' ? undefined : ebayCollectionLimits(env),
       ),
     ],
     [SOURCE_IDS.mercadolivre, new DefaultCollectionGateway(configuredMercadoLivreConnector(env))],

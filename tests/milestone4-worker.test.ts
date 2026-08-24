@@ -279,7 +279,9 @@ describe('Milestone 4 Worker producer and consumer', () => {
     await worker.queue({ messages: [{ body: { version: '1', runId }, ack, retry }] } as never, env);
     expect(ack).toHaveBeenCalledOnce();
     expect(retry).not.toHaveBeenCalled();
-    expect(rawPut).toHaveBeenCalledTimes(4);
+    // O caminho mock tem 5 fixtures. O 4 anterior era o teto artificial de
+    // coleta que a S1.1b-1 remove, não uma propriedade do mock.
+    expect(rawPut).toHaveBeenCalledTimes(5);
   });
 
   it('retries an infrastructure failure without acknowledging the message', async () => {

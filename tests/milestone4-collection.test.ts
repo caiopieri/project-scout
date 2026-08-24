@@ -134,6 +134,76 @@ describe('Milestone 4 Collection Gateway', () => {
     expect(network).not.toHaveBeenCalled();
   });
 
+  it('keeps the page size constant across pages even when fewer items remain', async () => {
+    // Fonte que exige offset múltiplo do limite (eBay, erro 12515) rejeita a
+    // requisição se o limite encolher na última página.
+    const connector = new MockEbayConnector();
+    const requestedLimits: number[] = [];
+    const observed: SourceConnector = {
+      source: connector.source,
+      provider: connector.provider,
+      manifest: connector.manifest,
+      search: (input) => {
+        requestedLimits.push((input as { limit: number }).limit);
+        return connector.search(input);
+      },
+      fetchDetails: (externalId) => connector.fetchDetails(externalId),
+    };
+    const gateway = new DefaultCollectionGateway(observed, {
+      maxPages: 3,
+      pageSize: 2,
+      maxItems: 3,
+    });
+    const result = await gateway.collect(criteria);
+    expect(result.items).toHaveLength(3);
+    expect(requestedLimits).toEqual(requestedLimits.map(() => 2));
+    expect(requestedLimits.length).toBeGreaterThan(1);
+  });
+
+  it('returns a truncated sweep instead of failing when the request budget runs out', async () => {
+    const connector = new MockEbayConnector();
+    const exhausted = new ConnectorError(
+      'Source request budget exhausted.',
+      'permanent',
+      'REQUEST_BUDGET_EXHAUSTED',
+    );
+    let details = 0;
+    const budgeted: SourceConnector = {
+      source: connector.source,
+      provider: connector.provider,
+      manifest: connector.manifest,
+      search: (input) => connector.search(input),
+      fetchDetails: (externalId) => {
+        details += 1;
+        if (details > 2) throw exhausted;
+        return connector.fetchDetails(externalId);
+      },
+    };
+    const result = await new DefaultCollectionGateway(budgeted).collect(criteria);
+    expect(result.items).toHaveLength(2);
+    expect(result.truncated).toBe(true);
+  });
+
+  it('propagates budget exhaustion as a failure when nothing was collected', async () => {
+    const connector = new MockEbayConnector();
+    const budgeted: SourceConnector = {
+      source: connector.source,
+      provider: connector.provider,
+      manifest: connector.manifest,
+      search: () => {
+        throw new ConnectorError(
+          'Source request budget exhausted.',
+          'permanent',
+          'REQUEST_BUDGET_EXHAUSTED',
+        );
+      },
+      fetchDetails: (externalId) => connector.fetchDetails(externalId),
+    };
+    await expect(new DefaultCollectionGateway(budgeted).collect(criteria)).rejects.toMatchObject({
+      code: 'REQUEST_BUDGET_EXHAUSTED',
+    });
+  });
+
   it('honors the requested collection limit', async () => {
     const result = await new DefaultCollectionGateway(new MockEbayConnector()).collect(criteria, 3);
     expect(result.items.map((item) => item.preview.externalId)).toEqual([

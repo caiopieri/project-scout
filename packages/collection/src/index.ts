@@ -96,10 +96,14 @@ export class DefaultCollectionGateway implements CollectionGateway {
     do {
       const remaining = effectiveLimit - items.length;
       try {
+        // Página sempre cheia. Encolher o limite na última página muda o
+        // tamanho de página no meio da paginação, e fonte que exige offset
+        // múltiplo do limite (eBay, erro 12515) rejeita a requisição. O corte
+        // para `remaining` é local, logo abaixo.
         const page = connectorSearchPageSchema.parse(
           await this.connector.search({
             criteria,
-            limit: Math.min(this.limits.pageSize, remaining),
+            limit: this.limits.pageSize,
             cursor,
             query,
           }),
@@ -345,8 +349,10 @@ export class CollectionTaskProcessor {
           });
         } catch (cause) {
           if (cause instanceof ConnectorError) throw cause;
+          // Engolir a causa transforma toda falha de escrita no mesmo código
+          // opaco. Sem a mensagem original não há como diagnosticar volume.
           throw new ConnectorError(
-            'Listing triage decisions could not be persisted.',
+            `Listing triage decisions could not be persisted: ${cause instanceof Error ? cause.message : String(cause)}`,
             'transient',
             'TRIAGE_PERSISTENCE_UNAVAILABLE',
           );
