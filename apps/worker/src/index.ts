@@ -532,7 +532,8 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === EBAY_ACCOUNT_DELETION_PATH)
       return handleEbayAccountDeletionWebhook(request, env);
-    if (url.pathname === MANUAL_EBAY_PROBE_PATH) return handleManualEbayProbe(request, env);
+    if (url.pathname === MANUAL_EBAY_PROBE_PATH)
+      return handleManualEbayProbe(request, env, env.EBAY_BROWSE_BUDGET_PER_RUN);
     if (request.method === 'OPTIONS')
       return new Response(null, {
         status: 204,
