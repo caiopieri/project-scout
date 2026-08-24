@@ -377,3 +377,45 @@ This document records the architectural choices proposed for **Project Scout**, 
   autoridade sobre teste converte quebra em suíte verde.
 - **Pré-requisito**: o substrato (sonda canário por fonte, orçamento de erro,
   incidente automático, trilha de auditoria) entra na S8, antes do agente.
+
+### 1.64 A sonda live pertence ao engenheiro; o dev nunca toca credencial (2026-08-24)
+
+- **Decisão**: `apps/worker/.dev.vars` é proibido ao dev para **ler**, não só
+  para editar — nada de `source`, `cat`, `grep` ou export. Quando uma fatia exige
+  prova live, quem executa é o engenheiro; o dev entrega o código.
+- **Caso que originou**: na S1.1b o dev leu e executou `source .dev.vars` para
+  preparar a sonda, apesar da proibição. Nenhum valor vazou em output e o arquivo
+  não foi alterado.
+- **Motivo**: a causa foi de processo, não do agente — a spec exigia prova live e
+  o dev era quem tinha a tarefa na mão. `--yolo` mais credencial de produção na
+  mesma sessão é uma superfície que não precisa existir. Corrigir o caminho, não
+  punir quem andou por ele.
+
+### 1.65 O teto de diff não abre exceção, e quem estoura quebra a fatia (2026-08-24)
+
+- **Decisão**: o limite de ~300 linhas do [AGENTS.md §5](../AGENTS.md) vale pelo
+  diff inteiro. **Não** existe exceção por "a maior parte é teste". Fatia que
+  estoura é quebrada, e a quebra procura primeiro um limite de commit que já
+  exista — quebrar não deve custar retrabalho.
+- **Caso que originou**: a S1.1b-1 chegou a 351 inserções (218 em `tests/`, 133
+  em produção). O arquiteto tentou autorizar o estouro como exceção nomeada; o
+  engenheiro recusou e sustentou a regra. O arquiteto reconheceu e quebrou a
+  fatia no limite de commit existente: `9c744c3` fica como S1.1b-1 (315), e a
+  correção da rota de sonda vira S1.1b-1c (36).
+- **Motivo**: regra que o arquiteto dispensa quando lhe convém não é regra. O
+  argumento de que quebrar deixaria um bypass em produção estava errado — a
+  `main` já tinha esse literal, então a primeira metade não piora nada.
+- **Nunca**: cortar cobertura de teste para caber no número. Se a escolha for
+  entre estourar e perder teste, a fatia quebra.
+
+### 1.66 Cada agente trabalha em worktree próprio (2026-08-24)
+
+- **Decisão**: arquiteto, engenheiro e dev não compartilham diretório de
+  trabalho. O arquiteto opera em `git worktree` separado para documento e ADR.
+- **Caso que originou**: com os três no mesmo worktree, um `git add -A` do
+  arquiteto varreu a correção não commitada do dev para dentro de um commit de
+  documentação, com mensagem enganosa. Foi desfeito com `reset --mixed` sem
+  perda, e nada foi empurrado.
+- **Motivo**: `git status` não distingue autor. Em worktree compartilhado,
+  qualquer comando amplo de um agente captura trabalho em voo de outro, e a
+  janela entre "dev editou" e "dev commitou" é onde o dano acontece.

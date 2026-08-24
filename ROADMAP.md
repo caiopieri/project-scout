@@ -63,6 +63,7 @@ próximo **independente** assume — nunca se abre um round adiantado do "Depois
 | -------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **S1.1** | Coleta real do eBay persistida    | Uma pesquisa real grava anúncios reais no banco; 3 URLs conferidas manualmente existem; consumo de chamadas medido; nenhum segredo em log            |
 | **S1.1b-1** | Orçamento e paginação           | Uma execução real devolve ≥100 anúncios persistidos dentro de orçamento de chamadas explícito; orçamento ausente falha fechado; truncamento é registrado                                                |
+| **S1.1b-1c** | Orçamento na rota de sonda      | `/internal/ebay/probe` lê e valida `EBAY_BROWSE_BUDGET_PER_RUN`, recusa sem ele, e o teste exercita a rota — não o construtor                                                                             |
 | **S1.1b-1b** | Caminho de escrita em volume   | Uma coleta de ≥100 anúncios termina `completed` com contadores preenchidos; nenhuma URL cresce com o número de anúncios; retry não regasta o orçamento inteiro                                            |
 | **S1.1b-2** | Família de queries e camada 1   | Mais de uma query por execução; chamada de detalhe só para quem sobreviveu ao filtro barato; o descartado vira triagem persistida                                                                        |
 | **S1.2** | Memória de preço desde o dia zero | `price_history` recebe uma observação por anúncio observado; recoletar no dia seguinte acrescenta observação sem duplicar snapshot quando nada mudou |
@@ -70,6 +71,7 @@ próximo **independente** assume — nunca se abre um round adiantado do "Depois
 
 Handoffs: [S1.1](docs/handoffs/HANDOFF-S1.1.md) ·
 [S1.1b-1](docs/handoffs/HANDOFF-S1.1b-1.md) ·
+[S1.1b-1c](docs/handoffs/HANDOFF-S1.1b-1c.md) ·
 [S1.1b-1b](docs/handoffs/HANDOFF-S1.1b-1b.md) ·
 [S1.1b-2](docs/handoffs/HANDOFF-S1.1b-2.md) ·
 [S1.2](docs/handoffs/HANDOFF-S1.2.md) · [S1.3](docs/handoffs/HANDOFF-S1.3.md)
