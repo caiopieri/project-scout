@@ -1212,6 +1212,9 @@ export const collectionResultSchema = z.object({
   items: z.array(rawListingRecordSchema),
   pagesFetched: z.number().int().positive(),
   provider: z.string().min(1),
+  // True when the request budget ran out before the source was exhausted. A
+  // truncated sweep is a valid result; presenting it as complete is not.
+  truncated: z.boolean().default(false),
 });
 export type CollectionResult = z.infer<typeof collectionResultSchema>;
 

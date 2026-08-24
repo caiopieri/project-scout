@@ -320,12 +320,12 @@ describe('Milestone 5 eBay official API adapter', () => {
     await connector.search({ criteria, limit: 1 });
     await expect(connector.search({ criteria, limit: 1 })).rejects.toMatchObject({
       kind: 'permanent',
-      code: 'EBAY_REQUEST_BUDGET_EXHAUSTED',
+      code: 'REQUEST_BUDGET_EXHAUSTED',
     });
     expect(fetcher).toHaveBeenCalledTimes(3);
     expect(events.at(-1)).toMatchObject({
       outcome: 'error',
-      errorCode: 'EBAY_REQUEST_BUDGET_EXHAUSTED',
+      errorCode: 'REQUEST_BUDGET_EXHAUSTED',
       requestNumber: 2,
       maxRequests: 2,
     });
