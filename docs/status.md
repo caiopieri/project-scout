@@ -1,4 +1,4 @@
-# Estado real — verificado em 2026-08-17
+# Estado real — verificado em 2026-08-24
 
 > Este é o único documento que declara o que **existe**. Roadmap declara o que
 > vai existir; arquitetura declara como deve ser feito. Se algum outro documento
@@ -17,7 +17,7 @@
 
 | Capacidade                                          | Estado | Observação                                                                                            |
 | --------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------- |
-| Camada 1 — API oficial (eBay Browse)                | ✅     | OAuth, orçamento de 6 chamadas, rate limit atômico via Durable Object, smoke Production com item real |
+| Camada 1 — API oficial (eBay Browse)                | 🟡     | OAuth, orçamento explícito por execução e rate limit atômico via Durable Object; a sonda S1.1b-1 fez 210 chamadas reais e persistiu 3 anúncios antes de o Wrangler encerrar sem fechar o run; fechamento/persistência completa segue para S1.1b-1b |
 | Camada 2 — endpoint JSON/GraphQL                    | ❌     | Nenhuma implementação                                                                                 |
 | Camada 3 — WebSocket/SSE                            | ❌     | Nenhuma implementação                                                                                 |
 | Camada 4 — HTTP/HTML direto                         | ❌     | Nenhuma implementação                                                                                 |
@@ -33,7 +33,7 @@
 
 | Fonte                                     | Estado | Observação                                                                               |
 | ----------------------------------------- | ------ | ---------------------------------------------------------------------------------------- |
-| eBay                                      | ✅     | Coleta local Production persistiu 4 anúncios reais; 4 criados, telemetria sanitizada e 3 URLs conferidas no Chrome |
+| eBay                                      | 🟡     | S1.1b-1 está mergeada e fez busca Production real em 3 páginas (`offset` derivado 0/100/200), com `requestNumber` 1–210 contra `maxRequests=210` e 3 anúncios persistidos; o Worker encerrou antes de finalizar o run, que permaneceu `running` com contadores zerados; fechamento completo é S1.1b-1b |
 | Mercado Livre                             | 🟡     | Adapter + OAuth escritos, nunca rodaram live; suspenso por decisão de 2026-08-15         |
 | Xianyu                                    | ❌     | Apenas boundary "indisponível"                                                           |
 | OLX, Facebook Marketplace                 | ❌     | Nunca iniciados                                                                          |
