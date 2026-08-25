@@ -25,6 +25,18 @@ Diagnóstico parcial já feito:
 
 O núcleo de coleta funciona em volume. O caminho de escrita e leitura, não.
 
+## Segundo fato, observado depois (sonda do engenheiro, 2026-08-24)
+
+Uma segunda execução live gastou as 210 chamadas (3 buscas + 207 detalhes, todas
+HTTP 200, `requestNumber` de 1 a 210 contra `maxRequests` 210) e persistiu apenas
+**3 anúncios** antes de o processo do Worker morrer. A execução ficou
+**`running` para sempre**: `finished_at` nulo, contadores zerados, nenhum
+`error_code`, e o lease venceu sem ninguém reivindicar de volta.
+
+Isto acrescenta um sintoma ao anterior e muda o alvo da fatia: além de escrever
+em volume, é preciso **terminar** a execução. Consumidor que morre no meio deixa
+execução órfã, e nenhum caminho a recupera.
+
 ## Pronto quando
 
 1. Uma coleta real de ≥100 anúncios termina `completed`, com os contadores da
@@ -35,7 +47,10 @@ O núcleo de coleta funciona em volume. O caminho de escrita e leitura, não.
    tamanho de lote explícito.
 4. Leitura por lista de IDs é fatiada em blocos de tamanho explícito. Nenhuma URL
    cresce com o número de anúncios do projeto.
-5. **Retry não regasta o orçamento inteiro.** Uma tentativa que já coletou não
+5. **Execução órfã é recuperada.** Uma execução `running` cujo lease venceu volta
+   para a fila ou termina como falha explícita, com `error_code`. Nunca fica
+   `running` para sempre. Provado desligando o consumidor no meio.
+6. **Retry não regasta o orçamento inteiro.** Uma tentativa que já coletou não
    recoleta do zero, ou o retry é negado para falha pós-coleta. Escolher e
    justificar — as duas saídas são aceitáveis, gastar 3× a quota não é.
 
@@ -75,5 +90,12 @@ anúncios e se declara `failed` com contador zero.
   exata do `TRIAGE_PERSISTENCE_UNAVAILABLE`. Pode ser limite de sub-requisições
   do Worker, tempo de CPU, ou outra coisa. **Medir antes de consertar** — se a
   causa for outra, esta fatia muda de forma e volta para o arquiteto.
+- **Recuperar execução órfã pode duplicar coleta.** Se o lease vencido devolve à
+  fila e a tentativa anterior já gravou parte dos anúncios, a segunda tentativa
+  recoleta e regasta a quota. A idempotência por `(source_id, external_id)`
+  protege o banco, não a conta do eBay.
+- **Escolher "termina como falha" em vez de "volta para a fila" é aceitável e
+  provavelmente melhor aqui**, justamente por causa da quota. Decidir de
+  propósito e escrever o porquê.
 - **O retry gastando quota é o risco de dinheiro, não de código.** Enquanto isso
   não fechar, cada execução malsucedida custa 3× a quota diária do eBay.
