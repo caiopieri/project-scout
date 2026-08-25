@@ -1,4 +1,4 @@
-# Estado real — verificado em 2026-08-24
+# Estado real — verificado em 2026-08-25
 
 > Este é o único documento que declara o que **existe**. Roadmap declara o que
 > vai existir; arquitetura declara como deve ser feito. Se algum outro documento
@@ -15,30 +15,30 @@
 
 ## Núcleo de coleta
 
-| Capacidade                                          | Estado | Observação                                                                                            |
-| --------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------- |
-| Camada 1 — API oficial (eBay Browse)                | 🟡     | OAuth, orçamento explícito por execução e rate limit atômico via Durable Object; a sonda S1.1b-1 fez 210 chamadas reais e persistiu 3 anúncios antes de o Wrangler encerrar sem fechar o run; fechamento/persistência completa segue para S1.1b-1b |
-| Camada 2 — endpoint JSON/GraphQL                    | ❌     | Nenhuma implementação                                                                                 |
-| Camada 3 — WebSocket/SSE                            | ❌     | Nenhuma implementação                                                                                 |
-| Camada 4 — HTTP/HTML direto                         | ❌     | Nenhuma implementação                                                                                 |
-| Camada 5 — navegador automatizado                   | ❌     | Sem Playwright, sem Browser Rendering                                                                 |
-| Camada 6 — DOM/MutationObserver                     | ❌     | Nenhuma implementação                                                                                 |
-| Camada 7 — screenshot/OCR                           | ❌     | Nenhuma implementação                                                                                 |
-| `ScrapingProvider` (porta genérica)                 | 🟡     | Interface existe em `packages/domain`; zero implementações                                            |
-| Proxy / rotação de IP                               | ❌     | Nenhuma implementação                                                                                 |
-| Local Agent (coleta na máquina do usuário)          | ❌     | Nenhuma implementação                                                                                 |
-| Auto-cura (detectar quebra → diagnosticar → propor) | ❌     | Removido em `1291a6e`; eram funções puras sem chamador                                                |
+| Capacidade                                          | Estado | Observação                                                                                                                                                                                                                                           |
+| --------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Camada 1 — API oficial (eBay Browse)                | 🟡     | OAuth, orçamento explícito e rate limit atômico; `d147ad3` adicionou triagem e leitura em lotes de 50, com 123 registros provados em fixture e CI verde; a prova live ≥100 não rodou porque o ambiente do Engenheiro limita a execução a 50 chamadas |
+| Camada 2 — endpoint JSON/GraphQL                    | ❌     | Nenhuma implementação                                                                                                                                                                                                                                |
+| Camada 3 — WebSocket/SSE                            | ❌     | Nenhuma implementação                                                                                                                                                                                                                                |
+| Camada 4 — HTTP/HTML direto                         | ❌     | Nenhuma implementação                                                                                                                                                                                                                                |
+| Camada 5 — navegador automatizado                   | ❌     | Sem Playwright, sem Browser Rendering                                                                                                                                                                                                                |
+| Camada 6 — DOM/MutationObserver                     | ❌     | Nenhuma implementação                                                                                                                                                                                                                                |
+| Camada 7 — screenshot/OCR                           | ❌     | Nenhuma implementação                                                                                                                                                                                                                                |
+| `ScrapingProvider` (porta genérica)                 | 🟡     | Interface existe em `packages/domain`; zero implementações                                                                                                                                                                                           |
+| Proxy / rotação de IP                               | ❌     | Nenhuma implementação                                                                                                                                                                                                                                |
+| Local Agent (coleta na máquina do usuário)          | ❌     | Nenhuma implementação                                                                                                                                                                                                                                |
+| Auto-cura (detectar quebra → diagnosticar → propor) | ❌     | Removido em `1291a6e`; eram funções puras sem chamador                                                                                                                                                                                               |
 
 ## Fontes
 
-| Fonte                                     | Estado | Observação                                                                               |
-| ----------------------------------------- | ------ | ---------------------------------------------------------------------------------------- |
-| eBay                                      | 🟡     | S1.1b-1 está mergeada e fez busca Production real em 3 páginas (`offset` derivado 0/100/200), com `requestNumber` 1–210 contra `maxRequests=210` e 3 anúncios persistidos; o Worker encerrou antes de finalizar o run, que permaneceu `running` com contadores zerados; fechamento completo é S1.1b-1b |
-| Mercado Livre                             | 🟡     | Adapter + OAuth escritos, nunca rodaram live; suspenso por decisão de 2026-08-15         |
-| Xianyu                                    | ❌     | Apenas boundary "indisponível"                                                           |
-| OLX, Facebook Marketplace                 | ❌     | Nunca iniciados                                                                          |
-| Leilões (AllSurplus, BidSpotter, Freitas) | ❌     | Nunca iniciados                                                                          |
-| Fornecedores China / fabricantes          | ❌     | Nunca iniciados                                                                          |
+| Fonte                                     | Estado | Observação                                                                                                                                                                                                                         |
+| ----------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| eBay                                      | 🟡     | A busca Production anterior fez 210 chamadas e deixou a run `running`; S1.1b-1b-volume está mergeada/CI-verde, mas live segue pendente por orçamento efetivo 50; fechamento completo depende de volume live e S1.1b-1b-reliability |
+| Mercado Livre                             | 🟡     | Adapter + OAuth escritos, nunca rodaram live; suspenso por decisão de 2026-08-15                                                                                                                                                   |
+| Xianyu                                    | ❌     | Apenas boundary "indisponível"                                                                                                                                                                                                     |
+| OLX, Facebook Marketplace                 | ❌     | Nunca iniciados                                                                                                                                                                                                                    |
+| Leilões (AllSurplus, BidSpotter, Freitas) | ❌     | Nunca iniciados                                                                                                                                                                                                                    |
+| Fornecedores China / fabricantes          | ❌     | Nunca iniciados                                                                                                                                                                                                                    |
 
 ## Inteligência
 
@@ -64,16 +64,16 @@
 
 ## Plataforma
 
-| Capacidade                                         | Estado | Observação                                                    |
-| -------------------------------------------------- | ------ | ------------------------------------------------------------- |
-| Auth + RLS owner-scoped                            | ✅     | Supabase, testado com usuário cruzado                         |
-| CRUD de projetos de pesquisa                       | ✅     | API + UI                                                      |
-| Fila de coleta com idempotência, lease, retry, DLQ | ✅     | Cloudflare Queues                                             |
-| Raw store content-addressed (R2)                   | ✅     | SHA-256, schema version                                       |
-| Normalização + upsert transacional                 | ✅     | Identidade `(source_id, external_id)`                         |
-| Webhook de privacidade eBay                        | ✅     | Assinatura verificada, fila durável, R2 antes de PostgreSQL   |
-| UI de resultados                                   | 🟡     | Uma página de 1.064 linhas; sem ranking, filtro ou comparação |
-| `/api/*` em produção                               | ❌     | Desabilitado (`PUBLIC_API_ENABLED=false`)                     |
+| Capacidade                                         | Estado | Observação                                                                                                                                |
+| -------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Auth + RLS owner-scoped                            | ✅     | Supabase, testado com usuário cruzado                                                                                                     |
+| CRUD de projetos de pesquisa                       | ✅     | API + UI                                                                                                                                  |
+| Fila de coleta com idempotência, lease, retry, DLQ | ✅     | Cloudflare Queues                                                                                                                         |
+| Raw store content-addressed (R2)                   | ✅     | SHA-256, schema version                                                                                                                   |
+| Normalização + upsert transacional                 | ✅     | Identidade `(source_id, external_id)`                                                                                                     |
+| Webhook de privacidade eBay                        | ✅     | Assinatura verificada, fila durável, R2 antes de PostgreSQL                                                                               |
+| UI de resultados                                   | 🟡     | Repositório lê IDs em blocos de 50 e recompõe ordem em fixture de 123; live ≥100 pendente; página segue sem ranking, filtro ou comparação |
+| `/api/*` em produção                               | ❌     | Desabilitado (`PUBLIC_API_ENABLED=false`)                                                                                                 |
 
 ## Dívidas conhecidas
 
