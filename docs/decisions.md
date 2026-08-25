@@ -419,3 +419,21 @@ This document records the architectural choices proposed for **Project Scout**, 
 - **Motivo**: `git status` não distingue autor. Em worktree compartilhado,
   qualquer comando amplo de um agente captura trabalho em voo de outro, e a
   janela entre "dev editou" e "dev commitou" é onde o dano acontece.
+
+### 1.67 Execução órfã falha sem recoleta, condicionada à reentrega (2026-08-25)
+
+- **Decisão**: uma `collection_run` só é classificada como órfã quando está
+  `running`, o lease venceu e a mensagem atual é uma reentrega da fila
+  (`attempts > 1`). Ela termina `failed` com `COLLECTION_RUN_ORPHANED`, sem
+  chamar o connector. Lease vencido sozinho não encerra nem reivindica a run;
+  em estado ambíguo, o sistema não encerra.
+- **Motivo**: recoletar automaticamente pode regastar as 210 chamadas Browse da
+  tentativa anterior. O falso negativo custa um novo ciclo deliberado pelo
+  usuário; o falso positivo interrompe uma coleta paga que ainda pode estar
+  viva.
+- **Consequência**: falha transitória ocorrida depois que o connector já
+  retornou também não volta para a fila; torna-se terminal preservando o código
+  causal. Retry limitado continua permitido apenas antes de a coleta retornar.
+- **Fora desta decisão**: heartbeat de lease e valor-base do orçamento no
+  `wrangler.toml`. São lacunas operacionais distintas e não foram demonstradas
+  como causa das falhas live da S1.1b-1b.

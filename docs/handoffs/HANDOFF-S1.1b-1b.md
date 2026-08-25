@@ -37,6 +37,20 @@ Isto acrescenta um sintoma ao anterior e muda o alvo da fatia: além de escrever
 em volume, é preciso **terminar** a execução. Consumidor que morre no meio deixa
 execução órfã, e nenhum caminho a recupera.
 
+## Decisão após a medição local de 2026-08-25
+
+A medição não reproduziu o caminho live de triagem e, portanto, **não refutou**
+o diagnóstico de volume. Encontrou duas lacunas adjacentes que não entram neste
+corte: orçamento ausente do `wrangler.toml` e ausência de heartbeat do lease.
+
+O contrato de orfandade fica fechado: uma execução só é órfã quando já está
+`running`, o lease venceu **e** a mensagem atual é uma reentrega da fila
+(`attempts > 1`). Nesse caso termina `failed`, com
+`COLLECTION_RUN_ORPHANED`, sem chamar o connector. Lease vencido sozinho não
+encerra nem reivindica a execução. Se não for possível preservar esta condição
+sem corrida usando as portas existentes, a implementação para e volta ao
+arquiteto; não se introduz migration ou heartbeat por atalho.
+
 ## Pronto quando
 
 1. Uma coleta real de ≥100 anúncios termina `completed`, com os contadores da
@@ -47,12 +61,14 @@ execução órfã, e nenhum caminho a recupera.
    tamanho de lote explícito.
 4. Leitura por lista de IDs é fatiada em blocos de tamanho explícito. Nenhuma URL
    cresce com o número de anúncios do projeto.
-5. **Execução órfã é recuperada.** Uma execução `running` cujo lease venceu volta
-   para a fila ou termina como falha explícita, com `error_code`. Nunca fica
-   `running` para sempre. Provado desligando o consumidor no meio.
-6. **Retry não regasta o orçamento inteiro.** Uma tentativa que já coletou não
-   recoleta do zero, ou o retry é negado para falha pós-coleta. Escolher e
-   justificar — as duas saídas são aceitáveis, gastar 3× a quota não é.
+5. **Execução órfã termina explicitamente.** Somente uma mensagem reentregue
+   (`attempts > 1`) diante de run `running` com lease vencido encerra como
+   `failed/COLLECTION_RUN_ORPHANED`, sem chamar o connector. Lease ativo, lease
+   ausente ou primeira entrega não encerram a run.
+6. **Retry não regasta o orçamento inteiro.** Falha transitória depois que a
+   coleta já retornou torna a execução terminal com o código causal preservado;
+   não há nova chamada ao eBay. Falha transitória anterior à coleta conserva o
+   retry limitado existente.
 
 Evidência exigida: **live** — uma execução real `completed` com ≥100 anúncios,
 contadores preenchidos, e a contagem de chamadas ao eBay igual a uma tentativa.
@@ -60,7 +76,16 @@ contadores preenchidos, e a contagem de chamadas ao eBay igual a uma tentativa.
 ## Contrato
 
 - Sem migration nova. As tabelas existem.
-- O limite de lote é constante nomeada, não número solto no meio da função.
+- O Worker entrega ao processador o número de tentativas da mensagem; valor
+  ausente ou inválido é tratado conservadoramente como primeira entrega. A
+  propriedade oficial `Message.attempts` começa em 1 e cresce a cada tentativa
+  de entrega.
+- O caminho de claim não pode reivindicar run já `running` antes de classificar
+  lease e reentrega. Corrida com conclusão concorrente deve falhar fechado sem
+  sobrescrever estado terminal.
+- Os limites são constantes nomeadas de valor 50:
+  `TRIAGE_DECISION_BATCH_SIZE` e `LISTING_ID_BATCH_SIZE`. POSTs e leituras são
+  sequenciais; a leitura recompõe a ordem original após juntar os blocos.
 - `TRIAGE_PERSISTENCE_UNAVAILABLE` continua transitório, mas a causa original já
   é preservada na mensagem (feito na S1.1b-1) — não voltar a engolir.
 - Nada de paralelizar chamadas para "ir mais rápido". Lote reduz requisição;
@@ -75,6 +100,9 @@ anúncios e se declara `failed` com contador zero.
 
 - Família de queries e filtro de camada 1 → S1.1b-2.
 - Memória de preço → S1.2. Tela → S1.3.
+- Configurar orçamento base no `wrangler.toml` e introduzir/renovar heartbeat de
+  lease. São achados reais da medição, mas não explicam a falha live e ampliam o
+  contrato operacional; voltam como fatia própria se continuarem necessários.
 - Score, mediana, custo, IA, imagem, outras fontes.
 
 ## Onde isto pode dar errado
