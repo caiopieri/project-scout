@@ -2,6 +2,12 @@
 
 > Fatia descoberta em execução live, não planejada. Depende de
 > [S1.1b-1](./HANDOFF-S1.1b-1.md) revisada e mergeada.
+>
+> **Quebrada em 2026-08-25:** o diff medido chegou a 417 inserções antes de
+> commit. A execução continua em duas fatias, nesta ordem:
+> [volume](./HANDOFF-S1.1b-1b-volume.md) e
+> [reliability](./HANDOFF-S1.1b-1b-reliability.md). Este documento preserva o
+> diagnóstico e o aceite agregado; não autoriza mais um PR único.
 
 ## O fato que originou esta fatia
 
