@@ -307,15 +307,18 @@ export interface ListingObservationReader {
   findByListing(sourceId: string, externalId: string): Promise<ObservationEvent[]>;
 }
 
+export type TriageDecisionInput = {
+  projectId: string;
+  sourceId: string;
+  listingId: string;
+  filter: CheapFilterResult;
+  identity: ProductIdentity;
+  investigation: InvestigationDecision;
+};
+
 export interface TriageDecisionRepository {
-  save(input: {
-    projectId: string;
-    sourceId: string;
-    listingId: string;
-    filter: CheapFilterResult;
-    identity: ProductIdentity;
-    investigation: InvestigationDecision;
-  }): Promise<void>;
+  save(input: TriageDecisionInput): Promise<void>;
+  saveMany(inputs: readonly TriageDecisionInput[]): Promise<void>;
 }
 
 export interface ListingTriageDecisionReadRepository {
@@ -407,7 +410,11 @@ export interface CollectionRunRepository {
   findById(id: string, projectId: string): Promise<CollectionRun | null>;
   findByRunId(id: string): Promise<CollectionRun | null>;
   markQueued(id: string): Promise<CollectionRun>;
-  claim(id: string): Promise<CollectionRun | null>;
+  claim(
+    id: string,
+    expectedAttemptCount: number,
+    startedAt?: Date,
+  ): Promise<CollectionRun | null>;
   setProvider(id: string, provider: string): Promise<CollectionRun>;
   getProjectCriteria(projectId: string): Promise<ResearchCriteria | null>;
   complete(

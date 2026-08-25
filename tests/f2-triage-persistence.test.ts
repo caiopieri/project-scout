@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CollectionTriageService } from '@scout/search-intelligence';
+import { SupabaseRestTriageDecisionRepository } from '@scout/database/triage';
 import {
   listingTriageDecisionSchema,
   type ListingTriageDecision,
@@ -42,6 +43,8 @@ describe('F2 triage persistence boundary', () => {
     const service = new CollectionTriageService({
       save: async (input) =>
         saved.push(listingTriageDecisionSchema.parse({ ...input, createdAt: new Date() })),
+      saveMany: async (inputs) =>
+        saved.push(...inputs.map((input) => listingTriageDecisionSchema.parse(input))),
     });
 
     await service.process({
@@ -69,7 +72,7 @@ describe('F2 triage persistence boundary', () => {
     const save = async () => {
       throw new Error('must not be called');
     };
-    const service = new CollectionTriageService({ save });
+    const service = new CollectionTriageService({ save, saveMany: async () => undefined });
 
     await expect(
       service.process({
@@ -122,6 +125,7 @@ describe('F2 triage persistence boundary', () => {
     const service = new CollectionTriageService(
       {
         save: async () => undefined,
+        saveMany: async () => undefined,
         findByProjectId: async () => [previous],
       },
       undefined,
@@ -148,5 +152,96 @@ describe('F2 triage persistence boundary', () => {
       projectId: previous.projectId,
       decision: { relation: 'REVIEW', mergeEligible: false },
     });
+  });
+
+  it('posts decisions in sequential 50/50/remainder batches and preserves order', async () => {
+    const requests: unknown[][] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+        requests.push(JSON.parse(String(init?.body)) as unknown[]);
+        return new Response(null, { status: 201 });
+      }),
+    );
+    const decision = (index: number) => ({
+      projectId: '11111111-1111-4111-a111-111111111111',
+      sourceId: '22222222-2222-4222-a222-222222222222',
+      listingId: `33333333-3333-4333-a333-${index.toString(16).padStart(12, '0')}`,
+      filter: { decision: 'KEEP' as const, reasons: [] },
+      identity: {
+        canonicalKey: 'apple|iphone 13|128gb',
+        status: 'MATCHED' as const,
+        confidence: 0.95,
+        evidence: ['structured'],
+        attributes: {
+          brand: 'Apple',
+          model: 'Apple iPhone 13',
+          variant: 'A2633',
+          storageGb: 128,
+          memoryGb: 4,
+        },
+        media: { imageCount: 1, primaryImagePresent: true },
+        mergeEligible: false as const,
+      },
+      investigation: {
+        state: 'DISCOVERED' as const,
+        confidence: 0.9,
+        reasons: [],
+        requiresHumanReview: false,
+      },
+    });
+
+    await new SupabaseRestTriageDecisionRepository({
+      baseUrl: 'http://supabase.local',
+      anonKey: 'service',
+      accessToken: 'service',
+    }).saveMany(Array.from({ length: 123 }, (_, index) => decision(index + 1)));
+
+    expect(requests.map((batch) => batch.length)).toEqual([50, 50, 23]);
+    expect(
+      requests.flat().map((row) => (row as { listing_id: string }).listing_id),
+    ).toEqual(Array.from({ length: 123 }, (_, index) => decision(index + 1).listingId));
+  });
+
+  it('leaves a failed batch error observable and stops later batches', async () => {
+    const requests: unknown[][] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+        requests.push(JSON.parse(String(init?.body)) as unknown[]);
+        return requests.length === 2
+          ? new Response('upstream failure', { status: 503 })
+          : new Response(null, { status: 201 });
+      }),
+    );
+    const decision = {
+      projectId: '11111111-1111-4111-a111-111111111111',
+      sourceId: '22222222-2222-4222-a222-222222222222',
+      listingId: '33333333-3333-4333-a333-000000000001',
+      filter: { decision: 'KEEP' as const, reasons: [] },
+      identity: {
+        status: 'UNIDENTIFIED' as const,
+        confidence: 0,
+        evidence: ['fixture'],
+        attributes: {},
+        media: { imageCount: 0, primaryImagePresent: false },
+        mergeEligible: false as const,
+      },
+      investigation: {
+        state: 'DISCOVERED' as const,
+        confidence: 0,
+        reasons: ['fixture'],
+        requiresHumanReview: true,
+      },
+    };
+
+    await expect(
+      new SupabaseRestTriageDecisionRepository({
+        baseUrl: 'http://supabase.local',
+        anonKey: 'service',
+        accessToken: 'service',
+      }).saveMany(Array.from({ length: 101 }, () => decision)),
+    ).rejects.toThrow('503');
+    expect(requests).toHaveLength(2);
   });
 });

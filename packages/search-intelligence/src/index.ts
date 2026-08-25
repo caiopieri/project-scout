@@ -15,6 +15,7 @@ import type {
   ListingTriageDecisionReadRepository,
   SearchQueryFamilyProvider,
   SearchQueryFamilyRepository,
+  TriageDecisionInput,
   TriageDecisionRepository,
 } from '@scout/domain';
 
@@ -208,6 +209,7 @@ export class CollectionTriageService implements CollectionTriageProcessor {
       listingId: string;
       identity: ProductIdentity;
     }> = [];
+    const decisions: TriageDecisionInput[] = [];
     for (const record of input.result.items) {
       const listingId = input.persistence.listingIdsByExternalId[record.preview.externalId];
       if (!listingId) continue;
@@ -215,7 +217,7 @@ export class CollectionTriageService implements CollectionTriageProcessor {
       const identity = this.identity.identify(record, input.criteria);
       const investigation = this.classifier.classify({ filter, identity });
       currentDecisions.push({ sourceId: input.sourceId, listingId, identity });
-      await this.repository.save({
+      decisions.push({
         projectId: input.projectId,
         sourceId: input.sourceId,
         listingId,
@@ -224,6 +226,7 @@ export class CollectionTriageService implements CollectionTriageProcessor {
         investigation,
       });
     }
+    await this.repository.saveMany(decisions);
     if (!this.candidateRepository) return;
     for (const current of currentDecisions) {
       for (const previous of previousDecisions) {
