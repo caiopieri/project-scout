@@ -95,6 +95,8 @@ const listingSelect = [
   'raw_data_metadata',
 ].join(',');
 
+export const LISTING_ID_BATCH_SIZE = 50;
+
 export class SupabaseRestListingRepository {
   constructor(private readonly config: SupabaseRestConfig) {}
 
@@ -104,9 +106,14 @@ export class SupabaseRestListingRepository {
     );
     if (!links.length) return [];
     const ids = links.map(({ listing_id }) => listing_id);
-    const rows = await this.request<ListingRow[]>(
-      `listings?id=in.(${ids.join(',')})&select=${listingSelect}`,
-    );
+    const rows: ListingRow[] = [];
+    for (let offset = 0; offset < ids.length; offset += LISTING_ID_BATCH_SIZE) {
+      rows.push(
+        ...(await this.request<ListingRow[]>(
+          `listings?id=in.(${ids.slice(offset, offset + LISTING_ID_BATCH_SIZE).join(',')})&select=${listingSelect}`,
+        )),
+      );
+    }
     const byId = new Map(rows.map((row) => [row.id, mapListing(row)]));
     return ids.flatMap((id) => {
       const listing = byId.get(id);

@@ -12,6 +12,8 @@ import {
 } from '@scout/schemas';
 import type { SupabaseRestConfig } from './SupabaseRestResearchProjectRepository';
 
+export const TRIAGE_DECISION_BATCH_SIZE = 50;
+
 interface TriageDecisionRow {
   id: string;
   project_id: string;
@@ -59,18 +61,14 @@ export class SupabaseRestTriageDecisionRepository
   constructor(private readonly config: SupabaseRestConfig) {}
 
   async save(input: Parameters<TriageDecisionRepository['save']>[0]): Promise<void> {
-    const decision = listingTriageDecisionSchema.parse(input);
-    const response = await fetch(
-      `${this.config.baseUrl}/rest/v1/listing_triage_decisions?select=id`,
-      {
-        method: 'POST',
-        headers: {
-          apikey: this.config.anonKey,
-          Authorization: `Bearer ${this.config.accessToken}`,
-          'Content-Type': 'application/json',
-          Prefer: 'return=minimal',
-        },
-        body: JSON.stringify({
+    await this.saveMany([input]);
+  }
+
+  async saveMany(inputs: Parameters<TriageDecisionRepository['saveMany']>[0]): Promise<void> {
+    for (let offset = 0; offset < inputs.length; offset += TRIAGE_DECISION_BATCH_SIZE) {
+      const decisions = inputs.slice(offset, offset + TRIAGE_DECISION_BATCH_SIZE).map((input) => {
+        const decision = listingTriageDecisionSchema.parse(input);
+        return {
           project_id: decision.projectId,
           source_id: decision.sourceId,
           listing_id: decision.listingId,
@@ -80,10 +78,23 @@ export class SupabaseRestTriageDecisionRepository
           investigation: decision.investigation,
           decision_version: decision.decisionVersion,
           created_at: decision.createdAt.toISOString(),
-        }),
-      },
-    );
-    if (!response.ok) throw new Error(`Supabase triage request failed (${response.status}).`);
+        };
+      });
+      const response = await fetch(
+        `${this.config.baseUrl}/rest/v1/listing_triage_decisions?select=id`,
+        {
+          method: 'POST',
+          headers: {
+            apikey: this.config.anonKey,
+            Authorization: `Bearer ${this.config.accessToken}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal',
+          },
+          body: JSON.stringify(decisions),
+        },
+      );
+      if (!response.ok) throw new Error(`Supabase triage request failed (${response.status}).`);
+    }
   }
 
   async findByProjectId(projectId: string) {

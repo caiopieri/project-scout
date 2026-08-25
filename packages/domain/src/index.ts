@@ -307,15 +307,18 @@ export interface ListingObservationReader {
   findByListing(sourceId: string, externalId: string): Promise<ObservationEvent[]>;
 }
 
+export type TriageDecisionInput = {
+  projectId: string;
+  sourceId: string;
+  listingId: string;
+  filter: CheapFilterResult;
+  identity: ProductIdentity;
+  investigation: InvestigationDecision;
+};
+
 export interface TriageDecisionRepository {
-  save(input: {
-    projectId: string;
-    sourceId: string;
-    listingId: string;
-    filter: CheapFilterResult;
-    identity: ProductIdentity;
-    investigation: InvestigationDecision;
-  }): Promise<void>;
+  save(input: TriageDecisionInput): Promise<void>;
+  saveMany(inputs: readonly TriageDecisionInput[]): Promise<void>;
 }
 
 export interface ListingTriageDecisionReadRepository {
