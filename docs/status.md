@@ -1,4 +1,4 @@
-# Estado real — verificado em 2026-08-28
+# Estado real — verificado em 2026-08-29
 
 > Este é o único documento que declara o que **existe**. Roadmap declara o que
 > vai existir; arquitetura declara como deve ser feito. Se algum outro documento
@@ -84,9 +84,8 @@
    comercial de atravessar o pipeline.
 3. Tabelas de F4–F7 continuam no banco, órfãs, até uma migration de limpeza
    revisada.
-4. `npm run format:check` global está vermelho por ~25 arquivos legados.
-5. Quota efetiva do eBay, alerta de DLQ e política de replay/retention seguem
+4. Quota efetiva do eBay, alerta de DLQ e política de replay/retention seguem
    pendentes.
-6. `collection_runs.estimated_cost` permanece em zero porque não representa
+5. `collection_runs.estimated_cost` permanece em zero porque não representa
    chamadas. A posição de requests passa a ser persistida quando o connector a
    reporta; quota efetiva, custo monetário e replay operacional seguem pendentes.
