@@ -421,6 +421,58 @@ describe('F0 observation events and collector health — live PostgreSQL integra
     await client.query('RESET ROLE');
   });
 
+  it('does not let a concurrent failure overwrite a completed run', async (ctx) => {
+    if (!isDbAvailable || !client) {
+      ctx.skip();
+      return;
+    }
+
+    await client.query('SET ROLE service_role');
+    const inserted = await client.query(
+      `INSERT INTO collection_runs (
+         project_id, source_id, status, idempotency_key, provider, attempt_count
+       ) VALUES ($1, $2, 'running', $3, 'ebay-api-production-v1', 1)
+       RETURNING id`,
+      [PROJECT_ID, EBAY_SOURCE_ID, `f0-terminal-race-${crypto.randomUUID()}`],
+    );
+    const raceRunId = inserted.rows[0].id as string;
+    createdRunIds.push(raceRunId);
+    const health = makeCollectorHealth({ provider: 'ebay-api-production-v1' });
+
+    const completed = await client.query(
+      `SELECT * FROM complete_collection_run_with_health($1,$2,$3,$4,$5,$6)`,
+      [raceRunId, 1, 1, 0, health.provider, JSON.stringify(health)],
+    );
+    expect(completed.rows[0]).toMatchObject({ id: raceRunId, status: 'completed' });
+
+    const failure = await client.query(
+      `SELECT * FROM transition_collection_run_failure_with_health($1,$2,$3,$4,$5,$6)`,
+      [
+        raceRunId,
+        true,
+        'Late failure must not overwrite terminal state.',
+        'permanent',
+        'LATE_FAILURE_IGNORED',
+        JSON.stringify(makeCollectorHealth({ provider: health.provider, state: 'ERROR' })),
+      ],
+    );
+    expect(failure.rows).toHaveLength(0);
+
+    const persisted = await client.query(
+      `SELECT status, items_found, items_created, error_code
+       FROM collection_runs WHERE id = $1`,
+      [raceRunId],
+    );
+    expect(persisted.rows[0]).toEqual({
+      status: 'completed',
+      items_found: 1,
+      items_created: 1,
+      error_code: null,
+    });
+
+    await client.query('RESET ROLE');
+  });
+
   it('records degraded health atomically for retry and terminal failure attempts', async (ctx) => {
     if (!isDbAvailable || !client) {
       ctx.skip();

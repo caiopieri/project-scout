@@ -1,7 +1,9 @@
 import {
   DeterministicIntentInterpreter,
   DeterministicTextAnalyzer,
+  GeminiTextAnalyzer,
   MockTextAnalyzer,
+  TextAnalysisBatchTaskProcessor,
   TextAnalysisTaskProcessor,
 } from '@scout/ai';
 import { SCOUT_SYSTEM_NAME } from '@scout/config';
@@ -40,7 +42,11 @@ import {
   UnavailableMercadoLivreConnector,
   type MercadoLivreTokenState,
 } from '@scout/ml-connector';
-import { CollectionQueryFamilyProvider, CollectionTriageService } from '@scout/search-intelligence';
+import {
+  CheapListingFilter,
+  CollectionQueryFamilyProvider,
+  CollectionTriageService,
+} from '@scout/search-intelligence';
 import { UnavailableXianyuConnector } from '@scout/xianyu-connector';
 import { CollectionOpportunityValuationProcessor } from '@scout/valuation';
 import {
@@ -52,7 +58,9 @@ import {
   projectIdSchema,
   idempotencyKeySchema,
   listingTriageReviewRequestSchema,
+  priceHistoryTransportSchema,
   searchTermObservationReviewRequestSchema,
+  textAnalysisBatchTaskSchema,
   textAnalysisTaskSchema,
   updateResearchProjectRequestSchema,
 } from '@scout/schemas';
@@ -69,8 +77,16 @@ import { TextAnalysisQueueScheduler } from './TextAnalysisQueueScheduler';
 import { DurableObjectEbayRateLimiter } from './EbayRateLimitDurableObject';
 export { EbayRateLimitDurableObject } from './EbayRateLimitDurableObject';
 
-const configuredTextAnalyzer = (env: Env) =>
-  env.TEXT_ANALYZER_MODE === 'mock' ? new MockTextAnalyzer() : new DeterministicTextAnalyzer();
+export const configuredTextAnalyzer = (env: Env) => {
+  if (env.TEXT_ANALYZER_MODE === 'mock') return new MockTextAnalyzer();
+  if (env.TEXT_ANALYZER_MODE === 'gemini')
+    return new GeminiTextAnalyzer({
+      apiKey: env.GEMINI_API_KEY ?? '',
+      model: env.GEMINI_MODEL,
+      maxRequests: 1,
+    });
+  return new DeterministicTextAnalyzer();
+};
 
 const sharedMercadoLivreTokenState: MercadoLivreTokenState = {};
 
@@ -211,19 +227,52 @@ const SOURCE_IDS = {
 
 // Uma varredura gasta 1 chamada de busca por página mais 1 de detalhe por
 // anúncio. O orçamento por execução é o teto de tudo; o resto sai dele.
-const ebayCollectionLimits = (env: Env): CollectionLimits | undefined => {
+const requestCountForCollection = (items: number, queryCount: number, pageSize: number) => {
+  let remaining = items;
+  let searchRequests = 0;
+  for (let index = 0; index < queryCount && remaining > 0; index += 1) {
+    const queriesRemaining = queryCount - index;
+    const perQuery = Math.max(1, Math.ceil(remaining / queriesRemaining));
+    searchRequests += Math.ceil(perQuery / pageSize);
+    remaining -= perQuery;
+  }
+  return items + searchRequests;
+};
+
+const maxItemsForBrowseBudget = (
+  budget: number,
+  maxItems: number,
+  pageSize: number,
+  maxQueries: number,
+) => {
+  for (let items = Math.min(maxItems, budget - 1); items >= 1; items -= 1) {
+    const singleQueryRequests = requestCountForCollection(items, 1, pageSize);
+    const familyRequests = requestCountForCollection(items, maxQueries, pageSize);
+    if (Math.max(singleQueryRequests, familyRequests) <= budget) return items;
+  }
+  return 1;
+};
+
+export const ebayCollectionLimits = (env: Env): CollectionLimits | undefined => {
   const budget = Number(env.EBAY_BROWSE_BUDGET_PER_RUN);
   if (!Number.isSafeInteger(budget) || budget < 2) return undefined;
   const manifestLimits = EBAY_CONNECTOR_MANIFEST.limits;
+  const maxQueries = Math.min(3, budget - 1);
+  const maxItems = maxItemsForBrowseBudget(
+    budget,
+    manifestLimits.maxItems,
+    manifestLimits.pageSize,
+    maxQueries,
+  );
   const maxPages = Math.max(
     1,
-    Math.min(manifestLimits.maxPages, Math.ceil(budget / manifestLimits.pageSize)),
+    Math.min(manifestLimits.maxPages, Math.ceil(maxItems / manifestLimits.pageSize)),
   );
   return {
     maxPages,
     pageSize: manifestLimits.pageSize,
-    maxItems: Math.max(1, Math.min(manifestLimits.maxItems, budget - maxPages)),
-    maxQueries: 1,
+    maxItems,
+    maxQueries,
   };
 };
 
@@ -380,6 +429,29 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     const project = await repository.findById(projectId, user.id);
     if (!project) throw new HttpError(404, 'Project not found.');
     return json(await listingRepository.findByProjectId(projectId), 200, env.WEB_ORIGIN);
+  }
+  const priceHistoryMatch = url.pathname.match(
+    /^\/api\/projects\/([^/]+)\/listings\/([^/]+)\/price-history$/,
+  );
+  if (priceHistoryMatch) {
+    if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
+    const projectId = projectIdSchema.parse(priceHistoryMatch[1]);
+    const listingId = projectIdSchema.parse(priceHistoryMatch[2]);
+    const project = await repository.findById(projectId, user.id);
+    if (!project) throw new HttpError(404, 'Project not found.');
+    if (!(await listingRepository.isListingInProject(listingId, projectId)))
+      throw new HttpError(404, 'Listing not found in project.');
+    const history = await listingRepository.getPriceHistory(listingId);
+    return json(
+      history.map((observation) =>
+        priceHistoryTransportSchema.parse({
+          ...observation,
+          collectedAt: observation.collectedAt.toISOString(),
+        }),
+      ),
+      200,
+      env.WEB_ORIGIN,
+    );
   }
   const observationMatch = url.pathname.match(
     /^\/api\/projects\/([^/]+)\/search-term-observations(?:\/([^/]+))?$/,
@@ -577,6 +649,7 @@ export default {
     const triageRepository = new SupabaseRestTriageDecisionRepository(serviceConfig);
     const queryFamilyRepository = new SupabaseRestSearchQueryFamilyRepository(serviceConfig);
     const queryFamilyProvider = new CollectionQueryFamilyProvider(queryFamilyRepository);
+    const cheapFilter = new CheapListingFilter();
     const textAnalyzer = configuredTextAnalyzer(env);
     for (const message of batch.messages) {
       try {
@@ -587,6 +660,15 @@ export default {
         }
         if (textAnalysisTaskSchema.safeParse(message.body).success) {
           const outcome = await new TextAnalysisTaskProcessor(
+            analysisRepository,
+            textAnalyzer,
+          ).process(message.body);
+          if (outcome.action === 'retry') message.retry({ delaySeconds: outcome.delaySeconds });
+          else message.ack();
+          continue;
+        }
+        if (textAnalysisBatchTaskSchema.safeParse(message.body).success) {
+          const outcome = await new TextAnalysisBatchTaskProcessor(
             analysisRepository,
             textAnalyzer,
           ).process(message.body);
@@ -628,8 +710,9 @@ export default {
             triageRepository,
           ),
           queryFamilyRepository,
+          (preview, criteria) => cheapFilter.screenPreview(preview, criteria),
         );
-        const outcome = await processor.process(message.body);
+        const outcome = await processor.process(message.body, message.attempts);
         if (outcome.action === 'retry') message.retry({ delaySeconds: outcome.delaySeconds });
         else message.ack();
       } catch (error) {

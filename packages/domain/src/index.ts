@@ -31,7 +31,10 @@ import {
   ConnectorSearchInput,
   ConnectorSearchPage,
   RawListingRecord,
+  RawListingPreview,
   CollectionResult,
+  CollectionProgressSnapshot,
+  CollectionRequestMetrics,
   NormalizedListingInput,
   RawObjectReference,
   ListingIngestionResult,
@@ -101,7 +104,10 @@ export type {
   ConnectorSearchInput,
   ConnectorSearchPage,
   RawListingRecord,
+  RawListingPreview,
   CollectionResult,
+  CollectionProgressSnapshot,
+  CollectionRequestMetrics,
   NormalizedListingInput,
   RawObjectReference,
   ListingIngestionResult,
@@ -208,6 +214,7 @@ export interface SourceConnector {
   readonly manifest: ConnectorManifest;
   search(input: ConnectorSearchInput): Promise<ConnectorSearchPage>;
   fetchDetails(externalId: string): Promise<RawListingRecord>;
+  getRequestMetrics?(): CollectionRequestMetrics;
 }
 
 export interface FetchPageInput {
@@ -231,7 +238,23 @@ export interface ScrapingProvider {
 export interface CollectionGateway {
   readonly provider: string;
   readonly ingestionLayer?: number;
-  collect(criteria: ResearchCriteria, limit?: number, query?: string): Promise<CollectionResult>;
+  collect(
+    criteria: ResearchCriteria,
+    limit?: number,
+    query?: string,
+    options?: CollectionCollectOptions,
+  ): Promise<CollectionResult>;
+}
+
+export type CollectionPreviewFilter = (
+  preview: RawListingPreview,
+  criteria: ResearchCriteria,
+) => CheapFilterResult;
+
+export interface CollectionCollectOptions {
+  previewFilter?: CollectionPreviewFilter;
+  excludeExternalIds?: ReadonlySet<string>;
+  onProgress?: (snapshot: CollectionProgressSnapshot) => Promise<void> | void;
 }
 
 export interface CollectionGatewayResolver {
@@ -369,6 +392,13 @@ export interface TextAnalyzer {
   analyze(input: TextAnalysisInput): Promise<TextAnalysisResult>;
 }
 
+export type TextAnalysisBatchItem =
+  { listingId: string; result: TextAnalysisResult } | { listingId: string; error: AnalysisError };
+
+export interface TextBatchAnalyzer extends TextAnalyzer {
+  analyzeBatch(inputs: TextAnalysisInput[]): Promise<TextAnalysisBatchItem[]>;
+}
+
 export type AnalysisErrorKind = 'transient' | 'permanent';
 
 export class AnalysisError extends Error {
@@ -410,8 +440,9 @@ export interface CollectionRunRepository {
   findById(id: string, projectId: string): Promise<CollectionRun | null>;
   findByRunId(id: string): Promise<CollectionRun | null>;
   markQueued(id: string): Promise<CollectionRun>;
-  claim(id: string): Promise<CollectionRun | null>;
+  claim(id: string, expectedAttemptCount: number, startedAt?: Date): Promise<CollectionRun | null>;
   setProvider(id: string, provider: string): Promise<CollectionRun>;
+  updateProgress?(id: string, progress: CollectionProgressSnapshot): Promise<CollectionRun>;
   getProjectCriteria(projectId: string): Promise<ResearchCriteria | null>;
   complete(
     id: string,

@@ -30,6 +30,7 @@ CREATE INDEX IF NOT EXISTS search_query_families_project_created_idx
 CREATE INDEX IF NOT EXISTS search_term_observations_project_status_idx
   ON public.search_term_observations (project_id, status, created_at DESC);
 
+REVOKE ALL ON public.search_query_families, public.search_term_observations FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.search_query_families, public.search_term_observations TO authenticated;
 GRANT UPDATE (status) ON public.search_term_observations TO authenticated;
 GRANT ALL ON public.search_query_families, public.search_term_observations TO service_role;

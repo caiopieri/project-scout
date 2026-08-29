@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import worker, {
+  configuredTextAnalyzer,
   configuredEbayConnector,
   configuredMercadoLivreConnector,
+  ebayCollectionLimits,
 } from '../apps/worker/src/index';
 import { EbayApiAdapter, UnavailableEbayConnector } from '@scout/ebay-connector';
+import { GeminiTextAnalyzer } from '@scout/ai';
 import { UnavailableMercadoLivreConnector } from '@scout/ml-connector';
 
 const runId = '77777777-7777-4777-a777-777777777777';
@@ -28,14 +31,14 @@ const criteria = {
   excludedKeywords: [],
 };
 
-const runRow = (status: 'running' | 'completed', provider: string) => ({
-  id: runId,
+const runRow = (status: 'pending' | 'running' | 'completed', provider: string, id = runId) => ({
+  id,
   project_id: projectId,
   source_id: sourceId,
   status,
   idempotency_key: 'm5-worker-wire',
   queued_at: now,
-  started_at: now,
+  started_at: status === 'pending' ? null : now,
   finished_at: status === 'completed' ? now : null,
   lease_expires_at: null,
   attempt_count: 1,
@@ -55,6 +58,33 @@ afterEach(() => {
 });
 
 describe('Milestone 5 Worker eBay adapter wiring', () => {
+  it('selects the real text analyzer only with explicit Gemini mode', () => {
+    expect(
+      configuredTextAnalyzer({
+        TEXT_ANALYZER_MODE: 'gemini',
+        GEMINI_API_KEY: 'fixture-key',
+      } as never),
+    ).toBeInstanceOf(GeminiTextAnalyzer);
+    expect(
+      configuredTextAnalyzer({ TEXT_ANALYZER_MODE: 'deterministic' } as never),
+    ).not.toBeInstanceOf(GeminiTextAnalyzer);
+  });
+
+  it('keeps the Browse budget closed across single and query-family collection paths', () => {
+    expect(ebayCollectionLimits({ EBAY_BROWSE_BUDGET_PER_RUN: '103' } as never)).toEqual({
+      maxPages: 1,
+      pageSize: 100,
+      maxItems: 100,
+      maxQueries: 3,
+    });
+    expect(ebayCollectionLimits({ EBAY_BROWSE_BUDGET_PER_RUN: '400' } as never)).toEqual({
+      maxPages: 4,
+      pageSize: 100,
+      maxItems: 394,
+      maxQueries: 3,
+    });
+  });
+
   it('fails closed in Production without the atomic rate-limit Durable Object', () => {
     const connector = configuredEbayConnector({
       EBAY_CONNECTOR_MODE: 'production',
@@ -129,17 +159,25 @@ describe('Milestone 5 Worker eBay adapter wiring', () => {
   it('uses the official sandbox adapter only when explicitly configured', async () => {
     const apiCalls: string[] = [];
     const collectionPatches: Array<Record<string, unknown>> = [];
+    const progressPatches: Array<Record<string, unknown>> = [];
     let completionBody: Record<string, unknown> | undefined;
     const rawPut = vi.fn(async () => undefined);
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
         const url = String(input);
-        if (url.includes('/rpc/claim_collection_run'))
-          return Response.json([runRow('running', 'ebay-mock-v1')]);
+        if (url.includes('/rest/v1/collection_runs') && !init?.method)
+          return Response.json([runRow('pending', 'ebay-mock-v1')]);
         if (url.includes('/rest/v1/collection_runs') && init?.method === 'PATCH') {
-          const body = JSON.parse(String(init.body)) as { status?: string; provider?: string };
-          collectionPatches.push(body);
+          const body = JSON.parse(String(init.body)) as {
+            status?: string;
+            provider?: string;
+            items_found?: number;
+            requests_used?: number;
+            request_budget?: number;
+          };
+          if (body.provider !== undefined) collectionPatches.push(body);
+          if (body.items_found !== undefined) progressPatches.push(body);
           return Response.json([
             runRow(
               body.status === 'completed' ? 'completed' : 'running',
@@ -226,8 +264,14 @@ describe('Milestone 5 Worker eBay adapter wiring', () => {
 
     await worker.queue({ messages: [{ body: { version: '1', runId }, ack, retry }] } as never, env);
     expect(rawPut).toHaveBeenCalledOnce();
-    expect(apiCalls).toEqual(['oauth', 'search', 'details', 'ingest']);
+    expect(apiCalls).toEqual(['oauth', 'search', 'details', 'search', 'search', 'ingest']);
     expect(collectionPatches).toEqual([{ provider: 'ebay-api-sandbox-v1' }]);
+    expect(progressPatches).toEqual([
+      { items_found: 1, requests_used: 2, request_budget: 6, truncated: false },
+      { items_found: 1, requests_used: 3, request_budget: 6, truncated: false },
+      { items_found: 1, requests_used: 4, request_budget: 6, truncated: false },
+      { items_found: 1, requests_used: 4, request_budget: 6, truncated: false },
+    ]);
     expect(completionBody).toEqual(
       expect.objectContaining({
         p_run_id: runId,
@@ -259,8 +303,8 @@ describe('Milestone 5 Worker eBay adapter wiring', () => {
           expires_in: 7200,
           token_type: 'Application Access Token',
         });
-      if (url.includes('/rpc/claim_collection_run'))
-        return Response.json([runRow('running', 'ebay-api-production-v1')]);
+      if (url.includes('/rest/v1/collection_runs') && !init?.method)
+        return Response.json([runRow('pending', 'ebay-api-production-v1')]);
       if (url.includes('/rest/v1/collection_runs') && init?.method === 'PATCH')
         return Response.json([runRow('running', 'ebay-api-production-v1')]);
       if (url.includes('/rpc/complete_collection_run_with_health'))
@@ -337,7 +381,7 @@ describe('Milestone 5 Worker eBay adapter wiring', () => {
     );
 
     expect(searchOffsets.length).toBeGreaterThan(1);
-    expect(searchOffsets.slice(0, 3)).toEqual(['0', '2', '4']);
+    expect(searchOffsets).toEqual(['0', '2', '4', '0', '2', '4', '0', '2', '4']);
     expect(detailIds.size).toBe(6);
     expect(rawPut).toHaveBeenCalledTimes(6);
     expect(ack).toHaveBeenCalledOnce();
@@ -358,9 +402,9 @@ describe('Milestone 5 Worker eBay adapter wiring', () => {
           token_type: 'Application Access Token',
         });
       }
-      if (url.includes('/rpc/claim_collection_run')) {
-        const body = JSON.parse(String(init?.body)) as { p_run_id: string };
-        return Response.json([runRow('running', 'ebay-api-production-v1', body.p_run_id)]);
+      if (url.includes('/rest/v1/collection_runs') && !init?.method) {
+        const requestedId = new URL(url).searchParams.get('id')?.replace(/^eq\./, '') ?? runId;
+        return Response.json([runRow('pending', 'ebay-api-production-v1', requestedId)]);
       }
       if (url.includes('/rest/v1/collection_runs') && init?.method === 'PATCH')
         return Response.json([runRow('running', 'ebay-api-production-v1')]);
@@ -455,8 +499,12 @@ describe('Milestone 5 Worker eBay adapter wiring', () => {
     ).toEqual([
       { operation: 'search', requestNumber: 1, maxRequests: 6 },
       { operation: 'details', requestNumber: 2, maxRequests: 6 },
+      { operation: 'search', requestNumber: 3, maxRequests: 6 },
+      { operation: 'search', requestNumber: 4, maxRequests: 6 },
       { operation: 'search', requestNumber: 1, maxRequests: 6 },
       { operation: 'details', requestNumber: 2, maxRequests: 6 },
+      { operation: 'search', requestNumber: 3, maxRequests: 6 },
+      { operation: 'search', requestNumber: 4, maxRequests: 6 },
     ]);
     expect(
       telemetry.every((event) =>

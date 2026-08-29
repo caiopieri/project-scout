@@ -4,16 +4,21 @@ import {
   CollectionGatewayResolver,
   ConnectorError,
   type ConnectorManifest,
+  type CollectionCollectOptions,
+  type CollectionPreviewFilter,
   SourceConnector,
 } from '@scout/domain';
 import {
   collectionResultSchema,
+  collectionProgressSnapshotSchema,
   collectionTaskSchema,
   collectorHealthSchema,
   connectorSearchPageSchema,
   connectorManifestSchema,
   rawListingRecordSchema,
   type CollectionTask,
+  type RawListingPreview,
+  type RawListingRecord,
   type ResearchCriteria,
 } from '@scout/schemas';
 
@@ -85,13 +90,33 @@ export class DefaultCollectionGateway implements CollectionGateway {
 
   readonly limits: CollectionLimits;
 
-  async collect(criteria: ResearchCriteria, limit = this.limits.maxItems, query?: string) {
+  private requestMetrics() {
+    return this.connector.getRequestMetrics?.();
+  }
+
+  async collect(
+    criteria: ResearchCriteria,
+    limit = this.limits.maxItems,
+    query?: string,
+    options: CollectionCollectOptions = {},
+  ) {
     const effectiveLimit = Math.min(limit, this.limits.maxItems);
-    const items = [];
+    const items: RawListingRecord[] = [];
     let cursor: string | undefined;
     let pagesFetched = 0;
     let truncated = false;
     const seenCursors = new Set<string>();
+    const emitProgress = async () => {
+      if (!options.onProgress) return;
+      await options.onProgress(
+        collectionProgressSnapshotSchema.parse({
+          itemsFound: items.length,
+          pagesFetched,
+          requestMetrics: this.requestMetrics(),
+          truncated,
+        }),
+      );
+    };
 
     do {
       const remaining = effectiveLimit - items.length;
@@ -109,7 +134,26 @@ export class DefaultCollectionGateway implements CollectionGateway {
           }),
         );
         pagesFetched += 1;
-        for (const preview of page.items.slice(0, remaining)) {
+        const previews = page.items
+          .slice(0, remaining)
+          .filter((preview) => !options.excludeExternalIds?.has(preview.externalId));
+        const survivors: RawListingPreview[] = [];
+        for (const preview of previews) {
+          const decision = options.previewFilter?.(preview, criteria);
+          if (decision?.decision === 'REJECT') {
+            items.push({
+              preview,
+              payload: {
+                previewOnly: true,
+                cheapFilterDecision: decision.decision,
+                cheapFilterReasons: decision.reasons,
+              },
+            });
+          } else {
+            survivors.push(preview);
+          }
+        }
+        for (const preview of survivors.slice(0, effectiveLimit - items.length)) {
           const details = rawListingRecordSchema.parse(
             await this.connector.fetchDetails(preview.externalId),
           );
@@ -131,9 +175,11 @@ export class DefaultCollectionGateway implements CollectionGateway {
         }
         if (cursor) seenCursors.add(cursor);
         cursor = page.nextCursor;
+        await emitProgress();
       } catch (cause) {
         if (!isRequestBudgetExhausted(cause) || items.length === 0) throw cause;
         truncated = true;
+        await emitProgress();
         break;
       }
     } while (cursor && items.length < effectiveLimit && pagesFetched < this.limits.maxPages);
@@ -142,6 +188,7 @@ export class DefaultCollectionGateway implements CollectionGateway {
       items,
       pagesFetched: Math.max(1, pagesFetched),
       provider: this.connector.provider,
+      requestMetrics: this.requestMetrics(),
       truncated,
     });
   }
@@ -152,19 +199,37 @@ export class BoundedCollectionQueryRunner {
     private readonly gateway: CollectionGateway,
     private readonly maxQueries = 1,
     private readonly maxItems = 5,
+    private readonly previewFilter?: CollectionPreviewFilter,
   ) {}
 
-  async collect(criteria: ResearchCriteria, queries: readonly string[], limit = this.maxItems) {
+  async collect(
+    criteria: ResearchCriteria,
+    queries: readonly string[],
+    limit = this.maxItems,
+    options: Pick<CollectionCollectOptions, 'onProgress'> = {},
+  ) {
     const boundedQueries = queries.length > 0 ? queries.slice(0, this.maxQueries) : [undefined];
     const items: import('@scout/schemas').RawListingRecord[] = [];
     const seenExternalIds = new Set<string>();
     let pagesFetched = 0;
     let truncated = false;
-    for (const query of boundedQueries) {
+    let requestMetrics: import('@scout/schemas').CollectionRequestMetrics | undefined;
+    for (const [index, query] of boundedQueries.entries()) {
       const remaining = limit - items.length;
       if (remaining <= 0) break;
-      const result = await this.gateway.collect(criteria, remaining, query);
+      const queriesRemaining = boundedQueries.length - index;
+      const perQueryLimit =
+        query === undefined ? remaining : Math.max(1, Math.ceil(remaining / queriesRemaining));
+      const result = await this.gateway.collect(criteria, perQueryLimit, query, {
+        previewFilter: this.previewFilter,
+        excludeExternalIds: seenExternalIds,
+        onProgress: options.onProgress
+          ? (snapshot) =>
+              options.onProgress?.({ ...snapshot, itemsFound: items.length + snapshot.itemsFound })
+          : undefined,
+      });
       pagesFetched += result.pagesFetched;
+      requestMetrics = result.requestMetrics;
       truncated = truncated || result.truncated;
       for (const item of result.items) {
         if (!seenExternalIds.has(item.preview.externalId)) {
@@ -178,6 +243,7 @@ export class BoundedCollectionQueryRunner {
       items: items.slice(0, limit),
       pagesFetched: Math.max(1, pagesFetched),
       provider: this.gateway.provider,
+      requestMetrics,
       truncated,
     });
   }
@@ -256,6 +322,12 @@ export type CollectionTaskOutcome =
   | { action: 'ack'; status: 'completed' | 'ignored' | 'failed' }
   | { action: 'retry'; delaySeconds: number };
 
+const normalizeDeliveryAttempts = (attempts: number) =>
+  Number.isSafeInteger(attempts) && attempts > 0 ? attempts : 1;
+
+const hasExpiredLease = (run: import('@scout/schemas').CollectionRun) =>
+  run.leaseExpiresAt !== undefined && run.leaseExpiresAt.getTime() <= Date.now();
+
 export class CollectionTaskProcessor {
   constructor(
     private readonly repository: CollectionRunRepository,
@@ -267,13 +339,42 @@ export class CollectionTaskProcessor {
     private readonly opportunityEvaluator?: import('@scout/domain').CollectionOpportunityEvaluator,
     private readonly triageProcessor?: import('@scout/domain').CollectionTriageProcessor,
     private readonly queryFamilyRepository?: import('@scout/domain').SearchQueryFamilyRepository,
+    private readonly previewFilter?: CollectionPreviewFilter,
   ) {}
 
-  async process(rawTask: unknown): Promise<CollectionTaskOutcome> {
+  async process(rawTask: unknown, deliveryAttempts = 1): Promise<CollectionTaskOutcome> {
     const parsed = collectionTaskSchema.safeParse(rawTask);
     if (!parsed.success) return { action: 'ack', status: 'failed' };
 
-    const run = await this.repository.claim(parsed.data.runId);
+    const attempts = normalizeDeliveryAttempts(deliveryAttempts);
+    const existing = await this.repository.findByRunId(parsed.data.runId);
+    if (!existing) return { action: 'ack', status: 'ignored' };
+    if (existing.status === 'running') {
+      if (attempts > 1 && hasExpiredLease(existing)) {
+        const error = new ConnectorError(
+          'Collection run lease expired after queue redelivery.',
+          'permanent',
+          'COLLECTION_RUN_ORPHANED',
+        );
+        await this.repository.fail(
+          existing.id,
+          error,
+          buildDegradedCollectorHealth(
+            existing.id,
+            existing.attemptCount,
+            existing.sourceId,
+            existing.provider,
+            1,
+            error,
+          ),
+        );
+        return { action: 'ack', status: 'failed' };
+      }
+      return { action: 'retry', delaySeconds: 30 };
+    }
+    if (existing.status !== 'pending') return { action: 'ack', status: 'ignored' };
+
+    const run = await this.repository.claim(existing.id, existing.attemptCount, existing.startedAt);
     if (!run) {
       const existing = await this.repository.findByRunId(parsed.data.runId);
       if (existing?.status === 'running') return { action: 'retry', delaySeconds: 30 };
@@ -281,6 +382,7 @@ export class CollectionTaskProcessor {
     }
 
     let gateway: CollectionGateway | undefined;
+    let collectionReturned = false;
     try {
       gateway =
         'resolve' in this.gatewayOrResolver
@@ -294,6 +396,17 @@ export class CollectionTaskProcessor {
           'permanent',
           'PROJECT_CRITERIA_MISSING',
         );
+      const reportProgress = async (
+        snapshot: import('@scout/schemas').CollectionProgressSnapshot,
+      ) => {
+        if (!this.repository.updateProgress) return;
+        try {
+          await this.repository.updateProgress(run.id, snapshot);
+        } catch {
+          // Progress is operational observability; it must not cause a paid
+          // collection to retry and call the source again.
+        }
+      };
       const queryFamily = this.queryFamilyProvider
         ? await this.queryFamilyProvider.getFamily({ projectId: run.projectId, criteria })
         : undefined;
@@ -302,11 +415,23 @@ export class CollectionTaskProcessor {
             gateway,
             gateway instanceof DefaultCollectionGateway ? (gateway.limits.maxQueries ?? 1) : 1,
             gateway instanceof DefaultCollectionGateway ? gateway.limits.maxItems : 5,
+            this.previewFilter,
           ).collect(
             criteria,
             queryFamily.queries.map(({ query }) => query),
+            undefined,
+            { onProgress: reportProgress },
           )
-        : await gateway.collect(criteria);
+        : await gateway.collect(criteria, undefined, undefined, { onProgress: reportProgress });
+      collectionReturned = true;
+      await reportProgress(
+        collectionProgressSnapshotSchema.parse({
+          itemsFound: result.items.length,
+          pagesFetched: result.pagesFetched,
+          requestMetrics: result.requestMetrics,
+          truncated: result.truncated,
+        }),
+      );
       if (queryFamily && this.queryFamilyRepository) {
         try {
           await this.queryFamilyRepository.saveFamily({
@@ -361,13 +486,10 @@ export class CollectionTaskProcessor {
       if (persistence && this.analysisScheduler) {
         try {
           await this.analysisScheduler.schedule(persistence.listingIds);
-        } catch (cause) {
-          if (cause instanceof ConnectorError) throw cause;
-          throw new ConnectorError(
-            'Text analysis tasks could not be scheduled.',
-            'transient',
-            'ANALYSIS_QUEUE_UNAVAILABLE',
-          );
+        } catch {
+          // Analysis is downstream of persisted collection data. A queue outage
+          // must leave the collection completed and the analysis eligible for a
+          // later explicit replay; it must never recollect marketplace records.
         }
       }
       if (persistence && criteria.opportunityPolicy && this.opportunityEvaluator) {
@@ -398,7 +520,11 @@ export class CollectionTaskProcessor {
               'permanent',
               'UNEXPECTED_COLLECTION_ERROR',
             );
-      if (error.kind === 'transient' && run.attemptCount < this.maxAttempts) {
+      if (
+        error.kind === 'transient' &&
+        !collectionReturned &&
+        run.attemptCount < this.maxAttempts
+      ) {
         await this.repository.releaseForRetry(
           run.id,
           error,

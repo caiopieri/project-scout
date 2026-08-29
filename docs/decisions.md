@@ -92,7 +92,7 @@ This document records the architectural choices proposed for **Project Scout**, 
 
 ### 1.19 Collection idempotency and retry lease (Milestone 4)
 
-- **Decision**: A unique `(project_id, idempotency_key)` constraint protects request retries. Queue redelivery is protected by `claim_collection_run`, which transitions `pending → running` atomically, increments attempts and sets a five-minute lease. An active-lease redelivery is delayed instead of acknowledged; the consumer allows 12 delivery retries to survive a post-claim infrastructure outage. Explicit transient connector errors retry at most three execution attempts; permanent or exhausted failures become terminal and retain safe error kind/code metadata.
+- **Decision**: A unique `(project_id, idempotency_key)` constraint protects request retries. Queue redelivery is protected by a service-role PostgREST update filtered by `status=pending` and the expected `attempt_count`; it transitions `pending → running` atomically, increments attempts and sets a five-minute lease. An active, absent, or first-delivery expired lease is delayed instead of acknowledged; only an expired lease on `Message.attempts > 1` is classified as an orphan. The consumer allows 12 delivery retries to survive a post-claim infrastructure outage. Explicit transient connector errors retry at most three execution attempts before the gateway returns; later transient failures are terminal and retain safe error kind/code metadata.
 
 ### 1.20 System-owned collection lifecycle (Milestone 4)
 
@@ -108,7 +108,7 @@ This document records the architectural choices proposed for **Project Scout**, 
 
 ### 1.23 Conservative eBay query translation (Milestone 5)
 
-- **Decision**: Search uses fixed-price listings only, defaults to condition ID 7000 and maps explicitly reviewed conditions. Maximum price is sent only when criteria and marketplace currencies match; BRL is not treated as USD. The gateway defaults to one page and at most five detailed candidates, while each live adapter instance rejects a seventh Browse request, including retries. Currency conversion, market-price comparison and broader candidate collection remain later work.
+- **Decision (baseline before S1.1b)**: Search uses fixed-price listings only, defaults to condition ID 7000 and maps explicitly reviewed conditions. Maximum price is sent only when criteria and marketplace currencies match; BRL is not treated as USD. The gateway defaults to one page and at most five detailed candidates. The former six-request adapter guard was replaced by the explicit per-execution budget in S1.1b-1. Currency conversion, market-price comparison and broader candidate collection remain later work.
 
 ### 1.24 Validate external payloads and persist only stable errors (Milestone 5)
 
@@ -158,9 +158,9 @@ This document records the architectural choices proposed for **Project Scout**, 
 
 - **Decision**: Verify the eBay Marketplace Account Deletion signature with Node `createVerify('sha1')`. The prior OpenSSL alias `ssl3-sha1` is equivalent on local Node but is not portable to the Cloudflare Workers runtime. The digest remains the one required by the received eBay signature contract; this is a runtime-compatibility correction, not a weakening or fallback that bypasses verification.
 
-### 1.36 Fail-closed manual Production probe and six-call Browse budget
+### 1.36 Fail-closed manual Production probe and bounded Browse budget (baseline)
 
-- **Decision**: Keep normal Production collection in mock mode and expose the manual eBay probe only while a 64-hex server secret exists. The probe validates a bounded request, performs one condition-7000 search and fetches at most five details with retries disabled. Removing the secret makes the route indistinguishable from an unknown route (`404`). The probe does not persist results and is not a substitute for user API rate limiting or quota telemetry.
+- **Decision (baseline before S1.1b)**: Keep normal Production collection in mock mode and expose the manual eBay probe only while a 64-hex server secret exists. The probe validates a bounded request, performs one condition-7000 search and fetches at most five details with retries disabled. Removing the secret makes the route indistinguishable from an unknown route (`404`). The probe does not persist results and is not a substitute for user API rate limiting or quota telemetry. Its former six-request ceiling was later replaced by the explicit `EBAY_BROWSE_BUDGET_PER_RUN` configuration.
 
 ### 1.37 Deterministic textual analysis before live LLM use (Milestone 7)
 
@@ -176,7 +176,7 @@ This document records the architectural choices proposed for **Project Scout**, 
 
 ### 1.40 Sanitized eBay request telemetry and per-instance budget snapshot
 
-- **Decision**: Expose optional, in-process eBay request telemetry and an authoritative budget snapshot to the trusted caller. Events carry operation, attempt, status, stable error code, retry-after and budget position, but never URLs, tokens, credentials or response bodies. Observer exceptions are swallowed. This makes the existing six-call guard auditable without introducing durable quota state, a global rate limiter or Production collection enablement.
+- **Decision**: Expose optional, in-process eBay request telemetry and an authoritative budget snapshot to the trusted caller. Events carry operation, attempt, status, stable error code, retry-after and budget position, but never URLs, tokens, credentials or response bodies. Observer exceptions are swallowed. This makes the configured per-execution budget auditable without introducing durable quota state or enabling Production collection by accident.
 
 ### 1.41 eBay semantic health mapping stays fail-closed
 
@@ -437,3 +437,98 @@ This document records the architectural choices proposed for **Project Scout**, 
 - **Fora desta decisão**: heartbeat de lease e valor-base do orçamento no
   `wrangler.toml`. São lacunas operacionais distintas e não foram demonstradas
   como causa das falhas live da S1.1b-1b.
+
+### 1.68 Filtro barato no preview e família limitada por execução (2026-08-27)
+
+- **Decisão**: a coleta executa até três queries da família, reparte o limite
+  entre elas e deduplica `(source, external_id)` antes de chamar detalhes outra
+  vez. O filtro genérico de camada 1 roda sobre o preview; rejeitados são
+  preservados como registros `previewOnly` para que a triagem tenha motivo e não
+  desapareçam quando o orçamento de detalhe acaba.
+- **Motivo**: detalhe é a chamada cara. O filtro deve barrar preço acima do
+  máximo compatível, produto incompatível, defeito rejeitado e peça/acessório
+  antes do connector de detalhe, sem perder a evidência do descarte.
+- **Fora desta decisão**: converter moeda, fazer score, buscar detalhes de
+  anúncios rejeitados ou declarar a fatia live. A prova real de volume continua
+  pertencendo ao Engineer.
+
+### 1.69 Reuso de open source por camada, sem dependência de conveniência (2026-08-28)
+
+- **Decisão**: os projetos estudados entram em camadas diferentes e não são
+  adicionados como dependências do MVP atual:
+  - [Crawl4AI](https://github.com/unclecode/crawl4ai) é candidato a runtime
+    isolado de navegador na S6. O repositório declara Apache-2.0 e exige
+    atribuição adicional; qualquer uso distribuído deve preservar esses avisos.
+  - [ScrapeGraphAI](https://github.com/ScrapeGraphAI/Scrapegraph-ai) é candidato
+    a implementação auxiliar da extração dirigida por schema na S7. O
+    repositório declara licença MIT; a saída ainda atravessa nossas portas,
+    schemas e proteção contra prompt injection.
+  - [Firecrawl](https://github.com/firecrawl/firecrawl) fica restrito a
+    laboratório ou ponte temporária explicitamente aprovada. O repositório
+    declara AGPL-3.0; antes de qualquer uso em serviço distribuído ou caminho
+    crítico haverá revisão de licença, isolamento, custo e prazo de remoção.
+- **Regra de integração**: código de terceiros não define o contrato do Scout,
+  não recebe credenciais do usuário fora da camada autorizada e não decide
+  chamadas de ferramenta. Cada uso futuro terá versão fixada, inventário de
+  licença/atribuição, adapter revisado, health/error mapping e teste de
+  comportamento observável.
+- **Motivo**: aproveitar manutenção comunitária para browser, parsing e
+  plumbing reduz trabalho genérico, mas não transfere a manutenção do nosso
+  contrato, segurança, compliance, custo, qualidade do dado ou integração com o
+  acervo. A fronteira continua sendo o núcleo próprio de coleta (ADR 1.45).
+- **Estado**: decisão registrada após revisão dos repositórios em 2026-08-28;
+  nenhuma dependência ou código de runtime foi adicionado nesta fatia.
+
+### 1.70 Posição de requests por execução, não quota global (2026-08-28)
+
+- **Decisão**: `collection_runs` pode persistir `requests_used` e
+  `request_budget` enquanto a execução está `running`, somente quando o
+  connector fornece métricas autoritativas. Esses campos servem à operação e à
+  tela da execução; `estimated_cost` continua reservado a custo monetário.
+- **Limite**: nenhum URL, token, corpo de resposta ou estado de quota global é
+  persistido. Falha no PATCH de progresso não provoca retry nem recoleta do
+  marketplace.
+- **Estado parcial**: o booleano `truncated` é separado de `status`; uma run
+  pode terminar `completed` com varredura parcial quando o teto foi alcançado.
+- **Motivo**: a S1.3 precisa mostrar a posição real no orçamento sem converter
+  telemetria sanitizada em custo inventado ou criar um contador global antes da
+  quota efetiva ser medida.
+
+### 1.71 Provedor Gemini atrás da porta de análise (2026-08-28)
+
+- **Decisão**: o primeiro provedor LLM real será um adapter REST do Gemini atrás
+  de `TextAnalyzer`, selecionado somente por `TEXT_ANALYZER_MODE=gemini` e uma
+  chave server-side. O default continua determinístico.
+- **Contrato**: o adapter envia apenas título, descrição e condição limitados,
+  envelopados como dado não confiável; solicita JSON estruturado; valida a
+  resposta inteira nos schemas compartilhados; e grava provider/model/prompt e
+  uso de tokens no resultado.
+- **Limites**: timeout, orçamento por instância e classificação estável de
+  auth, limite, indisponibilidade e resposta inválida. Não há fallback que
+  finja resultado Gemini, nem conteúdo do provedor em logs.
+- **Estado**: código e wiring local prontos; credencial, privacidade, quota
+  efetiva e produção permanecem pendentes de verificação live.
+
+### 1.72 Falha de análise não reabre coleta persistida (2026-08-28)
+
+- **Decisão**: indisponibilidade da fila ou do provedor de análise depois da
+  ingestão não transforma a coleta em falha nem autoriza recoleta. A coleta
+  termina com os anúncios persistidos; a análise fica pendente para replay
+  operacional explícito.
+- **Motivo**: análise é downstream e pode consumir quota externa. Recoletar para
+  reparar uma etapa secundária duplica custo e pode produzir snapshots indevidos.
+- **Estado**: comportamento coberto por teste local; replay/alerta operacional
+  continua sendo trabalho posterior de observabilidade.
+
+### 1.73 Lote de análise com isolamento por item (2026-08-28)
+
+- **Decisão**: quando o analyzer oferece `analyzeBatch`, o scheduler agrupa até
+  20 análises em uma mensagem que contém somente IDs de runs. O provedor retorna
+  `returnId` por item; cada valor passa por validação própria antes da persistência.
+- **Compatibilidade**: deterministic/mock continuam com mensagens unitárias; um
+  lote residual menor que 10 é permitido no final para não perder anúncios.
+- **Falha**: item ausente, duplicado ou com schema inválido falha apenas aquele
+  item; vizinhos válidos são persistidos. Falha de transporte transitória libera
+  o lote inteiro para retry limitado.
+- **Motivo**: reduzir custo de contexto e chamadas sem permitir que anúncio
+  hostil, ID inventado ou saída inválida contamine outro listing.

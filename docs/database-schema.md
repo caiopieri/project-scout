@@ -147,7 +147,7 @@ erDiagram
 8. `listing_images`: Image URLs and R2 storage paths.
 9. `listing_snapshots`: Audit snapshot history with `raw_object_key` and `raw_content_hash`.
 10. `price_history`: Price movement history.
-11. `collection_runs`: Idempotent, owner-visible collection executions. `(project_id, idempotency_key)` is unique; lifecycle timestamps, retry lease/attempt count and classified failure metadata are queryable columns.
+11. `collection_runs`: Idempotent, owner-visible collection executions. `(project_id, idempotency_key)` is unique; lifecycle timestamps, retry lease/attempt count, classified failure metadata and optional request position are queryable columns.
 12. `products`: Canonical product catalog.
 13. `listing_product_matches`: Product catalog linkage.
 14. `analysis_runs`: Versioned text-analysis lifecycle, input hash, provider/model, lease, attempts, usage and safe failure metadata.
@@ -168,9 +168,12 @@ erDiagram
 - `20260728213000_milestone4_collection_security.sql`: revokes direct authenticated lifecycle mutation and exposes only owner-checked request/queued RPCs.
 - `20260729120000_milestone6_ingestion.sql`: service-role-only transactional normalized ingestion, raw-hash lookup index and per-listing image URL uniqueness.
 - `20260729172535_milestone6_1_ebay_account_deletion.sql`: private deletion audit plus service-role-only preparation/finalization RPCs.
+- `20260828120000_s1_2_price_observations.sql`: one price observation per normalized ingestion while snapshots remain hash-gated.
+- `20260828130000_s1_3_run_progress.sql`: optional request position columns for incremental execution progress.
+- `20260828140000_s1_3_partial_state.sql`: preserves whether a bounded run stopped at its request budget.
 
 Milestone 5 requires no schema migration. The existing `collection_runs.provider` column records the adapter selected by the trusted consumer.
 
-`ingest_normalized_ebay_listing` converts integer minor-unit money to `NUMERIC(12, 2)`, upserts the seller/listing, links the listing to the project, upserts image URL metadata, appends a snapshot only for new/changed raw hashes, and appends price history only when price, shipping or status changes. Execution is granted exclusively to `service_role`.
+`ingest_normalized_ebay_listing` converts integer minor-unit money to `NUMERIC(12, 2)`, upserts the seller/listing, links the listing to the project, upserts image URL metadata, appends a snapshot only for new/changed raw hashes, and appends one price-history observation for every ingestion. Execution is granted exclusively to `service_role`.
 
 `structured_query` is canonical for the interactive criteria document in Marco 3. `research_project_criteria` remains a compatibility table and is not dual-written.

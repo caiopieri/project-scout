@@ -117,8 +117,9 @@ sempre acompanhada de `n` e janela.
 
 ## 8. O que gravar, e desde quando
 
-Tabelas já existentes no banco, sem uso: `price_history`, `listing_snapshots`.
-O que falta é o pipeline escrever nelas.
+As tabelas `price_history` e `listing_snapshots` já recebem dados pelo pipeline
+transacional desde a implementação local da S1.2. A validação com duas coletas
+live ainda está pendente.
 
 | Evento                                                          | Quando                     | Fatia  |
 | --------------------------------------------------------------- | -------------------------- | ------ |

@@ -2,6 +2,7 @@ import { CollectionRunRepository, ConnectorError, CreateCollectionRunInput } fro
 import {
   collectorHealthSchema,
   collectionRunSchema,
+  collectionProgressSnapshotSchema,
   researchCriteriaSchema,
   type CollectionResult,
   type ResearchCriteria,
@@ -23,6 +24,9 @@ interface CollectionRunRow {
   items_created: number;
   items_updated: number;
   estimated_cost: number;
+  requests_used: number | null;
+  request_budget: number | null;
+  truncated: boolean | null;
   provider: string;
   error: string | null;
   error_kind: string | null;
@@ -45,6 +49,9 @@ const mapRun = (row: CollectionRunRow) =>
     itemsCreated: row.items_created,
     itemsUpdated: row.items_updated,
     estimatedCost: Number(row.estimated_cost),
+    requestsUsed: row.requests_used ?? undefined,
+    requestBudget: row.request_budget ?? undefined,
+    truncated: row.truncated ?? undefined,
     provider: row.provider,
     error: row.error ?? undefined,
     errorKind: row.error_kind ?? undefined,
@@ -90,16 +97,54 @@ export class SupabaseRestCollectionRunRepository implements CollectionRunReposit
     return mapRun(rows[0]);
   }
 
-  async claim(id: string) {
-    const rows = await this.request<CollectionRunRow[]>('rpc/claim_collection_run', {
-      method: 'POST',
-      body: JSON.stringify({ p_run_id: id }),
-    });
+  async claim(id: string, expectedAttemptCount: number, startedAt = new Date()) {
+    if (!Number.isSafeInteger(expectedAttemptCount) || expectedAttemptCount < 0)
+      throw new Error('Expected collection attempt count must be a non-negative integer.');
+    if (Number.isNaN(startedAt.getTime())) throw new Error('Collection start time is invalid.');
+    const claimedAt = new Date();
+    const leaseExpiresAt = new Date(claimedAt.getTime() + 5 * 60 * 1000);
+    const rows = await this.request<CollectionRunRow[]>(
+      `collection_runs?id=eq.${encodeURIComponent(id)}&status=eq.pending&attempt_count=eq.${expectedAttemptCount}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: 'running',
+          started_at: startedAt.toISOString(),
+          lease_expires_at: leaseExpiresAt.toISOString(),
+          attempt_count: expectedAttemptCount + 1,
+          error: null,
+          error_kind: null,
+          error_code: null,
+        }),
+      },
+    );
     return rows[0] ? mapRun(rows[0]) : null;
   }
 
   setProvider(id: string, provider: string) {
     return this.patchOne(id, { provider });
+  }
+
+  async updateProgress(id: string, progress: import('@scout/schemas').CollectionProgressSnapshot) {
+    const parsed = collectionProgressSnapshotSchema.parse(progress);
+    const body = {
+      items_found: parsed.itemsFound,
+      truncated: parsed.truncated,
+      ...(parsed.requestMetrics
+        ? {
+            requests_used: parsed.requestMetrics.requestsUsed,
+            request_budget: parsed.requestMetrics.requestBudget,
+          }
+        : {}),
+    };
+    const rows = await this.request<CollectionRunRow[]>(
+      `collection_runs?id=eq.${encodeURIComponent(id)}&status=eq.running`,
+      { method: 'PATCH', body: JSON.stringify(body) },
+    );
+    if (rows[0]) return mapRun(rows[0]);
+    const current = await this.findByRunId(id);
+    if (!current) throw new Error('Collection run not found.');
+    return current;
   }
 
   async getProjectCriteria(projectId: string): Promise<ResearchCriteria | null> {

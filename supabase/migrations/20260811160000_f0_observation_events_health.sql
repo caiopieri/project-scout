@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS public.collector_health_checks (
 CREATE INDEX IF NOT EXISTS collector_health_checks_source_checked_idx
     ON public.collector_health_checks (source_id, checked_at DESC);
 
+REVOKE ALL ON public.observation_events, public.collector_health_checks FROM PUBLIC, anon, authenticated;
 GRANT ALL ON public.observation_events, public.collector_health_checks TO service_role;
 
 ALTER TABLE public.observation_events ENABLE ROW LEVEL SECURITY;

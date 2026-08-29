@@ -32,6 +32,7 @@ EBAY_GLOBAL_REQUESTS_PER_MINUTE = "2"
 EBAY_NOTIFICATION_ENVIRONMENT = "production"
 PUBLIC_API_ENABLED = "true"
 TEXT_ANALYZER_MODE = "deterministic"
+GEMINI_MODEL = "gemini-2.5-flash"
 
 # Cloudflare Queues Producers Bindings
 [[queues.producers]]
@@ -86,6 +87,7 @@ EBAY_GLOBAL_REQUESTS_PER_MINUTE = "2"
 EBAY_NOTIFICATION_ENVIRONMENT = "production"
 PUBLIC_API_ENABLED = "false"
 TEXT_ANALYZER_MODE = "deterministic"
+GEMINI_MODEL = "gemini-2.5-flash"
 
 [[env.production.kv_namespaces]]
 binding = "SCOUT_CACHE"
@@ -104,6 +106,10 @@ queue = "project-scout-ebay-collect-prod"
 binding = "COLLECT_QUEUE"
 
 [[env.production.queues.producers]]
+queue = "project-scout-analysis-prod"
+binding = "ANALYSIS_QUEUE"
+
+[[env.production.queues.producers]]
 queue = "project-scout-ebay-account-deletion-prod"
 binding = "EBAY_DELETION_QUEUE"
 
@@ -113,6 +119,13 @@ max_batch_size = 5
 max_batch_timeout = 2
 max_retries = 12
 dead_letter_queue = "project-scout-ebay-collect-dlq-prod"
+
+[[env.production.queues.consumers]]
+queue = "project-scout-analysis-prod"
+max_batch_size = 5
+max_batch_timeout = 2
+max_retries = 12
+dead_letter_queue = "project-scout-analysis-dlq-prod"
 
 [[env.production.queues.consumers]]
 queue = "project-scout-ebay-account-deletion-prod"

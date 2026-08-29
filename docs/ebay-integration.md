@@ -70,7 +70,7 @@ The complete raw record is canonicalized and stored under `raw/ebay/{external-id
 
 ## Pagination and quotas
 
-`DefaultCollectionGateway` fetches one page and at most five detailed candidates. `EbayApiAdapter` independently rejects a seventh Browse request per instance, so HTTP retries consume the same budget instead of bypassing it. Queue messages receive a fresh connector instance, isolating one execution's budget from another.
+`DefaultCollectionGateway` uses the manifest defaults of one page and at most five detailed candidates for local/mock execution. The Production Worker derives its item and query limits from the explicit `EBAY_BROWSE_BUDGET_PER_RUN`. `EbayApiAdapter` rejects requests after that per-execution budget, so searches, details and HTTP retries share the same ceiling instead of bypassing it. Queue messages receive a fresh connector instance, isolating one execution's budget from another.
 
 Each adapter can emit an optional sanitized `EbayRequestTelemetryEvent` to its
 caller. The event identifies only the operation (`search` or `details`), attempt,
@@ -89,7 +89,7 @@ policy is missing. The Durable Object uses SQLite-backed serialized state per
 marketplace key, while the existing KV limiter remains available for local and
 sandbox execution. KV is not used as the Production atomic reservation.
 
-The published default Browse API quota is 5,000 calls/day for most methods, but the effective quota must be checked for the approved application using eBay Developer Analytics. The current execution cap is six Browse calls; a future global daily token bucket and usage telemetry remain mandatory before normal Production collection is enabled.
+The published default Browse API quota is 5,000 calls/day for most methods, but the effective quota must be checked for the approved application using eBay Developer Analytics. The per-execution cap is the explicitly configured `EBAY_BROWSE_BUDGET_PER_RUN`; a future global daily token bucket and usage telemetry remain mandatory before normal Production collection is enabled.
 
 ## Timeouts, retries and errors
 

@@ -10,6 +10,7 @@ import type {
   ListingTriageDecisionTransport,
   ListingTriageReviewTransport,
   OpportunityValuationTransport,
+  PriceHistoryTransport,
   ResearchProject,
   SearchTermObservationTransport,
 } from '@scout/schemas';
@@ -24,6 +25,7 @@ import {
   listingTriageReviewTransportSchema,
   listingTriageReviewRequestSchema,
   opportunityValuationTransportSchema,
+  priceHistoryTransportSchema,
   researchCriteriaSchema,
   researchProjectTransportSchema,
   searchTermObservationTransportSchema,
@@ -56,6 +58,10 @@ export default function HomePage() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [projects, setProjects] = useState<ResearchProject[]>([]);
   const [selected, setSelected] = useState<ResearchProject | null>(null);
+  const [collectionRuns, setCollectionRuns] = useState<Record<string, CollectionRunTransport>>({});
+  const [collectionReasonCounts, setCollectionReasonCounts] = useState<
+    Record<string, Record<string, number>>
+  >({});
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ kind: 'error' | 'success'; text: string } | null>(null);
@@ -164,6 +170,16 @@ export default function HomePage() {
                 request={request}
                 reload={loadProjects}
                 notify={setMessage}
+                collectionRuns={collectionRuns}
+                onRunUpdate={(projectId, run) => {
+                  setCollectionRuns((current) => ({ ...current, [projectId]: run }));
+                  if (run.attemptCount === 0)
+                    setCollectionReasonCounts((current) => ({ ...current, [projectId]: {} }));
+                }}
+                collectionReasonCounts={collectionReasonCounts}
+                onReasonUpdate={(projectId, counts) =>
+                  setCollectionReasonCounts((current) => ({ ...current, [projectId]: counts }))
+                }
               />
             )}
           </div>
@@ -533,18 +549,100 @@ function ProjectEditor({
   );
 }
 
+const collectionRunLabel = (run: CollectionRunTransport) => {
+  if (run.status === 'pending') return 'aguardando fila';
+  if (run.status === 'running') return 'coletando';
+  if (run.status === 'failed') return 'degradada';
+  if (run.truncated) return 'parcial';
+  if (run.status === 'completed') return 'ok';
+  return 'indisponível';
+};
+
+function CollectionExecutionPanel({
+  run,
+  reasonCounts = {},
+}: {
+  run: CollectionRunTransport;
+  reasonCounts?: Record<string, number>;
+}) {
+  const persisted = run.itemsCreated + run.itemsUpdated;
+  const notPersisted = Math.max(0, run.itemsFound - persisted);
+  const reasons = Object.entries(reasonCounts).sort((left, right) => right[1] - left[1]);
+  return (
+    <div className="execution-panel" aria-live="polite">
+      <div className="eyebrow">Execução · {collectionRunLabel(run)}</div>
+      <div className="execution-head">
+        <strong>{run.provider}</strong>
+        <span className="meta">
+          {run.status === 'failed' ? `erro: ${run.errorCode ?? 'não classificado'}` : run.status}
+        </span>
+      </div>
+      <div className="funnel" aria-label="Funil da coleta">
+        <div>
+          <strong>{run.itemsFound}</strong>
+          <span>descobertos</span>
+        </div>
+        <div>
+          <strong>{persisted}</strong>
+          <span>persistidos</span>
+        </div>
+        <div>
+          <strong>{run.itemsCreated}</strong>
+          <span>novos</span>
+        </div>
+        <div>
+          <strong>{run.itemsUpdated}</strong>
+          <span>atualizados</span>
+        </div>
+      </div>
+      {notPersisted > 0 && (
+        <p className="muted execution-note">
+          {notPersisted} descoberto(s) ainda não aparece(m) como persistido(s).
+        </p>
+      )}
+      <div className="meta execution-cost">
+        Custo registrado: {run.estimatedCost.toFixed(2)} · chamadas:{' '}
+        {run.requestsUsed !== undefined && run.requestBudget !== undefined
+          ? `${run.requestsUsed}/${run.requestBudget}`
+          : 'não informadas'}
+      </div>
+      {reasons.length > 0 && (
+        <div className="execution-reasons">
+          <span className="meta">Motivos registrados na triagem</span>
+          <ul>
+            {reasons.map(([reason, count]) => (
+              <li key={reason}>
+                {count} · {reason}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {run.status === 'failed' && run.error && <p className="execution-error">{run.error}</p>}
+    </div>
+  );
+}
+
 function ProjectList({
   projects,
   onSelect,
   request,
   reload,
   notify,
+  onRunUpdate,
+  collectionRuns,
+  collectionReasonCounts,
+  onReasonUpdate,
 }: {
   projects: ResearchProject[];
   onSelect: (project: ResearchProject) => void;
   request: EditorProps['request'];
   reload: () => Promise<void>;
   notify: EditorProps['notify'];
+  onRunUpdate: (projectId: string, run: CollectionRunTransport) => void;
+  collectionRuns: Record<string, CollectionRunTransport>;
+  collectionReasonCounts: Record<string, Record<string, number>>;
+  onReasonUpdate: (projectId: string, counts: Record<string, number>) => void;
 }) {
   const groups = useMemo(
     () =>
@@ -583,32 +681,58 @@ function ProjectList({
       });
     }
   };
+  const loadRunReasons = async (projectId: string, startedAt?: Date) => {
+    const raw = await request(`/api/projects/${projectId}/triage-decisions`);
+    const decisions = listingTriageDecisionTransportSchema.array().parse(raw);
+    const counts: Record<string, number> = {};
+    for (const decision of decisions) {
+      if (startedAt && new Date(decision.createdAt) < startedAt) continue;
+      for (const reason of decision.filter.reasons) counts[reason] = (counts[reason] ?? 0) + 1;
+    }
+    onReasonUpdate(projectId, counts);
+  };
   const collect = async (project: ResearchProject) => {
+    let run: CollectionRunTransport;
     try {
+      onSelect(project);
       const idempotencyKey = `collect-${project.id}-${Date.now()}`;
       const raw = await request(`/api/projects/${project.id}/collection-runs`, {
         method: 'POST',
         headers: { 'Idempotency-Key': idempotencyKey },
       });
-      const run = collectionRunTransportSchema.parse(raw);
+      run = collectionRunTransportSchema.parse(raw);
+      onRunUpdate(project.id, run);
       notify({
         kind: 'success',
         text: `Coleta ${run.id.slice(0, 8)} iniciada. Status: ${run.status}.`,
       });
+    } catch (error) {
+      notify({
+        kind: 'error',
+        text: error instanceof Error ? error.message : 'Não foi possível iniciar a coleta.',
+      });
+      return;
+    }
+    try {
       await pollRun(project.id, run.id);
     } catch (error) {
       notify({
         kind: 'error',
-        text: error instanceof Error ? error.message : 'Coleta não iniciada.',
+        text:
+          error instanceof Error
+            ? `Coleta iniciada, mas o acompanhamento falhou: ${error.message}`
+            : 'Coleta iniciada, mas o acompanhamento falhou.',
       });
     }
   };
   const pollRun = async (projectId: string, runId: string) => {
-    for (let attempt = 0; attempt < 12; attempt += 1) {
+    for (let attempt = 0; attempt < 60; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 2000));
       const raw = await request(`/api/projects/${projectId}/collection-runs/${runId}`);
       const run: CollectionRunTransport = collectionRunTransportSchema.parse(raw);
+      onRunUpdate(projectId, run);
       if (run.status === 'completed') {
+        await loadRunReasons(projectId, run.startedAt).catch(() => undefined);
         notify({
           kind: 'success',
           text: `Coleta concluída: ${run.itemsFound} encontrados, ${run.itemsCreated} novos.`,
@@ -616,6 +740,7 @@ function ProjectList({
         return;
       }
       if (run.status === 'failed') {
+        await loadRunReasons(projectId, run.startedAt).catch(() => undefined);
         notify({
           kind: 'error',
           text: `Coleta falhou: ${run.errorCode ?? 'erro não classificado'}.`,
@@ -676,6 +801,12 @@ function ProjectList({
                         Excluir
                       </button>
                     </div>
+                    {collectionRuns[project.id] && (
+                      <CollectionExecutionPanel
+                        run={collectionRuns[project.id]}
+                        reasonCounts={collectionReasonCounts[project.id]}
+                      />
+                    )}
                   </article>
                 ))}
               </div>
@@ -710,6 +841,9 @@ function ProjectDetail({
     CrossSourceIdentityCandidateTransport[]
   >([]);
   const [reviewingCandidateId, setReviewingCandidateId] = useState<string | null>(null);
+  const [priceHistories, setPriceHistories] = useState<Record<string, PriceHistoryTransport[]>>({});
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+  const [loadingHistoryId, setLoadingHistoryId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -842,6 +976,30 @@ function ProjectDetail({
       );
     } finally {
       setReviewingCandidateId(null);
+    }
+  };
+
+  const showPriceHistory = async (listingId: string) => {
+    if (expandedHistoryId === listingId) {
+      setExpandedHistoryId(null);
+      return;
+    }
+    setExpandedHistoryId(listingId);
+    if (priceHistories[listingId]) return;
+    setLoadingHistoryId(listingId);
+    try {
+      const raw = await request(`/api/projects/${project.id}/listings/${listingId}/price-history`);
+      setPriceHistories((current) => ({
+        ...current,
+        [listingId]: priceHistoryTransportSchema.array().parse(raw),
+      }));
+    } catch (error) {
+      setTriageError(
+        error instanceof Error ? error.message : 'Não foi possível carregar o histórico.',
+      );
+      setExpandedHistoryId(null);
+    } finally {
+      setLoadingHistoryId(null);
     }
   };
 
@@ -1034,11 +1192,40 @@ function ProjectDetail({
                   </p>
                 </>
               )}
+              {expandedHistoryId === listing.id && priceHistories[listing.id] && (
+                <div className="history">
+                  <strong>Histórico de preço</strong>
+                  {priceHistories[listing.id].length === 0 ? (
+                    <p className="muted">Nenhuma observação registrada.</p>
+                  ) : (
+                    <ul>
+                      {priceHistories[listing.id].map((observation) => (
+                        <li key={observation.id}>
+                          {listing.currency} {observation.price.toFixed(2)} · {observation.status} ·{' '}
+                          {observation.collectedAt.toLocaleString('pt-BR')}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
             <div className="actions">
               <a className="button secondary" href={listing.url} target="_blank" rel="noreferrer">
                 Ver anúncio
               </a>
+              <button
+                type="button"
+                className="button secondary"
+                disabled={loadingHistoryId === listing.id}
+                onClick={() => void showPriceHistory(listing.id)}
+              >
+                {loadingHistoryId === listing.id
+                  ? 'Carregando histórico…'
+                  : expandedHistoryId === listing.id
+                    ? 'Ocultar histórico'
+                    : 'Ver histórico de preço'}
+              </button>
               <button
                 type="button"
                 className="button"

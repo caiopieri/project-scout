@@ -61,6 +61,10 @@ describe('F2 cheap screening and product identity', () => {
     expect(filter.screen(listing('Geladeira usada'), criteria).reasons).toContain(
       'CATEGORY_MISMATCH',
     );
+    expect(filter.screen(listing('iPhone 13 LCD screen replacement'), criteria)).toMatchObject({
+      decision: 'REJECT',
+      reasons: ['COMPONENT_OR_ACCESSORY'],
+    });
   });
 
   it('routes a suspiciously cheap candidate to review, not automatic rejection', () => {

@@ -137,7 +137,7 @@ describe('Milestone 5 eBay official API adapter', () => {
     expect(calls.filter((url) => url.pathname.endsWith('/oauth2/token'))).toHaveLength(1);
   });
 
-  it('filters explicit exclusions and obvious component-only titles before details', async () => {
+  it('returns all valid previews for the collection layer to screen and persist', async () => {
     const fetcher = vi.fn<EbayFetch>(async (input) => {
       if (String(input).includes('/oauth2/token')) return tokenResponse();
       return Response.json({
@@ -167,7 +167,11 @@ describe('Milestone 5 eBay official API adapter', () => {
       criteria: { ...criteria, excludedKeywords: ['activation lock'] },
       limit: 3,
     });
-    expect(result.items.map((item) => item.externalId)).toEqual(['v1|device|0']);
+    expect(result.items.map((item) => item.externalId)).toEqual([
+      'v1|component|0',
+      'v1|excluded|0',
+      'v1|device|0',
+    ]);
   });
 
   it('emits sanitized request telemetry and reports the real local budget', async () => {
@@ -245,7 +249,7 @@ describe('Milestone 5 eBay official API adapter', () => {
       });
     });
     const result = await adapter(fetcher).search({ criteria, limit: 2 });
-    expect(result.items).toEqual([]);
+    expect(result.items.map((item) => item.externalId)).toEqual(['v1|component|0', 'v1|box|0']);
     expect(result.nextCursor).toBe('2');
   });
 

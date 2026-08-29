@@ -16,7 +16,19 @@ import {
   type ProductIdentity,
   type ResearchCriteria,
   type RawListingRecord,
+  type RawListingPreview,
 } from '@scout/schemas';
+
+const defectTerms: Readonly<Record<string, readonly string[]>> = {
+  cracked_screen: ['cracked screen', 'broken screen', 'tela quebrada', 'tela trincada'],
+  broken_back_glass: ['broken back glass', 'cracked back glass', 'back glass quebrado'],
+  degraded_battery: ['degraded battery', 'bad battery', 'bateria degradada', 'bateria ruim'],
+  activation_lock: ['activation lock', 'ativacao bloqueada', 'bloqueio de ativacao'],
+  icloud_lock: ['icloud lock', 'icloud bloqueado', 'bloqueio icloud'],
+  logic_board_failure: ['logic board failure', 'logic board issue', 'placa logica'],
+  no_power: ['no power', 'does not power on', 'nao liga', 'não liga'],
+  parts_only: ['parts only', 'for parts', 'para pecas', 'para peças'],
+};
 
 const normalize = (value: string) =>
   value
@@ -30,6 +42,21 @@ const categoryTerms: Readonly<Record<string, readonly string[]>> = {
   smartphone: ['smartphone', 'celular', 'telefone', 'iphone', 'galaxy'],
   laptop: ['notebook', 'laptop', 'macbook', 'thinkpad', 'latitude', 'elitebook'],
 };
+
+const componentOnlyPatterns = [
+  /\breplacement\b/,
+  /\bdigitizer\b/,
+  /\blcd(?: assembly| screen)?\b/,
+  /\bdisplay assembly\b/,
+  /\bpalm ?rest\b/,
+  /\bbezel\b/,
+  /\bhousing\b/,
+  /\bshell\b/,
+  /\b(?:charger|cable|battery|keyboard) only\b/,
+  /\bscreen only\b/,
+  /\b(?:empty )?box only\b/,
+  /\bpartial machine\b/,
+];
 
 const payloadString = (record: RawListingRecord, key: string): string | undefined => {
   const payload = jsonObjectSchema.parse(record.payload);
@@ -72,6 +99,14 @@ export interface CheapFilterOptions {
 }
 
 export class CheapListingFilter {
+  screenPreview(
+    preview: RawListingPreview,
+    rawCriteria: ResearchCriteria,
+    options: CheapFilterOptions = {},
+  ): CheapFilterResult {
+    return this.screen({ preview, payload: {} }, rawCriteria, options);
+  }
+
   screen(
     rawRecord: RawListingRecord,
     rawCriteria: ResearchCriteria,
@@ -92,6 +127,26 @@ export class CheapListingFilter {
     const matchesCategory = expectedTerms.some((term) => title.includes(normalize(term)));
     if (criteria.category && !matchesCategory && !matchesModel) reasons.push('CATEGORY_MISMATCH');
 
+    if (componentOnlyPatterns.some((pattern) => pattern.test(title))) {
+      reasons.push('COMPONENT_OR_ACCESSORY');
+    }
+
+    if (
+      criteria.rejectedDefects.some((defect) =>
+        (defectTerms[defect] ?? []).some((term) => title.includes(normalize(term))),
+      )
+    ) {
+      reasons.push('REJECTED_DEFECT');
+    }
+
+    if (
+      criteria.maximumPrice &&
+      record.preview.price.currency === criteria.maximumPrice.currency &&
+      record.preview.price.amountMinor > criteria.maximumPrice.amountMinor
+    ) {
+      reasons.push('PRICE_ABOVE_MAXIMUM');
+    }
+
     if (
       options.suspiciousPriceFloorMinor !== undefined &&
       record.preview.price.amountMinor <= options.suspiciousPriceFloorMinor
@@ -102,7 +157,10 @@ export class CheapListingFilter {
     if (
       reasons.includes('DUPLICATE') ||
       reasons.includes('EXCLUDED_KEYWORD') ||
-      reasons.includes('CATEGORY_MISMATCH')
+      reasons.includes('CATEGORY_MISMATCH') ||
+      reasons.includes('REJECTED_DEFECT') ||
+      reasons.includes('PRICE_ABOVE_MAXIMUM') ||
+      reasons.includes('COMPONENT_OR_ACCESSORY')
     ) {
       return cheapFilterResultSchema.parse({ decision: 'REJECT', reasons });
     }
@@ -373,6 +431,14 @@ export class InvestigationClassifier {
       return investigationDecisionSchema.parse({
         state: 'WRONG_PRODUCT',
         confidence: 0.9,
+        reasons: filter.reasons,
+        requiresHumanReview: false,
+      });
+    }
+    if (filter.reasons.includes('COMPONENT_OR_ACCESSORY')) {
+      return investigationDecisionSchema.parse({
+        state: 'WRONG_PRODUCT',
+        confidence: 0.92,
         reasons: filter.reasons,
         requiresHumanReview: false,
       });

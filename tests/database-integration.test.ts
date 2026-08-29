@@ -372,7 +372,7 @@ describe('Milestone 2: Live PostgreSQL Integration Suite', () => {
         (await client.query(`SELECT COUNT(*) FROM price_history WHERE listing_id=$1`, [listingId]))
           .rows[0].count,
       ),
-    ).toBe(2);
+    ).toBe(4);
     expect(
       Number(
         (await client.query(`SELECT COUNT(*) FROM listing_images WHERE listing_id=$1`, [listingId]))

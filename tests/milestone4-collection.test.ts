@@ -12,6 +12,7 @@ import {
 } from '@scout/domain';
 import { EBAY_MOCK_FIXTURES, MockEbayConnector } from '@scout/ebay-connector';
 import { createConnectorManifest } from '@scout/collection';
+import { CheapListingFilter } from '@scout/search-intelligence';
 import type {
   CollectionResult,
   CollectionRun,
@@ -55,6 +56,7 @@ class MemoryRunRepository implements CollectionRunRepository {
   };
   criteria: ResearchCriteria | null = criteria;
   lastHealth: CollectorHealth | undefined;
+  releaseCalls = 0;
 
   async createOrFind(_input: CreateCollectionRunInput) {
     return { run: this.run, created: true };
@@ -69,9 +71,21 @@ class MemoryRunRepository implements CollectionRunRepository {
     this.run = { ...this.run, queuedAt: new Date() };
     return this.run;
   }
-  async claim(id: string) {
-    if (id !== this.run.id || this.run.status !== 'pending') return null;
-    this.run = { ...this.run, status: 'running', attemptCount: this.run.attemptCount + 1 };
+  async claim(id: string, expectedAttemptCount: number, startedAt?: Date) {
+    if (
+      id !== this.run.id ||
+      this.run.status !== 'pending' ||
+      expectedAttemptCount !== this.run.attemptCount
+    )
+      return null;
+    const claimedAt = new Date();
+    this.run = {
+      ...this.run,
+      status: 'running',
+      startedAt: startedAt ?? claimedAt,
+      leaseExpiresAt: new Date(claimedAt.getTime() + 5 * 60_000),
+      attemptCount: this.run.attemptCount + 1,
+    };
     return this.run;
   }
   async setProvider(_id: string, provider: string) {
@@ -97,6 +111,7 @@ class MemoryRunRepository implements CollectionRunRepository {
     return this.run;
   }
   async releaseForRetry(_id: string, error: ConnectorError, health?: CollectorHealth) {
+    this.releaseCalls += 1;
     this.lastHealth = health;
     this.run = {
       ...this.run,
@@ -134,6 +149,33 @@ describe('Milestone 4 Collection Gateway', () => {
     expect(network).not.toHaveBeenCalled();
   });
 
+  it('reports page progress and connector request metrics to the caller', async () => {
+    const connector = new MockEbayConnector();
+    const progress: import('@scout/schemas').CollectionProgressSnapshot[] = [];
+    const observable: SourceConnector = {
+      source: connector.source,
+      provider: connector.provider,
+      manifest: connector.manifest,
+      search: (input) => connector.search(input),
+      fetchDetails: (externalId) => connector.fetchDetails(externalId),
+      getRequestMetrics: () => ({ requestsUsed: 6, requestBudget: 10 }),
+    };
+
+    const result = await new DefaultCollectionGateway(observable).collect(criteria, 5, undefined, {
+      onProgress: (snapshot) => progress.push(snapshot),
+    });
+
+    expect(progress).toEqual([
+      {
+        itemsFound: 5,
+        pagesFetched: 1,
+        requestMetrics: { requestsUsed: 6, requestBudget: 10 },
+        truncated: false,
+      },
+    ]);
+    expect(result.requestMetrics).toEqual({ requestsUsed: 6, requestBudget: 10 });
+  });
+
   it('keeps the page size constant across pages even when fewer items remain', async () => {
     // Fonte que exige offset múltiplo do limite (eBay, erro 12515) rejeita a
     // requisição se o limite encolher na última página.
@@ -168,6 +210,7 @@ describe('Milestone 4 Collection Gateway', () => {
       'REQUEST_BUDGET_EXHAUSTED',
     );
     let details = 0;
+    const progress: import('@scout/schemas').CollectionProgressSnapshot[] = [];
     const budgeted: SourceConnector = {
       source: connector.source,
       provider: connector.provider,
@@ -179,9 +222,17 @@ describe('Milestone 4 Collection Gateway', () => {
         return connector.fetchDetails(externalId);
       },
     };
-    const result = await new DefaultCollectionGateway(budgeted).collect(criteria);
+    const result = await new DefaultCollectionGateway(budgeted).collect(
+      criteria,
+      undefined,
+      undefined,
+      {
+        onProgress: (snapshot) => progress.push(snapshot),
+      },
+    );
     expect(result.items).toHaveLength(2);
     expect(result.truncated).toBe(true);
+    expect(progress.at(-1)).toMatchObject({ itemsFound: 2, truncated: true });
   });
 
   it('propagates budget exhaustion as a failure when nothing was collected', async () => {
@@ -210,6 +261,68 @@ describe('Milestone 4 Collection Gateway', () => {
       'mock-ebay-1001',
       'mock-ebay-1002',
       'mock-ebay-1003',
+    ]);
+  });
+
+  it('screens previews before details and retains rejected previews for triage', async () => {
+    const previews = [
+      {
+        externalId: 'rejected-defect',
+        url: 'https://example.test/rejected-defect',
+        title: 'Apple iPhone 13 activation lock',
+        price: { amountMinor: 10000, currency: 'USD' as const },
+      },
+      {
+        externalId: 'rejected-category',
+        url: 'https://example.test/rejected-category',
+        title: 'Dell laptop replacement screen',
+        price: { amountMinor: 10000, currency: 'USD' as const },
+      },
+      {
+        externalId: 'survivor',
+        url: 'https://example.test/survivor',
+        title: 'Apple iPhone 13 cracked screen',
+        price: { amountMinor: 10000, currency: 'USD' as const },
+      },
+    ];
+    const detailIds: string[] = [];
+    const connector: SourceConnector = {
+      source: 'ebay',
+      provider: 'screening-fixture',
+      manifest: createConnectorManifest({
+        source: 'ebay',
+        primaryLayer: 1,
+        fallbacks: [],
+        limits: { maxPages: 1, pageSize: 10, maxItems: 10 },
+        healthStates: ['NORMAL'],
+      }),
+      async search() {
+        return { items: previews };
+      },
+      async fetchDetails(externalId) {
+        detailIds.push(externalId);
+        const preview = previews.find((item) => item.externalId === externalId);
+        if (!preview) throw new Error('missing fixture');
+        return { preview, payload: { description: preview.title } };
+      },
+    };
+    const screening = new CheapListingFilter();
+    const result = await new DefaultCollectionGateway(connector).collect(
+      { ...criteria, rejectedDefects: ['activation_lock'] },
+      3,
+      undefined,
+      { previewFilter: (preview, rawCriteria) => screening.screenPreview(preview, rawCriteria) },
+    );
+
+    expect(detailIds).toEqual(['survivor']);
+    expect(result.items.map(({ preview }) => preview.externalId)).toEqual([
+      'rejected-defect',
+      'rejected-category',
+      'survivor',
+    ]);
+    expect(result.items.slice(0, 2).map(({ payload }) => payload)).toEqual([
+      expect.objectContaining({ previewOnly: true, cheapFilterDecision: 'REJECT' }),
+      expect.objectContaining({ previewOnly: true, cheapFilterDecision: 'REJECT' }),
     ]);
   });
 
@@ -315,6 +428,33 @@ describe('Milestone 4 Collection Gateway', () => {
     });
     expect(ingestor.ingest).toHaveBeenCalledOnce();
     expect(scheduler.schedule).toHaveBeenCalledWith([listingId]);
+  });
+
+  it('does not fail a persisted collection when the analysis queue is unavailable', async () => {
+    const repository = new MemoryRunRepository();
+    const ingestor = {
+      ingest: vi.fn(async () => ({
+        itemsCreated: 1,
+        itemsUpdated: 0,
+        listingIds: ['22222222-2222-4222-a222-222222222222'],
+        listingIdsByExternalId: {},
+      })),
+    };
+    const scheduler = {
+      schedule: vi.fn(async () => {
+        throw new Error('analysis queue unavailable');
+      }),
+    };
+    const outcome = await new CollectionTaskProcessor(
+      repository,
+      new DefaultCollectionGateway(new MockEbayConnector()),
+      3,
+      ingestor,
+      scheduler,
+    ).process(createCollectionTask(runId));
+
+    expect(outcome).toEqual({ action: 'ack', status: 'completed' });
+    expect(repository.run.status).toBe('completed');
   });
 
   it('evaluates opportunities only when the project declares a valuation policy', async () => {
@@ -425,5 +565,105 @@ describe('Milestone 4 Collection Gateway', () => {
       new DefaultCollectionGateway(new MockEbayConnector()),
     ).process(createCollectionTask(runId));
     expect(outcome).toEqual({ action: 'retry', delaySeconds: 30 });
+  });
+
+  it('fails an expired running run on redelivery without calling the gateway', async () => {
+    const repository = new MemoryRunRepository();
+    repository.run = {
+      ...repository.run,
+      status: 'running',
+      attemptCount: 1,
+      leaseExpiresAt: new Date(Date.now() - 1_000),
+    };
+    const gateway = new DefaultCollectionGateway(new MockEbayConnector());
+    const collect = vi.spyOn(gateway, 'collect');
+
+    const outcome = await new CollectionTaskProcessor(repository, gateway).process(
+      createCollectionTask(runId),
+      2,
+    );
+
+    expect(outcome).toEqual({ action: 'ack', status: 'failed' });
+    expect(repository.run).toMatchObject({
+      status: 'failed',
+      errorCode: 'COLLECTION_RUN_ORPHANED',
+      attemptCount: 1,
+    });
+    expect(collect).not.toHaveBeenCalled();
+  });
+
+  it('keeps an expired running run retryable on first delivery', async () => {
+    const repository = new MemoryRunRepository();
+    repository.run = {
+      ...repository.run,
+      status: 'running',
+      attemptCount: 1,
+      leaseExpiresAt: new Date(Date.now() - 1_000),
+    };
+
+    await expect(
+      new CollectionTaskProcessor(
+        repository,
+        new DefaultCollectionGateway(new MockEbayConnector()),
+      ).process(createCollectionTask(runId), 1),
+    ).resolves.toEqual({ action: 'retry', delaySeconds: 30 });
+    expect(repository.run.status).toBe('running');
+  });
+
+  it('keeps a running run with no lease retryable on redelivery', async () => {
+    const repository = new MemoryRunRepository();
+    repository.run = {
+      ...repository.run,
+      status: 'running',
+      attemptCount: 1,
+      leaseExpiresAt: undefined,
+    };
+
+    await expect(
+      new CollectionTaskProcessor(
+        repository,
+        new DefaultCollectionGateway(new MockEbayConnector()),
+      ).process(createCollectionTask(runId), 2),
+    ).resolves.toEqual({ action: 'retry', delaySeconds: 30 });
+    expect(repository.run.status).toBe('running');
+  });
+
+  it('does not retry a transient failure after the gateway returned results', async () => {
+    const repository = new MemoryRunRepository();
+    const ingestor = {
+      ingest: vi.fn(async () => ({
+        itemsCreated: 1,
+        itemsUpdated: 0,
+        listingIds: ['22222222-2222-4222-a222-222222222222'],
+        listingIdsByExternalId: {},
+      })),
+    };
+    const triageProcessor = {
+      process: vi.fn(async () => {
+        throw new ConnectorError(
+          'triage unavailable',
+          'transient',
+          'TRIAGE_PERSISTENCE_UNAVAILABLE',
+        );
+      }),
+    };
+
+    const outcome = await new CollectionTaskProcessor(
+      repository,
+      new DefaultCollectionGateway(new MockEbayConnector()),
+      3,
+      ingestor,
+      undefined,
+      undefined,
+      undefined,
+      triageProcessor,
+    ).process(createCollectionTask(runId));
+
+    expect(outcome).toEqual({ action: 'ack', status: 'failed' });
+    expect(repository.run).toMatchObject({
+      status: 'failed',
+      errorCode: 'TRIAGE_PERSISTENCE_UNAVAILABLE',
+    });
+    expect(repository.releaseCalls).toBe(0);
   });
 });

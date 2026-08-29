@@ -121,6 +121,15 @@ export class SupabaseRestListingRepository {
     });
   }
 
+  async isListingInProject(listingId: string, projectId: string): Promise<boolean> {
+    const validatedListingId = z.string().uuid().parse(listingId);
+    const validatedProjectId = z.string().uuid().parse(projectId);
+    const rows = await this.request<Array<{ listing_id: string }>>(
+      `research_project_listings?project_id=eq.${encodeURIComponent(validatedProjectId)}&listing_id=eq.${encodeURIComponent(validatedListingId)}&select=listing_id&limit=1`,
+    );
+    return rows.length > 0;
+  }
+
   async getPriceHistory(listingId: string): Promise<PriceHistory[]> {
     const validatedListingId = z.string().uuid().parse(listingId);
     const rows = await this.request<PriceHistoryRow[]>(

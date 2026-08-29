@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS public.cross_source_identity_candidates (
 CREATE INDEX IF NOT EXISTS cross_source_identity_candidates_project_created_idx
   ON public.cross_source_identity_candidates (project_id, created_at DESC);
 
+REVOKE ALL ON public.cross_source_identity_candidates FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.cross_source_identity_candidates TO authenticated;
 GRANT ALL ON public.cross_source_identity_candidates TO service_role;
 ALTER TABLE public.cross_source_identity_candidates ENABLE ROW LEVEL SECURITY;

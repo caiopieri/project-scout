@@ -48,6 +48,12 @@ WEB_ORIGIN=http://localhost:3000
 EBAY_CONNECTOR_MODE=mock
 EBAY_MARKETPLACE_ID=EBAY_US
 TEXT_ANALYZER_MODE=deterministic
+GEMINI_MODEL=gemini-2.5-flash
+# Required when mode is sandbox or production. Choose the value only after
+# checking the approved application's effective Browse quota:
+EBAY_BROWSE_BUDGET_PER_RUN=103
+# Production also requires the atomic Durable Object binding and this policy:
+EBAY_GLOBAL_REQUESTS_PER_MINUTE=2
 # Required only when mode is sandbox or production:
 EBAY_APP_ID_CLIENT_ID=your_environment_specific_client_id
 EBAY_CERT_ID_CLIENT_SECRET=your_environment_specific_client_secret
@@ -89,6 +95,10 @@ Live validation requires an active eBay Developer Program account and an applica
 3. set `EBAY_CONNECTOR_MODE=sandbox` or `production` and use credentials from that same environment;
 4. keep `EBAY_MARKETPLACE_ID=EBAY_US` for the initial MVP validation;
 5. verify effective Browse/OAuth quotas in the eBay developer dashboard before increasing volume.
+6. set `EBAY_BROWSE_BUDGET_PER_RUN` explicitly in the Worker environment. A value
+   of `103` is the minimum starting point for targeting 100 detailed records
+   when the run uses three query-family searches; the runtime remains capped by
+   the configured value and fails closed when it is absent or invalid.
 
 Sandbox and Production credentials are not interchangeable. Never commit, print or send either secret or an application access token to the browser.
 
@@ -150,7 +160,7 @@ Reusing the same key returns the same run. Inspect it with `GET /api/projects/PR
 
 With the top-level local Wrangler configuration, normalized listing IDs are published to
 `analysis-queue` as minimal run-ID messages and consumed by the same Worker. Use
-`TEXT_ANALYZER_MODE=deterministic` for normal local development or `mock` for explicit fixtures.
+Use `TEXT_ANALYZER_MODE=deterministic` for normal local development, `mock` for explicit fixtures, or `gemini` only with the server-side `GEMINI_API_KEY`. The Gemini mode uses structured JSON output and never exposes the key to the browser. Keep the deterministic mode as the default until live privacy and quota review is complete.
 No Gemini key is accepted or required in Marco 7. Inspect `analysis_runs`, `evidence`, `defects` and
 `defect_evidence` in local Supabase Studio after a completed collection.
 
@@ -170,7 +180,7 @@ The standalone credential-aware smoke command is safe by default:
 npm run ebay:smoke
 ```
 
-With mock mode or missing credentials it prints `SKIPPED` and sends no eBay request. To exercise one official request, export the same variables used by the Worker with explicit `sandbox` or `production` mode and rerun it. A successful smoke reports only provider, marketplace and item count; it never prints a token or response body.
+With mock mode or missing credentials it prints `SKIPPED` and sends no eBay request. The command reads the three eBay values from the ignored `apps/worker/.dev.vars` created by setup; explicitly exported shell variables take precedence. A successful smoke reports only provider, marketplace and item count; it never prints a token or response body.
 
 The setup is local only. It does not upload secrets to Cloudflare; remote provisioning, when explicitly approved, must use `wrangler secret put` separately.
 
@@ -225,9 +235,11 @@ were verified through the eBay portal on 2026-07-29. Production application OAut
 also verified separately. `EBAY_CONNECTOR_MODE` remains `mock`: these validations do not authorize
 turning on remote collection or user-facing APIs.
 
-Marco 7 is not deployed in that production environment: there is no production analysis queue
-binding and no live AI provider. Provisioning the queue, applying the new migration remotely and
-deploying the consumer require a separate reviewed deployment task.
+Marco 7 is not deployed in that production environment: the Wrangler configuration now declares
+the isolated production analysis producer, consumer and DLQ, but the remote queues, migration and
+consumer deployment still need a separate reviewed deployment task. That task requires the
+Cloudflare account credential and the approved provider configuration; no queue payload contains
+listing text or credentials.
 
 The internal `/internal/ebay/probe` route is fail-closed and returns `404` unless the optional
 `EBAY_PROBE_TOKEN` secret contains exactly 64 lowercase hexadecimal characters. It is only for an

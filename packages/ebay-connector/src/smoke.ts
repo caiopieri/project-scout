@@ -1,11 +1,17 @@
+import { resolve } from 'node:path';
 import { ConnectorError } from '@scout/domain';
+import { readDotenvValue, readOptionalTextFile } from './setup-config';
 import { runEbayConnectionSmoke } from './smoke-check';
 
-const mode = process.env.EBAY_CONNECTOR_MODE;
-const clientId = process.env.EBAY_APP_ID_CLIENT_ID;
-const clientSecret = process.env.EBAY_CERT_ID_CLIENT_SECRET;
+const localVarsPath = resolve(process.cwd(), 'apps', 'worker', '.dev.vars');
 
 const main = async () => {
+  const localVars = await readOptionalTextFile(localVarsPath);
+  const value = (key: string) => process.env[key] ?? readDotenvValue(localVars, key);
+  const mode = value('EBAY_CONNECTOR_MODE');
+  const clientId = value('EBAY_APP_ID_CLIENT_ID');
+  const clientSecret = value('EBAY_CERT_ID_CLIENT_SECRET');
+
   if ((mode !== 'sandbox' && mode !== 'production') || !clientId || !clientSecret) {
     console.log(
       'SKIPPED: set EBAY_CONNECTOR_MODE=sandbox|production and server-side eBay credentials.',

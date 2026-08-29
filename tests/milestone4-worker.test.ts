@@ -238,6 +238,63 @@ describe('Milestone 4 Worker producer and consumer', () => {
     });
   });
 
+  it('returns an owner-scoped ordered price history for a project listing', async () => {
+    const listingId = '22222222-2222-4222-a222-222222222222';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url.endsWith('/auth/v1/user'))
+          return Response.json({ id: userId, email: 'owner@example.test' });
+        if (url.includes('/rest/v1/profiles')) return new Response(null, { status: 201 });
+        if (url.includes('/rest/v1/research_projects')) return Response.json([projectRow()]);
+        if (url.includes('/rest/v1/research_project_listings'))
+          return Response.json([{ listing_id: listingId }]);
+        if (url.includes('/rest/v1/price_history'))
+          return Response.json([
+            {
+              id: '44444444-4444-4444-a444-444444444444',
+              listing_id: listingId,
+              price: '1000.00',
+              shipping_cost: '25.00',
+              status: 'active',
+              collected_at: '2026-08-01T00:00:00.000Z',
+            },
+            {
+              id: '55555555-5555-4555-a555-555555555555',
+              listing_id: listingId,
+              price: '900.00',
+              shipping_cost: '25.00',
+              status: 'active',
+              collected_at: '2026-08-02T00:00:00.000Z',
+            },
+          ]);
+        throw new Error(`Unexpected fetch: ${url}`);
+      }),
+    );
+
+    const response = await call(`/api/projects/${projectId}/listings/${listingId}/price-history`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([
+      {
+        id: '44444444-4444-4444-a444-444444444444',
+        listingId,
+        price: 1000,
+        shippingCost: 25,
+        status: 'active',
+        collectedAt: '2026-08-01T00:00:00.000Z',
+      },
+      {
+        id: '55555555-5555-4555-a555-555555555555',
+        listingId,
+        price: 900,
+        shippingCost: 25,
+        status: 'active',
+        collectedAt: '2026-08-02T00:00:00.000Z',
+      },
+    ]);
+  });
+
   it('processes a queue message with the service role and acknowledges it', async () => {
     const ack = vi.fn();
     const retry = vi.fn();
@@ -246,7 +303,9 @@ describe('Milestone 4 Worker producer and consumer', () => {
       vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
         const url = String(input);
         expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer local-service-key');
-        if (url.includes('/rpc/claim_collection_run'))
+        if (url.includes('/rest/v1/collection_runs') && !init?.method)
+          return Response.json([runRow()]);
+        if (url.includes('/rest/v1/collection_runs') && init?.method === 'PATCH')
           return Response.json([runRow('running', true, 1)]);
         if (url.includes('/rest/v1/research_projects'))
           return Response.json([{ structured_query: criteria }]);
@@ -296,5 +355,35 @@ describe('Milestone 4 Worker producer and consumer', () => {
     expect(ack).not.toHaveBeenCalled();
     expect(retry).toHaveBeenCalledWith({ delaySeconds: 30 });
     consoleError.mockRestore();
+  });
+
+  it('terminates an orphaned redelivery without invoking a connector', async () => {
+    const ack = vi.fn();
+    const retry = vi.fn();
+    const orphanRun = {
+      ...runRow('running', true, 1),
+      lease_expires_at: '2026-07-28T20:00:00.000Z',
+    };
+    const failedRun = runRow('failed', true, 1);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url.includes('/rest/v1/collection_runs')) return Response.json([orphanRun]);
+        if (url.includes('/rpc/transition_collection_run_failure_with_health'))
+          return Response.json([failedRun]);
+        throw new Error(`Unexpected fetch: ${url}`);
+      }),
+    );
+
+    await worker.queue(
+      {
+        messages: [{ body: { version: '1', runId }, attempts: 2, ack, retry }],
+      } as never,
+      env,
+    );
+
+    expect(ack).toHaveBeenCalledOnce();
+    expect(retry).not.toHaveBeenCalled();
   });
 });

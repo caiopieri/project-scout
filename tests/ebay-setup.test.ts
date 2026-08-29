@@ -6,6 +6,7 @@ import {
   browserLaunchCommand,
   ebaySetupInputSchema,
   gitignoreProtectsDevVars,
+  readDotenvValue,
   updateDevVars,
   writeDevVarsAtomically,
 } from '@scout/ebay-connector/setup-config';
@@ -59,6 +60,18 @@ describe('eBay local setup assistant', () => {
     expect(gitignoreProtectsDevVars('node_modules\napps/worker/.dev.vars\n')).toBe(true);
     expect(gitignoreProtectsDevVars('.dev.vars\n')).toBe(true);
     expect(gitignoreProtectsDevVars('node_modules\n')).toBe(false);
+  });
+
+  it('reads quoted setup values without exposing or rewriting the dotenv file', () => {
+    const content = [
+      'EBAY_CONNECTOR_MODE="production"',
+      'EBAY_APP_ID_CLIENT_ID="client=value"',
+      'EBAY_CERT_ID_CLIENT_SECRET="secret # value"',
+    ].join('\n');
+    expect(readDotenvValue(content, 'EBAY_CONNECTOR_MODE')).toBe('production');
+    expect(readDotenvValue(content, 'EBAY_APP_ID_CLIENT_ID')).toBe('client=value');
+    expect(readDotenvValue(content, 'EBAY_CERT_ID_CLIENT_SECRET')).toBe('secret # value');
+    expect(readDotenvValue(content, 'SUPABASE_URL')).toBeUndefined();
   });
 
   it('selects fixed browser commands without interpolating shell input', () => {

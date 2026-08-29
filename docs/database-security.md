@@ -59,7 +59,7 @@ Access is strictly restricted via both `USING` and `WITH CHECK` clauses:
 
 - `request_ebay_collection_run(project_id, idempotency_key)` is executable only by `authenticated`. It verifies `auth.uid()`, requires an active owned project, resolves the configured eBay source server-side and always fixes provider to `ebay-mock-v1`.
 - `mark_collection_run_queued(run_id)` is executable only by `authenticated`; it can only stamp an owned pending run.
-- `claim_collection_run(run_id)` is executable only by `service_role`. It atomically claims pending/expired work and prevents concurrent duplicate processing.
+- Collection claiming is performed only by the worker with `service_role`, through a filtered PostgREST update that requires `status=pending` and the expected `attempt_count`; the database statement atomically prevents concurrent duplicate claims. The legacy `claim_collection_run(run_id)` function remains unavailable to `anon` and `authenticated` and is not used by the worker, because it can reclaim expired work without the queue-redelivery condition.
 - Every function is `SECURITY DEFINER` with a fixed `search_path`, explicit grants and no caller-controlled dynamic SQL.
 
 Milestone 5 adds no table, policy, function or grant. After a service-role-only claim, the trusted queue consumer updates `collection_runs.provider` to the selected mock/Sandbox/Production adapter. Authenticated users still cannot mutate that lifecycle metadata directly.

@@ -17,6 +17,7 @@ CREATE INDEX IF NOT EXISTS listing_triage_decisions_project_created_idx
 CREATE INDEX IF NOT EXISTS listing_triage_decisions_listing_created_idx
   ON public.listing_triage_decisions (listing_id, created_at DESC);
 
+REVOKE ALL ON public.listing_triage_decisions FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.listing_triage_decisions TO authenticated;
 GRANT ALL ON public.listing_triage_decisions TO service_role;
 ALTER TABLE public.listing_triage_decisions ENABLE ROW LEVEL SECURITY;

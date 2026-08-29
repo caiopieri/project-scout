@@ -21,11 +21,14 @@ sequenceDiagram
     API->>DB: mark_collection_run_queued (user JWT)
     API-->>UI: 202 run metadata
     Q->>C: task (at-least-once)
-    C->>DB: claim_collection_run (service role)
+    C->>DB: read run + conditional pending claim (service role)
     C->>DB: reload active structured_query
-    C->>G: collect(criteria)
-    G->>M: paginated search + details
-    M-->>G: five local raw fixtures
+    C->>G: collect(criteria, query family)
+    G->>M: paginated preview search
+    M-->>G: previews
+    G->>G: cheap filter + dedupe
+    G->>M: details only for survivors
+    M-->>G: detailed records + retained rejected previews
     C->>R2: canonical raw JSON by SHA-256
     C->>DB: transactional normalized upsert
     C->>DB: versioned opportunity valuation (policy-gated)
@@ -35,16 +38,18 @@ sequenceDiagram
 ## Contracts
 
 - `SourceConnector`: paginated raw search and detail lookup.
-- `CollectionGateway`: orchestrates a connector and validates every response with shared Zod schemas.
+- `CollectionGateway`: orchestrates a connector, validates every response with shared Zod schemas, applies the generic cheap preview filter before detail calls, and retains rejected previews as preview-only records for triage.
 - `ScrapingProvider`: future port only; no implementation exists.
-- `CollectionRunRepository`: idempotent request/read and controlled queue lifecycle transitions.
+- `CollectionRunRepository`: idempotent request/read, controlled queue lifecycle transitions and bounded request-position updates while a run is active.
 - `CollectionTaskProcessor`: canonical criteria reload, execution, optional valuation and retry classification independent of Cloudflare APIs.
 
 ## Idempotency and failure handling
 
 The API requires an `Idempotency-Key` containing 8–128 safe characters. PostgreSQL makes it unique per project. Retrying a request with the same key returns the existing run and does not publish again once `queued_at` exists.
 
-Cloudflare Queues deliver at least once, so the consumer calls the atomic `claim_collection_run` RPC. A running lease lasts five minutes; a redelivery that finds the lease active is retried after 30 seconds, while terminal duplicates are acknowledged and an expired lease may be reclaimed. Explicit transient connector failures use exponential delay capped at 60 seconds and stop after three execution attempts. Permanent failures never retry. Unexpected infrastructure failures ask Cloudflare to retry the message and do not expose payloads or secrets in logs. The local consumer permits 12 delivery retries so a transient post-claim outage can outlive the lease. Collection and analysis consumers now route exhausted messages to configured DLQs; the collection DLQ still needs an operational alert and reviewed replay/retention procedure before remote deployment. The account-deletion queue deliberately remains without a DLQ until its privacy-retention policy covers failed payloads containing transient eBay identifiers. In eBay Production, the local gateway caps a run at four details plus one search, leaving one request inside the adapter's six-call budget for a transient retry.
+Text analysis is downstream of persisted collection data. If its queue is unavailable after ingestion, the collection remains `completed`; the analysis stays eligible for explicit replay and the marketplace is never recollected for that secondary failure. The isolated production Wrangler configuration declares the analysis producer, consumer and DLQ, but provisioning and deployment remain explicit operational gates.
+
+Cloudflare Queues deliver at least once, so the consumer first reads the run and then performs a conditional claim by `status=pending` and the expected `attempt_count`; the filtered update is atomic at the database statement boundary. A running lease lasts five minutes. A redelivery that finds the lease active, absent, or expired on its first delivery is retried after 30 seconds; only an expired lease together with `Message.attempts > 1` is classified as `COLLECTION_RUN_ORPHANED`, acknowledged, and never recollected. Explicit transient connector failures use exponential delay capped at 60 seconds and stop after three execution attempts. A transient failure after the gateway has returned results is terminal and preserves its causal code. Permanent failures never retry. Unexpected infrastructure failures ask Cloudflare to retry the message and do not expose payloads or secrets in logs. The local consumer permits 12 delivery retries so a transient post-claim outage can outlive the lease. Collection and analysis consumers now route exhausted messages to configured DLQs; the collection DLQ still needs an operational alert and reviewed replay/retention procedure before remote deployment. The account-deletion queue deliberately remains without a DLQ until its privacy-retention policy covers failed payloads containing transient eBay identifiers. Query families are capped at three queries per run, split across the run limit, and deduplicate external IDs before another detail call. Rejected previews are ingested with `previewOnly=true` so their triage decision remains visible without paying for details. In eBay Production, the local gateway derives the detail budget from the explicit per-run Browse budget.
 
 ## Mock fixtures
 

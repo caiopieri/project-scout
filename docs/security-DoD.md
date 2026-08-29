@@ -46,6 +46,7 @@ Use this checklist whenever a change touches database access, authentication, ex
 - [x] Collection requests require a validated idempotency key and an active project owned by `auth.uid()`.
 - [x] Authenticated users cannot directly insert/update/delete `collection_runs`; narrow RPCs own request/queued transitions.
 - [x] Queue messages are schema-validated and contain no owner, criteria, provider, token or listing payload.
+- [x] Analysis queue/provider failure after collection persistence does not trigger marketplace recollection; the collection remains terminal and analysis remains replayable.
 - [x] The consumer reloads canonical criteria and atomically claims work with a bounded lease.
 - [x] Only the queue consumer uses `service_role`; browser and user-request repositories continue with the user JWT.
 - [x] Connector failures have safe stable codes and transient/permanent classification; logs do not include task bodies or secrets.
@@ -72,8 +73,10 @@ Use this checklist whenever a change touches database access, authentication, ex
 - [x] Sandbox credentials were configured privately and live OAuth/search connectivity was verified without logging secrets.
 - [x] Non-eBay remote Wrangler secrets were provisioned; collection remains explicitly in mock mode.
 - [x] Production application OAuth/Browse credentials were configured as Worker secrets and live connectivity was verified without logging secrets or tokens.
-- [x] Live execution is capped at one search plus five details; retries consume the same six-request adapter budget.
+- [x] Production execution requires the explicit `EBAY_BROWSE_BUDGET_PER_RUN`; search, detail and retry requests share one per-execution adapter budget, and missing or invalid configuration fails closed.
 - [x] Optional eBay request telemetry is sanitized, excludes URL/token/body data, and observer failures cannot alter collection behavior.
+- [x] The standalone eBay smoke reads only the three required credential values from the ignored local `.dev.vars`, gives exported variables precedence, and never prints their values.
+- [x] Persisted execution progress contains only bounded item/request counters; updates are restricted to a running run through the service-role repository and never store URL, token or response data.
 - [x] The manual Production probe fails closed without a 64-hex server secret, validates its body and persists no result; its temporary secret was removed after the live test.
 
 ## Marco 6 — Normalized ingestion and raw objects
@@ -82,7 +85,7 @@ Use this checklist whenever a change touches database access, authentication, ex
 - [x] Raw JSON is canonicalized and content-addressed; PostgreSQL stores no large raw payload.
 - [x] The ingestion RPC is fixed-search-path, uses no dynamic SQL and is executable only by `service_role`.
 - [x] Authenticated execution of the ingestion RPC is denied by an integration test.
-- [x] External ID/hash redelivery is idempotent and does not duplicate snapshots or price history.
+- [x] External ID/hash redelivery does not duplicate snapshots; `price_history` is an observation series and intentionally appends one row per accepted ingestion.
 - [x] R2/database failures are classified transient; invalid normalized records are permanent.
 - [x] Secrets, tokens and third-party response bodies are absent from logs and queue messages.
 - [x] Isolated remote R2 buckets and collection/deletion queues are bound to the production Worker.
@@ -111,7 +114,9 @@ Use this checklist whenever a change touches database access, authentication, ex
 - [x] Input-hash/model/prompt idempotency and atomic lease claims protect redelivery.
 - [x] Authenticated users cannot invoke analysis mutation RPCs or directly write analysis rows.
 - [x] Deterministic rules treat prompt-like listing text as data and record unknowns/limitations.
-- [ ] Live LLM data processing, privacy terms, timeouts and provider quotas remain unreviewed because no live provider is implemented.
+- [x] The opt-in Gemini adapter keeps the key server-side, bounds input/output, wraps collected text as hostile data, validates structured output and maps provider failures to stable internal codes without persisting provider text.
+- [x] Batch analysis carries only analysis-run IDs in queue messages; return IDs are checked against claimed listings and each item is validated before persistence.
+- [ ] Live LLM data processing, privacy terms and provider quotas remain unreviewed; no live key was available for this verification.
 - [ ] Production analysis Queue, DLQ/alerts and deployment remain pending.
 
 ## F4 — Assisted collector maintenance

@@ -285,6 +285,10 @@ CREATE TABLE IF NOT EXISTS purchase_outcomes (
 -- Schema Usage
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 
+-- Supabase local bootstrap may install broad default table privileges. Start
+-- this schema from the least-privilege baseline before adding the grants below.
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC, anon, authenticated;
+
 -- 1. Role: anon (No access in the internal MVP)
 -- No table privileges are granted to anon. All marketplace reads require an authenticated user.
 

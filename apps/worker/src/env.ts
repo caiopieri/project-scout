@@ -23,6 +23,8 @@ export interface Env extends Omit<
   | 'EBAY_GLOBAL_REQUESTS_PER_MINUTE'
   | 'EBAY_BROWSE_BUDGET_PER_RUN'
   | 'EBAY_RATE_LIMITER'
+  | 'GEMINI_API_KEY'
+  | 'GEMINI_MODEL'
 > {
   COLLECT_QUEUE: Queue<import('@scout/schemas').CollectionTask>;
   ANALYSIS_QUEUE?: Queue<import('@scout/schemas').TextAnalysisTask>;
@@ -43,7 +45,9 @@ export interface Env extends Omit<
   EBAY_IDENTITY_HASH_SECRET?: string;
   EBAY_PROBE_TOKEN?: string;
   PUBLIC_API_ENABLED?: 'true' | 'false';
-  TEXT_ANALYZER_MODE?: 'deterministic' | 'mock';
+  TEXT_ANALYZER_MODE?: 'deterministic' | 'mock' | 'gemini';
+  GEMINI_API_KEY?: string;
+  GEMINI_MODEL?: string;
   EBAY_GLOBAL_REQUESTS_PER_MINUTE?: string;
   EBAY_BROWSE_BUDGET_PER_RUN?: string;
   EBAY_RATE_LIMITER?: DurableObjectNamespace;

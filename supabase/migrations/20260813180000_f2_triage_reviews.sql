@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS public.listing_triage_reviews (
 CREATE INDEX IF NOT EXISTS listing_triage_reviews_project_reviewed_idx
   ON public.listing_triage_reviews (project_id, reviewed_at DESC);
 
+REVOKE ALL ON public.listing_triage_reviews FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.listing_triage_reviews TO authenticated;
 GRANT INSERT (project_id, listing_id, status) ON public.listing_triage_reviews TO authenticated;
 GRANT UPDATE (status) ON public.listing_triage_reviews TO authenticated;

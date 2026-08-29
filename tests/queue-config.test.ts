@@ -20,6 +20,9 @@ describe('Cloudflare Queue failure routing', () => {
     expect(consumerBlock('project-scout-ebay-collect-prod', true)).toContain(
       'dead_letter_queue = "project-scout-ebay-collect-dlq-prod"',
     );
+    expect(consumerBlock('project-scout-analysis-prod', true)).toContain(
+      'dead_letter_queue = "project-scout-analysis-dlq-prod"',
+    );
   });
 
   it('does not retain account identifiers in a new deletion DLQ yet', () => {

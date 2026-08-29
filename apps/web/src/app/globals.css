@@ -39,6 +39,17 @@ textarea { min-height: 112px; resize: vertical; line-height: 1.5; }
 .project-list { display: grid; gap: 12px; }
 .project { border-top: 1px solid var(--ink); padding: 14px 0 3px; display: grid; grid-template-columns: 1fr auto; gap: 14px; }
 .project h3 { margin-bottom: 5px; font: 700 20px/1.1 Georgia, serif; }
+.execution-panel { grid-column: 1 / -1; border-top: 1px solid var(--line); padding-top: 12px; }
+.execution-head { display: flex; justify-content: space-between; gap: 12px; margin: 7px 0 12px; }
+.funnel { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.funnel div { border: 1px solid var(--line); padding: 8px; display: grid; gap: 3px; }
+.funnel strong { font: 700 20px/1 Georgia, serif; }
+.funnel span { color: var(--muted); font: 10px/1.2 ui-monospace, monospace; text-transform: uppercase; }
+.execution-note, .execution-error { margin: 10px 0 0; font-size: 12px; }
+.execution-error { color: var(--signal); }
+.execution-cost { margin-top: 12px; }
+.execution-reasons { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 10px; }
+.execution-reasons ul { margin: 7px 0 0; padding-left: 18px; color: var(--muted); font: 11px/1.5 ui-monospace, monospace; }
 .summary { color: var(--muted); font-size: 13px; line-height: 1.4; max-width: 56ch; }
 .meta { font: 10px/1.4 ui-monospace, monospace; letter-spacing: .05em; text-transform: uppercase; }
 .status { color: var(--signal); font-weight: 800; }
@@ -60,4 +71,5 @@ textarea { min-height: 112px; resize: vertical; line-height: 1.5; }
   .grid { grid-template-columns: 1fr; }
   .rail { border-right: 0; border-bottom: 1px solid var(--ink); }
   .masthead { align-items: start; gap: 18px; }
+  .funnel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

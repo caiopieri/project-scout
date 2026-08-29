@@ -4,6 +4,7 @@ import {
   jsonObjectSchema,
   rawListingRecordSchema,
   rawListingPreviewSchema,
+  type CollectionRequestMetrics,
 } from '@scout/schemas';
 import {
   ebayItemResponseSchema,
@@ -22,7 +23,6 @@ import {
   buildEbayItemUrl,
   buildEbaySearchUrl,
   parseEbayAmountMinor,
-  shouldRejectEbayPreviewTitle,
   type EbayMarketplaceId,
 } from './query';
 import { EBAY_CONNECTOR_MANIFEST } from './manifest';
@@ -117,8 +117,16 @@ export class EbayApiAdapter implements SourceConnector {
     };
   }
 
+  getRequestMetrics(): CollectionRequestMetrics {
+    const snapshot = this.getRequestBudgetSnapshot();
+    return {
+      requestsUsed: snapshot.requestsUsed,
+      requestBudget: snapshot.maxRequests,
+    };
+  }
+
   async search(rawInput: Parameters<SourceConnector['search']>[0]) {
-    const input = connectorSearchInputSchema.parse(rawInput);
+    connectorSearchInputSchema.parse(rawInput);
     const url = buildEbaySearchUrl(rawInput, {
       environment: this.config.environment,
       marketplaceId: this.marketplaceId,
@@ -133,9 +141,7 @@ export class EbayApiAdapter implements SourceConnector {
       );
     }
     const rawItemCount = response.data.itemSummaries.length;
-    const items = response.data.itemSummaries
-      .filter((item) => !shouldRejectEbayPreviewTitle(item.title, input.criteria))
-      .map((item) => this.mapPreview(item));
+    const items = response.data.itemSummaries.map((item) => this.mapPreview(item));
     let nextCursor: string | undefined;
     if (response.data.next) {
       const offset = Number(url.searchParams.get('offset'));

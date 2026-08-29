@@ -49,46 +49,6 @@ const searchableTerms = (criteria: ResearchCriteria): string[] => {
   return [...terms].filter(Boolean);
 };
 
-const normalizeTitle = (value: string) =>
-  value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLocaleLowerCase('en-US')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-const componentOrAccessoryPatterns = [
-  /\breplacement\b/,
-  /\bdigitizer\b/,
-  /\blcd(?: assembly| screen)?\b/,
-  /\bdisplay assembly\b/,
-  /\bpalm ?rest\b/,
-  /\bbezel\b/,
-  /\bhousing\b/,
-  /\bshell\b/,
-  /\b(?:charger|cable|battery|keyboard) only\b/,
-  /\bscreen only\b/,
-  /\b(?:empty )?box only\b/,
-  /\bpartial machine\b/,
-];
-
-/**
- * eBay does not document a negative-keyword operator for Browse `q`.
- * Keep this conservative and title-only: accepted repair listings such as
- * "cracked screen" and "parts only" remain candidates.
- */
-export const shouldRejectEbayPreviewTitle = (
-  title: string,
-  criteria: ResearchCriteria,
-): boolean => {
-  const normalizedTitle = normalizeTitle(title);
-  return (
-    criteria.excludedKeywords.some((keyword) =>
-      normalizedTitle.includes(normalizeTitle(keyword)),
-    ) || componentOrAccessoryPatterns.some((pattern) => pattern.test(normalizedTitle))
-  );
-};
-
 const formatMinorPrice = (amountMinor: number) =>
   `${Math.floor(amountMinor / 100)}.${String(amountMinor % 100).padStart(2, '0')}`;
 

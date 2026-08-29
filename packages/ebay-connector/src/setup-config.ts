@@ -100,6 +100,24 @@ export const readOptionalTextFile = async (path: string): Promise<string> =>
     throw error;
   });
 
+export const readDotenvValue = (content: string, key: string): string | undefined => {
+  for (const line of content.split(/\r?\n/u)) {
+    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/u.exec(line);
+    if (!match || match[1] !== key) continue;
+    const raw = match[2];
+    if (raw.startsWith('"') && raw.endsWith('"')) {
+      try {
+        const parsed: unknown = JSON.parse(raw);
+        return typeof parsed === 'string' ? parsed : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+    return raw.split(' #', 1)[0].trim();
+  }
+  return undefined;
+};
+
 export const browserLaunchCommand = (platform: NodeJS.Platform, url: string) => {
   if (platform === 'darwin') return { command: 'open', args: [url] };
   if (platform === 'win32') return { command: 'cmd.exe', args: ['/c', 'start', '', url] };

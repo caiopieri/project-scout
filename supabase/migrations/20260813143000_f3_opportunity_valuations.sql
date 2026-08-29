@@ -25,6 +25,7 @@ CREATE INDEX IF NOT EXISTS opportunity_valuations_listing_created_idx
 CREATE UNIQUE INDEX IF NOT EXISTS opportunity_valuations_listing_version_idx
   ON public.opportunity_valuations (listing_id, valuation_version);
 
+REVOKE ALL ON public.opportunity_valuations FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.opportunity_valuations TO authenticated;
 GRANT ALL ON public.opportunity_valuations TO service_role;
 ALTER TABLE public.opportunity_valuations ENABLE ROW LEVEL SECURITY;

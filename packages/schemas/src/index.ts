@@ -185,6 +185,9 @@ export const collectionRunSchema = z.object({
   itemsFound: z.number().int().nonnegative().default(0),
   itemsCreated: z.number().int().nonnegative().default(0),
   itemsUpdated: z.number().int().nonnegative().default(0),
+  requestsUsed: z.number().int().nonnegative().optional(),
+  requestBudget: z.number().int().positive().optional(),
+  truncated: z.boolean().optional(),
   estimatedCost: z.number().nonnegative().default(0),
   provider: z.string().min(1),
   error: z.string().optional(),
@@ -199,6 +202,20 @@ export const collectionRunTransportSchema = collectionRunSchema.extend({
   leaseExpiresAt: z.coerce.date().optional(),
 });
 export type CollectionRunTransport = z.infer<typeof collectionRunTransportSchema>;
+
+export const collectionRequestMetricsSchema = z.object({
+  requestsUsed: z.number().int().nonnegative(),
+  requestBudget: z.number().int().positive(),
+});
+export type CollectionRequestMetrics = z.infer<typeof collectionRequestMetricsSchema>;
+
+export const collectionProgressSnapshotSchema = z.object({
+  itemsFound: z.number().int().nonnegative(),
+  pagesFetched: z.number().int().nonnegative(),
+  requestMetrics: collectionRequestMetricsSchema.optional(),
+  truncated: z.boolean().default(false),
+});
+export type CollectionProgressSnapshot = z.infer<typeof collectionProgressSnapshotSchema>;
 
 // Seller Schema
 export const sellerSchema = z.object({
@@ -322,6 +339,10 @@ export const priceHistorySchema = z.object({
   collectedAt: z.date().default(() => new Date()),
 });
 export type PriceHistory = z.infer<typeof priceHistorySchema>;
+export const priceHistoryTransportSchema = priceHistorySchema.extend({
+  collectedAt: z.coerce.date(),
+});
+export type PriceHistoryTransport = z.infer<typeof priceHistoryTransportSchema>;
 
 // Product Catalog Schema
 export const productSchema = z.object({
@@ -540,7 +561,30 @@ export const textAnalysisTaskSchema = z
     analysisRunId: z.string().uuid(),
   })
   .strict();
-export type TextAnalysisTask = z.infer<typeof textAnalysisTaskSchema>;
+export type TextAnalysisSingleTask = z.infer<typeof textAnalysisTaskSchema>;
+
+export const textAnalysisBatchTaskSchema = z
+  .object({
+    kind: z.literal('text-analysis-batch'),
+    version: z.literal('1'),
+    analysisRunIds: z.array(z.string().uuid()).min(1).max(20),
+  })
+  .strict()
+  .superRefine((task, context) => {
+    if (new Set(task.analysisRunIds).size !== task.analysisRunIds.length)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['analysisRunIds'],
+        message: 'Analysis run IDs must be unique.',
+      });
+  });
+export type TextAnalysisBatchTask = z.infer<typeof textAnalysisBatchTaskSchema>;
+export const textAnalysisQueueTaskSchema = z.union([
+  textAnalysisTaskSchema,
+  textAnalysisBatchTaskSchema,
+]);
+export type TextAnalysisTask = z.infer<typeof textAnalysisQueueTaskSchema>;
+export type TextAnalysisQueueTask = TextAnalysisTask;
 
 export const textAnalysisJobSchema = textAnalysisInputSchema.extend({
   analysisRunId: z.string().uuid(),
@@ -742,6 +786,9 @@ export const cheapFilterReasonSchema = z.enum([
   'CATEGORY_MISMATCH',
   'DUPLICATE',
   'PRICE_BAIT_SIGNAL',
+  'PRICE_ABOVE_MAXIMUM',
+  'REJECTED_DEFECT',
+  'COMPONENT_OR_ACCESSORY',
   'INSUFFICIENT_IDENTITY_EVIDENCE',
 ]);
 export const cheapFilterResultSchema = z.object({
@@ -1212,6 +1259,7 @@ export const collectionResultSchema = z.object({
   items: z.array(rawListingRecordSchema),
   pagesFetched: z.number().int().positive(),
   provider: z.string().min(1),
+  requestMetrics: collectionRequestMetricsSchema.optional(),
   // True when the request budget ran out before the source was exhausted. A
   // truncated sweep is a valid result; presenting it as complete is not.
   truncated: z.boolean().default(false),
