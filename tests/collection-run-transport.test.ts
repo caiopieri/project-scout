@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  collectionRunTransportSchema,
-  opportunityValuationTransportSchema,
-} from '@scout/schemas';
+import { collectionRunTransportSchema, opportunityValuationTransportSchema } from '@scout/schemas';
 
 describe('collection run transport contract', () => {
   it('coerces API ISO date strings into dates for the web client', () => {

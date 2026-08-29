@@ -1,10 +1,4 @@
-import {
-  AnalysisRepository,
-  AnalysisRun,
-  Defect,
-  Evidence,
-  ListingScore,
-} from '@scout/domain';
+import { AnalysisRepository, AnalysisRun, Defect, Evidence, ListingScore } from '@scout/domain';
 import { SqlExecutor } from '../../sql/SqlExecutor';
 
 export class PgAnalysisRepository implements AnalysisRepository {
@@ -16,7 +10,14 @@ export class PgAnalysisRepository implements AnalysisRepository {
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, listing_id as "listingId", model_name as "modelName", prompt_version as "promptVersion",
                  status, tokens_used as "tokensUsed", error, created_at as "createdAt"`,
-      [run.listingId, run.modelName, run.promptVersion, run.status || 'completed', run.tokensUsed || 0, run.error || null]
+      [
+        run.listingId,
+        run.modelName,
+        run.promptVersion,
+        run.status || 'completed',
+        run.tokensUsed || 0,
+        run.error || null,
+      ],
     );
     return res.rows[0];
   }
@@ -45,14 +46,16 @@ export class PgAnalysisRepository implements AnalysisRepository {
           ev.severity,
           ev.modelName || null,
           ev.promptVersion || null,
-        ]
+        ],
       );
       saved.push(res.rows[0]);
     }
     return saved;
   }
 
-  async saveDefects(defects: (Omit<Defect, 'id' | 'createdAt'> & { evidenceIds?: string[] })[]): Promise<Defect[]> {
+  async saveDefects(
+    defects: (Omit<Defect, 'id' | 'createdAt'> & { evidenceIds?: string[] })[],
+  ): Promise<Defect[]> {
     const saved: Defect[] = [];
     for (const df of defects) {
       const res = await this.sql.query<Defect>(
@@ -73,7 +76,7 @@ export class PgAnalysisRepository implements AnalysisRepository {
           df.inferred || false,
           df.estimatedRepairCost || null,
           df.repairCostCurrency || 'BRL',
-        ]
+        ],
       );
       const defect = res.rows[0];
 
@@ -81,7 +84,7 @@ export class PgAnalysisRepository implements AnalysisRepository {
         for (const evId of df.evidenceIds) {
           await this.sql.query(
             `INSERT INTO defect_evidence (defect_id, evidence_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-            [defect.id, evId]
+            [defect.id, evId],
           );
         }
       }
@@ -90,7 +93,9 @@ export class PgAnalysisRepository implements AnalysisRepository {
     return saved;
   }
 
-  async saveScore(score: Omit<ListingScore, 'id' | 'createdAt'> & { id?: string }): Promise<ListingScore> {
+  async saveScore(
+    score: Omit<ListingScore, 'id' | 'createdAt'> & { id?: string },
+  ): Promise<ListingScore> {
     const res = await this.sql.query<ListingScore>(
       `INSERT INTO scores (listing_id, analysis_run_id, query_match_score, technical_risk_score, fraud_risk_score, evidence_quality_score, price_score, opportunity_score, score_factors, formula_version, explanation)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -111,7 +116,7 @@ export class PgAnalysisRepository implements AnalysisRepository {
         JSON.stringify(score.scoreFactors),
         score.formulaVersion || '1.0.0',
         score.explanation,
-      ]
+      ],
     );
     return res.rows[0];
   }
@@ -123,7 +128,7 @@ export class PgAnalysisRepository implements AnalysisRepository {
               explanation, limitations, severity, model_name as "modelName", prompt_version as "promptVersion",
               created_at as "createdAt"
        FROM evidence WHERE listing_id = $1 ORDER BY created_at ASC`,
-      [listingId]
+      [listingId],
     );
     return res.rows;
   }
@@ -134,7 +139,7 @@ export class PgAnalysisRepository implements AnalysisRepository {
               severity, declared, visible, inferred, estimated_repair_cost as "estimatedRepairCost",
               repair_cost_currency as "repairCostCurrency", created_at as "createdAt"
        FROM defects WHERE listing_id = $1 ORDER BY created_at ASC`,
-      [listingId]
+      [listingId],
     );
     return res.rows;
   }
@@ -147,7 +152,7 @@ export class PgAnalysisRepository implements AnalysisRepository {
               opportunity_score as "opportunityScore", score_factors as "scoreFactors",
               formula_version as "formulaVersion", explanation, created_at as "createdAt"
        FROM scores WHERE listing_id = $1 ORDER BY created_at DESC LIMIT 1`,
-      [listingId]
+      [listingId],
     );
     return res.rows.length > 0 ? res.rows[0] : null;
   }

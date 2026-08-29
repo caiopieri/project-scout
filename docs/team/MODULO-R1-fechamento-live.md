@@ -43,14 +43,14 @@ que fechou.
 Estes são os únicos motivos legítimos de interromper o módulo. Fora deles,
 siga sem perguntar.
 
-| # | Gatilho | O que fazer |
-| - | ------- | ----------- |
-| 1 | Falta credencial ou segredo | Pare. Peça de forma acionável: onde obter, em qual arquivo, qual variável, qual comando rodar depois. Nunca invente valor nem contorne. |
-| 2 | Decisão do fundador | Pare e pergunte. Não decida escopo, vertical, política de custo ou privacidade. |
-| 3 | Mesmo round falhou 2 vezes | Pare e escale ([protocolo §6](./protocolo.md)). Loop de correção não conserta problema de projeto. |
-| 4 | Teto de execuções live atingido | Pare. Ver §4. |
-| 5 | Handoff contradiz o código | Não decida sozinho. Devolva ao Arquiteto com a contradição por escrito. |
-| 6 | Um round exigiria diff > ~300 linhas | Quebre. Se a quebra não for óbvia, pergunte. Nunca corte teste para caber (ADR 1.65). |
+| #   | Gatilho                              | O que fazer                                                                                                                             |
+| --- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Falta credencial ou segredo          | Pare. Peça de forma acionável: onde obter, em qual arquivo, qual variável, qual comando rodar depois. Nunca invente valor nem contorne. |
+| 2   | Decisão do fundador                  | Pare e pergunte. Não decida escopo, vertical, política de custo ou privacidade.                                                         |
+| 3   | Mesmo round falhou 2 vezes           | Pare e escale ([protocolo §6](./protocolo.md)). Loop de correção não conserta problema de projeto.                                      |
+| 4   | Teto de execuções live atingido      | Pare. Ver §4.                                                                                                                           |
+| 5   | Handoff contradiz o código           | Não decida sozinho. Devolva ao Arquiteto com a contradição por escrito.                                                                 |
+| 6   | Um round exigiria diff > ~300 linhas | Quebre. Se a quebra não for óbvia, pergunte. Nunca corte teste para caber (ADR 1.65).                                                   |
 
 ## 3. Ordem dos rounds
 

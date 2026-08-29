@@ -1,8 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  LISTING_ID_BATCH_SIZE,
-  SupabaseRestListingRepository,
-} from '@scout/database/listings';
+import { LISTING_ID_BATCH_SIZE, SupabaseRestListingRepository } from '@scout/database/listings';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -136,8 +133,7 @@ describe('F3 persisted price history adapter', () => {
     expect(
       listingUrls.every(
         (url) =>
-          (url.match(/id=in\.\(([^)]+)\)/)?.[1] ?? '').split(',').length <=
-          LISTING_ID_BATCH_SIZE,
+          (url.match(/id=in\.\(([^)]+)\)/)?.[1] ?? '').split(',').length <= LISTING_ID_BATCH_SIZE,
       ),
     ).toBe(true);
     expect(listings.map(({ id }) => id)).toEqual(ids);

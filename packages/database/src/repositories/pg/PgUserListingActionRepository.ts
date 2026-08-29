@@ -5,7 +5,7 @@ export class PgUserListingActionRepository implements UserListingActionRepositor
   constructor(private sql: SqlExecutor) {}
 
   async setAction(
-    action: Omit<UserListingAction, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
+    action: Omit<UserListingAction, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
   ): Promise<UserListingAction> {
     const res = await this.sql.query<UserListingAction>(
       `INSERT INTO user_listing_actions (user_id, listing_id, project_id, favorite, decision, notes)
@@ -24,18 +24,22 @@ export class PgUserListingActionRepository implements UserListingActionRepositor
         action.favorite || false,
         action.decision || 'pending',
         action.notes || null,
-      ]
+      ],
     );
     return res.rows[0];
   }
 
-  async getAction(userId: string, listingId: string, projectId: string): Promise<UserListingAction | null> {
+  async getAction(
+    userId: string,
+    listingId: string,
+    projectId: string,
+  ): Promise<UserListingAction | null> {
     const res = await this.sql.query<UserListingAction>(
       `SELECT id, user_id as "userId", listing_id as "listingId", project_id as "projectId",
               favorite, decision, notes, created_at as "createdAt", updated_at as "updatedAt"
        FROM user_listing_actions
        WHERE user_id = $1 AND listing_id = $2 AND project_id = $3`,
-      [userId, listingId, projectId]
+      [userId, listingId, projectId],
     );
     return res.rows.length > 0 ? res.rows[0] : null;
   }
@@ -46,7 +50,7 @@ export class PgUserListingActionRepository implements UserListingActionRepositor
               favorite, decision, notes, created_at as "createdAt", updated_at as "updatedAt"
        FROM user_listing_actions
        WHERE user_id = $1 AND project_id = $2`,
-      [userId, projectId]
+      [userId, projectId],
     );
     return res.rows;
   }

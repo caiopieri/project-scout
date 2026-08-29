@@ -200,9 +200,9 @@ describe('F2 triage persistence boundary', () => {
     }).saveMany(Array.from({ length: 123 }, (_, index) => decision(index + 1)));
 
     expect(requests.map((batch) => batch.length)).toEqual([50, 50, 23]);
-    expect(
-      requests.flat().map((row) => (row as { listing_id: string }).listing_id),
-    ).toEqual(Array.from({ length: 123 }, (_, index) => decision(index + 1).listingId));
+    expect(requests.flat().map((row) => (row as { listing_id: string }).listing_id)).toEqual(
+      Array.from({ length: 123 }, (_, index) => decision(index + 1).listingId),
+    );
   });
 
   it('leaves a failed batch error observable and stops later batches', async () => {

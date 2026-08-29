@@ -164,11 +164,7 @@ export class MercadoLivreApiAdapter implements SourceConnector {
           }
           return json.data;
         }
-        if (
-          response.status === 401 &&
-          this.config.oauth &&
-          !refreshed
-        ) {
+        if (response.status === 401 && this.config.oauth && !refreshed) {
           refreshed = true;
           await this.refreshAccessToken();
           continue;

@@ -16,12 +16,14 @@ export class InMemorySellerRepository implements SellerRepository {
 
   async findBySourceAndExternalId(sourceId: string, externalId: string): Promise<Seller | null> {
     const item = Array.from(this.sellers.values()).find(
-      (s) => s.sourceId === sourceId && s.externalId === externalId
+      (s) => s.sourceId === sourceId && s.externalId === externalId,
     );
     return item ? { ...item } : null;
   }
 
-  async upsertSeller(seller: Omit<Seller, 'id' | 'firstSeenAt'> & { id?: string }): Promise<Seller> {
+  async upsertSeller(
+    seller: Omit<Seller, 'id' | 'firstSeenAt'> & { id?: string },
+  ): Promise<Seller> {
     const existing = await this.findBySourceAndExternalId(seller.sourceId, seller.externalId);
     const now = new Date();
 

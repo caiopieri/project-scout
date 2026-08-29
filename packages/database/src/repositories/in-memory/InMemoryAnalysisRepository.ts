@@ -1,10 +1,4 @@
-import {
-  AnalysisRepository,
-  AnalysisRun,
-  Defect,
-  Evidence,
-  ListingScore,
-} from '@scout/domain';
+import { AnalysisRepository, AnalysisRun, Defect, Evidence, ListingScore } from '@scout/domain';
 
 export class InMemoryAnalysisRepository implements AnalysisRepository {
   private analysisRuns: AnalysisRun[] = [];
@@ -15,7 +9,7 @@ export class InMemoryAnalysisRepository implements AnalysisRepository {
   constructor(
     initialEvidences: Evidence[] = [],
     initialDefects: Defect[] = [],
-    initialScores: ListingScore[] = []
+    initialScores: ListingScore[] = [],
   ) {
     this.evidences = [...initialEvidences];
     this.defects = [...initialDefects];
@@ -45,7 +39,9 @@ export class InMemoryAnalysisRepository implements AnalysisRepository {
     return created.map((e) => ({ ...e }));
   }
 
-  async saveDefects(defects: (Omit<Defect, 'id' | 'createdAt'> & { evidenceIds?: string[] })[]): Promise<Defect[]> {
+  async saveDefects(
+    defects: (Omit<Defect, 'id' | 'createdAt'> & { evidenceIds?: string[] })[],
+  ): Promise<Defect[]> {
     const now = new Date();
     const created: Defect[] = defects.map((df) => {
       const id = crypto.randomUUID();
@@ -81,7 +77,9 @@ export class InMemoryAnalysisRepository implements AnalysisRepository {
     }
   }
 
-  async saveScore(score: Omit<ListingScore, 'id' | 'createdAt'> & { id?: string }): Promise<ListingScore> {
+  async saveScore(
+    score: Omit<ListingScore, 'id' | 'createdAt'> & { id?: string },
+  ): Promise<ListingScore> {
     const saved: ListingScore = {
       ...score,
       id: score.id || crypto.randomUUID(),
@@ -92,15 +90,11 @@ export class InMemoryAnalysisRepository implements AnalysisRepository {
   }
 
   async getEvidencesByListingId(listingId: string): Promise<Evidence[]> {
-    return this.evidences
-      .filter((e) => e.listingId === listingId)
-      .map((e) => ({ ...e }));
+    return this.evidences.filter((e) => e.listingId === listingId).map((e) => ({ ...e }));
   }
 
   async getDefectsByListingId(listingId: string): Promise<Defect[]> {
-    return this.defects
-      .filter((d) => d.listingId === listingId)
-      .map((d) => ({ ...d }));
+    return this.defects.filter((d) => d.listingId === listingId).map((d) => ({ ...d }));
   }
 
   async getScoreByListingId(listingId: string): Promise<ListingScore | null> {

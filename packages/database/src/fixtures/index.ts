@@ -47,7 +47,8 @@ export const MOCK_PROJECT_IPHONE13: ResearchProject = {
   userId: MOCK_USER_A.id,
   name: 'iPhone 13 Technical Bargains',
   category: 'smartphone',
-  naturalLanguageQuery: 'iPhone 13 para peças com tela quebrada mas placa mãe funcional até R$ 2500',
+  naturalLanguageQuery:
+    'iPhone 13 para peças com tela quebrada mas placa mãe funcional até R$ 2500',
   structuredQuery: {
     category: 'smartphone',
     brands: ['Apple'],
@@ -156,7 +157,8 @@ export const MOCK_LISTINGS: Listing[] = [
     externalId: 'v1|110022003301|0',
     url: 'https://www.ebay.com/itm/110022003301',
     title: 'Apple iPhone 13 - 128GB - Blue - Cracked Front Screen - Powers On Touch Works',
-    description: 'Selling iPhone 13. Screen glass is cracked after drop, but display turns on, touch responds everywhere, iCloud unlocked, FaceID works.',
+    description:
+      'Selling iPhone 13. Screen glass is cracked after drop, but display turns on, touch responds everywhere, iCloud unlocked, FaceID works.',
     condition: 'For parts or not working',
     currency: 'USD',
     price: 180.0,
@@ -194,7 +196,8 @@ export const MOCK_LISTINGS: Listing[] = [
     externalId: 'v1|110022003302|0',
     url: 'https://www.ebay.com/itm/110022003302',
     title: 'iPhone 13 128GB Black - Untested As-Is Estate Cleanout',
-    description: 'Found in an estate drawer. No charger available to test. Selling strictly as-is for parts/repair only. Unknown working condition.',
+    description:
+      'Found in an estate drawer. No charger available to test. Selling strictly as-is for parts/repair only. Unknown working condition.',
     condition: 'For parts or not working',
     currency: 'USD',
     price: 110.0,
@@ -223,7 +226,8 @@ export const MOCK_LISTINGS: Listing[] = [
     externalId: 'v1|110022003303|0',
     url: 'https://www.ebay.com/itm/110022003303',
     title: 'Apple iPhone 13 Pro 256GB Graphite - Activation Lock / iCloud Locked',
-    description: 'Screen in pristine condition, housing mint. iCloud account locked by previous owner. For parts recovery only (camera, housing, screen).',
+    description:
+      'Screen in pristine condition, housing mint. iCloud account locked by previous owner. For parts recovery only (camera, housing, screen).',
     condition: 'For parts or not working',
     currency: 'USD',
     price: 150.0,
@@ -252,7 +256,8 @@ export const MOCK_LISTINGS: Listing[] = [
     externalId: 'v1|110022003304|0',
     url: 'https://www.ebay.com/itm/110022003304',
     title: 'iPhone 13 128GB Great Condition Fully Working Fast Shipping',
-    description: 'PLEASE READ: Phone suffered severe water damage. Logic board is dead, does not boot or charge. Only housing and glass intact.',
+    description:
+      'PLEASE READ: Phone suffered severe water damage. Logic board is dead, does not boot or charge. Only housing and glass intact.',
     condition: 'For parts or not working',
     currency: 'USD',
     price: 90.0,
@@ -268,7 +273,7 @@ export const MOCK_LISTINGS: Listing[] = [
     inferredProduct: {
       brand: 'Apple',
       model: 'iPhone 13',
-      confidence: 0.90,
+      confidence: 0.9,
       evidenceIds: [],
     },
     rawDataPath: 'raw/ebay/110022003304.json',
@@ -297,7 +302,7 @@ export const MOCK_LISTINGS: Listing[] = [
     inferredProduct: {
       brand: 'Apple',
       model: 'iPhone 13 Mini',
-      confidence: 0.60,
+      confidence: 0.6,
       evidenceIds: [],
     },
     rawDataPath: 'raw/ebay/110022003305.json',
@@ -370,13 +375,18 @@ export const MOCK_SCORES: ListingScore[] = [
     priceScore: 85.0,
     opportunityScore: 88.5,
     scoreFactors: {
-      positive: ['Motherboard confirmed functional', 'High seller rating (99.1%)', 'Low repair cost'],
+      positive: [
+        'Motherboard confirmed functional',
+        'High seller rating (99.1%)',
+        'Low repair cost',
+      ],
       negative: ['Front glass replacement required'],
       missing: [],
       contradictions: [],
     },
     formulaVersion: '1.0.0',
-    explanation: 'High opportunity listing. Screen is cracked but touch and motherboard are fully working.',
+    explanation:
+      'High opportunity listing. Screen is cracked but touch and motherboard are fully working.',
     createdAt: new Date('2026-02-01T12:10:00Z'),
   },
 ];

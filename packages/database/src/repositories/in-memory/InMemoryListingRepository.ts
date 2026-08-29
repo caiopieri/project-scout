@@ -18,13 +18,13 @@ export class InMemoryListingRepository implements ListingRepository {
 
   async findBySourceAndExternalId(sourceId: string, externalId: string): Promise<Listing | null> {
     const item = Array.from(this.listings.values()).find(
-      (l) => l.sourceId === sourceId && l.externalId === externalId
+      (l) => l.sourceId === sourceId && l.externalId === externalId,
     );
     return item ? { ...item } : null;
   }
 
   async upsertListing(
-    listing: Omit<Listing, 'id' | 'firstCollectedAt' | 'lastUpdatedAt'> & { id?: string }
+    listing: Omit<Listing, 'id' | 'firstCollectedAt' | 'lastUpdatedAt'> & { id?: string },
   ): Promise<Listing> {
     const existing = await this.findBySourceAndExternalId(listing.sourceId, listing.externalId);
     const now = new Date();
@@ -52,7 +52,9 @@ export class InMemoryListingRepository implements ListingRepository {
     return { ...created };
   }
 
-  async addSnapshot(snapshot: Omit<ListingSnapshot, 'id' | 'collectedAt'>): Promise<ListingSnapshot> {
+  async addSnapshot(
+    snapshot: Omit<ListingSnapshot, 'id' | 'collectedAt'>,
+  ): Promise<ListingSnapshot> {
     const created: ListingSnapshot = {
       ...snapshot,
       id: crypto.randomUUID(),
@@ -73,8 +75,6 @@ export class InMemoryListingRepository implements ListingRepository {
   }
 
   async getPriceHistory(listingId: string): Promise<PriceHistory[]> {
-    return this.priceHistories
-      .filter((ph) => ph.listingId === listingId)
-      .map((ph) => ({ ...ph }));
+    return this.priceHistories.filter((ph) => ph.listingId === listingId).map((ph) => ({ ...ph }));
   }
 }

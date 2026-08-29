@@ -14,7 +14,7 @@ export class PgListingRepository implements ListingRepository {
               raw_content_hash as "rawContentHash", raw_schema_version as "rawSchemaVersion",
               raw_data_metadata as "rawDataMetadata"
        FROM listings WHERE id = $1`,
-      [id]
+      [id],
     );
     return res.rows.length > 0 ? res.rows[0] : null;
   }
@@ -29,13 +29,13 @@ export class PgListingRepository implements ListingRepository {
               raw_content_hash as "rawContentHash", raw_schema_version as "rawSchemaVersion",
               raw_data_metadata as "rawDataMetadata"
        FROM listings WHERE source_id = $1 AND external_id = $2`,
-      [sourceId, externalId]
+      [sourceId, externalId],
     );
     return res.rows.length > 0 ? res.rows[0] : null;
   }
 
   async upsertListing(
-    listing: Omit<Listing, 'id' | 'firstCollectedAt' | 'lastUpdatedAt'> & { id?: string }
+    listing: Omit<Listing, 'id' | 'firstCollectedAt' | 'lastUpdatedAt'> & { id?: string },
   ): Promise<Listing> {
     const res = await this.sql.query<Listing>(
       `INSERT INTO listings (source_id, external_id, url, title, description, condition, currency, price, shipping_cost, total_visible_cost, seller_id, location, status, specifications, inferred_product, raw_data_path, raw_content_hash, raw_schema_version, raw_data_metadata)
@@ -76,12 +76,14 @@ export class PgListingRepository implements ListingRepository {
         listing.rawContentHash || null,
         listing.rawSchemaVersion || '1.0',
         JSON.stringify(listing.rawDataMetadata || {}),
-      ]
+      ],
     );
     return res.rows[0];
   }
 
-  async addSnapshot(snapshot: Omit<ListingSnapshot, 'id' | 'collectedAt'>): Promise<ListingSnapshot> {
+  async addSnapshot(
+    snapshot: Omit<ListingSnapshot, 'id' | 'collectedAt'>,
+  ): Promise<ListingSnapshot> {
     const res = await this.sql.query<ListingSnapshot>(
       `INSERT INTO listing_snapshots (listing_id, title, price, shipping_cost, status, raw_object_key, raw_content_hash, raw_schema_version, payload_summary)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -98,7 +100,7 @@ export class PgListingRepository implements ListingRepository {
         snapshot.rawContentHash,
         snapshot.rawSchemaVersion || '1.0',
         JSON.stringify(snapshot.payloadSummary || {}),
-      ]
+      ],
     );
     return res.rows[0];
   }
@@ -108,7 +110,7 @@ export class PgListingRepository implements ListingRepository {
       `INSERT INTO price_history (listing_id, price, shipping_cost, status)
        VALUES ($1, $2, $3, $4)
        RETURNING id, listing_id as "listingId", price, shipping_cost as "shippingCost", status, collected_at as "collectedAt"`,
-      [history.listingId, history.price, history.shippingCost || 0, history.status]
+      [history.listingId, history.price, history.shippingCost || 0, history.status],
     );
     return res.rows[0];
   }
@@ -117,7 +119,7 @@ export class PgListingRepository implements ListingRepository {
     const res = await this.sql.query<PriceHistory>(
       `SELECT id, listing_id as "listingId", price, shipping_cost as "shippingCost", status, collected_at as "collectedAt"
        FROM price_history WHERE listing_id = $1 ORDER BY collected_at ASC`,
-      [listingId]
+      [listingId],
     );
     return res.rows;
   }

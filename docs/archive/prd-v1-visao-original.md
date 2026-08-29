@@ -49,20 +49,20 @@ Encontrar boas oportunidades em produtos usados exige um trabalho manual extenso
 
 Atualmente, o comprador precisa:
 
-* pesquisar separadamente em vários sites;
-* testar diferentes palavras-chave;
-* abrir dezenas ou centenas de anúncios;
-* interpretar títulos vagos;
-* ler descrições incompletas;
-* analisar fotografias;
-* identificar defeitos escondidos;
-* estimar se o restante do produto funciona;
-* verificar a reputação do vendedor;
-* calcular frete, taxas, impostos e reparos;
-* comparar configurações diferentes;
-* registrar manualmente os melhores resultados;
-* revisar repetidamente os mesmos anúncios;
-* acompanhar alterações de preço.
+- pesquisar separadamente em vários sites;
+- testar diferentes palavras-chave;
+- abrir dezenas ou centenas de anúncios;
+- interpretar títulos vagos;
+- ler descrições incompletas;
+- analisar fotografias;
+- identificar defeitos escondidos;
+- estimar se o restante do produto funciona;
+- verificar a reputação do vendedor;
+- calcular frete, taxas, impostos e reparos;
+- comparar configurações diferentes;
+- registrar manualmente os melhores resultados;
+- revisar repetidamente os mesmos anúncios;
+- acompanhar alterações de preço.
 
 Esse processo é lento, repetitivo e difícil de escalar.
 
@@ -78,27 +78,27 @@ Eles são menos eficientes para intenções complexas como:
 
 As soluções existentes normalmente resolvem apenas uma parte do problema:
 
-* marketplaces possuem busca limitada ao próprio inventário;
-* agregadores apenas reúnem links;
-* comparadores avaliam principalmente produtos novos;
-* ferramentas antifraude analisam apenas risco;
-* sistemas de shopping com IA dependem de catálogos estruturados;
-* scrapers coletam dados, mas não compreendem o produto;
-* modelos de IA analisam um anúncio isolado, mas não mantêm uma base histórica;
-* planilhas organizam dados, mas exigem coleta manual.
+- marketplaces possuem busca limitada ao próprio inventário;
+- agregadores apenas reúnem links;
+- comparadores avaliam principalmente produtos novos;
+- ferramentas antifraude analisam apenas risco;
+- sistemas de shopping com IA dependem de catálogos estruturados;
+- scrapers coletam dados, mas não compreendem o produto;
+- modelos de IA analisam um anúncio isolado, mas não mantêm uma base histórica;
+- planilhas organizam dados, mas exigem coleta manual.
 
 A oportunidade está em unir:
 
-* pesquisa multissite;
-* linguagem natural;
-* coleta automatizada;
-* análise multimodal;
-* avaliação de risco;
-* estimativa financeira;
-* armazenamento histórico;
-* personalização;
-* exportação;
-* integração com agentes de IA.
+- pesquisa multissite;
+- linguagem natural;
+- coleta automatizada;
+- análise multimodal;
+- avaliação de risco;
+- estimativa financeira;
+- armazenamento histórico;
+- personalização;
+- exportação;
+- integração com agentes de IA.
 
 ---
 
@@ -114,16 +114,16 @@ A plataforma não buscará apenas produtos pelo nome.
 
 Ela buscará produtos com base em:
 
-* condição real;
-* defeitos aceitáveis;
-* defeitos proibidos;
-* evidências disponíveis;
-* nível de confiança;
-* preço final;
-* reparabilidade;
-* risco;
-* margem potencial;
-* perfil do comprador.
+- condição real;
+- defeitos aceitáveis;
+- defeitos proibidos;
+- evidências disponíveis;
+- nível de confiança;
+- preço final;
+- reparabilidade;
+- risco;
+- margem potencial;
+- perfil do comprador.
 
 ## 3.3 Exemplos de intenção
 
@@ -159,24 +159,24 @@ Ela buscará produtos com base em:
 
 Validar que a plataforma consegue:
 
-* receber uma intenção de busca;
-* coletar anúncios de múltiplas fontes;
-* transformar os anúncios em dados estruturados;
-* analisar texto e imagens;
-* classificar defeitos e evidências;
-* produzir uma pontuação útil;
-* armazenar os resultados;
-* permitir revisão e exportação.
+- receber uma intenção de busca;
+- coletar anúncios de múltiplas fontes;
+- transformar os anúncios em dados estruturados;
+- analisar texto e imagens;
+- classificar defeitos e evidências;
+- produzir uma pontuação útil;
+- armazenar os resultados;
+- permitir revisão e exportação.
 
 ## 4.2 Objetivos de médio prazo
 
-* reduzir o tempo gasto em pesquisa manual;
-* aumentar a quantidade de anúncios avaliados;
-* melhorar a identificação de oportunidades;
-* criar uma base histórica própria;
-* permitir monitoramento contínuo;
-* oferecer conexão por API e MCP;
-* permitir criação rápida de novos conectores.
+- reduzir o tempo gasto em pesquisa manual;
+- aumentar a quantidade de anúncios avaliados;
+- melhorar a identificação de oportunidades;
+- criar uma base histórica própria;
+- permitir monitoramento contínuo;
+- oferecer conexão por API e MCP;
+- permitir criação rápida de novos conectores.
 
 ## 4.3 Objetivo de longo prazo
 
@@ -188,18 +188,18 @@ Tornar-se uma infraestrutura universal de inteligência de aquisição, capaz de
 
 O MVP não deverá:
 
-* comprar produtos automaticamente;
-* negociar automaticamente com vendedores;
-* garantir que um anúncio não seja fraude;
-* garantir funcionamento interno não demonstrado;
-* realizar inspeção física;
-* substituir laudo técnico;
-* substituir análise jurídica;
-* integrar centenas de fontes no lançamento;
-* construir infraestrutura própria completa de proxies;
-* criar um modelo de visão próprio;
-* automatizar ações irreversíveis;
-* operar contas de usuário sem autorização explícita.
+- comprar produtos automaticamente;
+- negociar automaticamente com vendedores;
+- garantir que um anúncio não seja fraude;
+- garantir funcionamento interno não demonstrado;
+- realizar inspeção física;
+- substituir laudo técnico;
+- substituir análise jurídica;
+- integrar centenas de fontes no lançamento;
+- construir infraestrutura própria completa de proxies;
+- criar um modelo de visão próprio;
+- automatizar ações irreversíveis;
+- operar contas de usuário sem autorização explícita.
 
 A primeira versão será uma ferramenta de pesquisa e apoio à decisão.
 
@@ -213,13 +213,13 @@ O usuário inicial será um comprador técnico que procura oportunidades em elet
 
 Características:
 
-* conhece reparo ou revenda;
-* aceita determinados defeitos;
-* deseja economizar;
-* pesquisa em vários sites;
-* entende algum nível de risco;
-* precisa comparar muitos anúncios;
-* deseja armazenar resultados.
+- conhece reparo ou revenda;
+- aceita determinados defeitos;
+- deseja economizar;
+- pesquisa em vários sites;
+- entende algum nível de risco;
+- precisa comparar muitos anúncios;
+- deseja armazenar resultados.
 
 ## 6.2 Perfis futuros
 
@@ -265,14 +265,14 @@ Deseja encontrar eletrônicos usados com defeitos específicos, analisar o risco
 
 ### Necessidades
 
-* busca detalhada;
-* análise de imagens;
-* detecção de defeitos;
-* armazenamento;
-* exportação;
-* comparação;
-* pesquisa em lote;
-* acesso via IA.
+- busca detalhada;
+- análise de imagens;
+- detecção de defeitos;
+- armazenamento;
+- exportação;
+- comparação;
+- pesquisa em lote;
+- acesso via IA.
 
 ## 7.2 Revendedor profissional
 
@@ -280,13 +280,13 @@ Pesquisa dezenas ou centenas de produtos por semana.
 
 ### Necessidades
 
-* volume;
-* alertas rápidos;
-* cálculo de margem;
-* múltiplas fontes;
-* histórico de preço;
-* exportação;
-* colaboração.
+- volume;
+- alertas rápidos;
+- cálculo de margem;
+- múltiplas fontes;
+- histórico de preço;
+- exportação;
+- colaboração.
 
 ## 7.3 Usuário comum
 
@@ -294,11 +294,11 @@ Quer comprar um produto usado, mas não sabe interpretar todos os riscos.
 
 ### Necessidades
 
-* explicações simples;
-* classificação clara;
-* perguntas ao vendedor;
-* sinais de golpe;
-* comparação com preço de mercado.
+- explicações simples;
+- classificação clara;
+- perguntas ao vendedor;
+- sinais de golpe;
+- comparação com preço de mercado.
 
 ## 7.4 Agente de IA externo
 
@@ -306,12 +306,12 @@ Precisa utilizar a plataforma como fonte de pesquisa e análise.
 
 ### Necessidades
 
-* API;
-* MCP;
-* ferramentas bem definidas;
-* dados estruturados;
-* citações e evidências;
-* controle de custo.
+- API;
+- MCP;
+- ferramentas bem definidas;
+- dados estruturados;
+- citações e evidências;
+- controle de custo.
 
 ---
 
@@ -323,16 +323,16 @@ Toda classificação deverá mostrar a origem da conclusão.
 
 Estados possíveis:
 
-* declarado pelo vendedor;
-* confirmado visualmente;
-* confirmado por documento;
-* muito provável;
-* provável;
-* possível;
-* desconhecido;
-* contraditório;
-* provavelmente defeituoso;
-* confirmado como defeituoso.
+- declarado pelo vendedor;
+- confirmado visualmente;
+- confirmado por documento;
+- muito provável;
+- provável;
+- possível;
+- desconhecido;
+- contraditório;
+- provavelmente defeituoso;
+- confirmado como defeituoso.
 
 ## 8.2 A incerteza deve ser explícita
 
@@ -352,11 +352,11 @@ Correto:
 
 Toda pontuação deverá apresentar:
 
-* fatores positivos;
-* fatores negativos;
-* informações ausentes;
-* contradições;
-* evidências.
+- fatores positivos;
+- fatores negativos;
+- informações ausentes;
+- contradições;
+- evidências.
 
 ## 8.4 Banco primeiro, planilha depois
 
@@ -364,10 +364,10 @@ A base principal será relacional e estruturada.
 
 Planilhas serão utilizadas como:
 
-* visualização;
-* exportação;
-* compartilhamento;
-* análise externa.
+- visualização;
+- exportação;
+- compartilhamento;
+- análise externa.
 
 ## 8.5 Coleta desacoplada da análise
 
@@ -375,13 +375,13 @@ A plataforma não deverá depender de uma única tecnologia de coleta.
 
 Cada fonte poderá utilizar:
 
-* API oficial;
-* feed;
-* HTML;
-* dados estruturados;
-* navegador automatizado;
-* serviço externo;
-* conector comunitário.
+- API oficial;
+- feed;
+- HTML;
+- dados estruturados;
+- navegador automatizado;
+- serviço externo;
+- conector comunitário.
 
 ## 8.6 Fornecedores substituíveis
 
@@ -389,12 +389,12 @@ O MVP poderá usar um serviço externo de coleta com plano gratuito ou baixo cus
 
 Entretanto, a arquitetura deverá permitir troca de fornecedor sem alterar:
 
-* banco;
-* análise;
-* interface;
-* API;
-* MCP;
-* regras de negócio.
+- banco;
+- análise;
+- interface;
+- API;
+- MCP;
+- regras de negócio.
 
 ## 8.7 Segurança por padrão
 
@@ -410,12 +410,12 @@ Descrições, imagens, documentos e avaliações não poderão instruir diretame
 
 Eletrônicos usados, com foco em:
 
-* iPhones;
-* MacBooks;
-* notebooks;
-* celulares;
-* computadores;
-* peças e equipamentos reparáveis.
+- iPhones;
+- MacBooks;
+- notebooks;
+- celulares;
+- computadores;
+- peças e equipamentos reparáveis.
 
 ## 9.2 Fontes iniciais
 
@@ -431,13 +431,13 @@ Fontes fora do escopo do MVP refatorado: **OLX, AliExpress, Goofish, Amazon**. V
 
 Utilizar um fornecedor externo que ofereça:
 
-* API de scraping;
-* renderização de JavaScript;
-* extração estruturada;
-* plano gratuito ou créditos iniciais;
-* execução sob demanda;
-* suporte a proxy;
-* retorno em HTML, Markdown ou JSON.
+- API de scraping;
+- renderização de JavaScript;
+- extração estruturada;
+- plano gratuito ou créditos iniciais;
+- execução sob demanda;
+- suporte a proxy;
+- retorno em HTML, Markdown ou JSON.
 
 O fornecedor deverá ser encapsulado por uma interface interna.
 
@@ -447,10 +447,7 @@ Exemplo:
 interface CollectionProvider {
   fetchPage(input: FetchPageInput): Promise<RawPage>;
   searchSite(input: SearchSiteInput): Promise<RawSearchResult[]>;
-  extractStructured<T>(
-    input: ExtractInput,
-    schema: JsonSchema<T>
-  ): Promise<T>;
+  extractStructured<T>(input: ExtractInput, schema: JsonSchema<T>): Promise<T>;
 }
 ```
 
@@ -480,23 +477,23 @@ Os dados serão convertidos para um formato comum.
 
 A plataforma analisará:
 
-* título;
-* descrição;
-* condição;
-* especificações;
-* observações do vendedor.
+- título;
+- descrição;
+- condição;
+- especificações;
+- observações do vendedor.
 
 ### Análise de imagens
 
 A plataforma analisará:
 
-* danos visíveis;
-* tela ligada;
-* aplicativos abertos;
-* configuração exibida;
-* sinais de bloqueio;
-* ausência de peças;
-* inconsistências visuais.
+- danos visíveis;
+- tela ligada;
+- aplicativos abertos;
+- configuração exibida;
+- sinais de bloqueio;
+- ausência de peças;
+- inconsistências visuais.
 
 ### Classificação de evidências
 
@@ -506,31 +503,31 @@ Cada conclusão será associada a uma evidência.
 
 O sistema calculará:
 
-* correspondência com a busca;
-* risco técnico;
-* risco de fraude;
-* qualidade das evidências;
-* oportunidade.
+- correspondência com a busca;
+- risco técnico;
+- risco de fraude;
+- qualidade das evidências;
+- oportunidade.
 
 ### Painel de resultados
 
 O usuário poderá:
 
-* ordenar;
-* filtrar;
-* favoritar;
-* descartar;
-* comparar;
-* adicionar observações;
-* alterar status.
+- ordenar;
+- filtrar;
+- favoritar;
+- descartar;
+- comparar;
+- adicionar observações;
+- alterar status.
 
 ### Exportação
 
 O usuário poderá exportar:
 
-* CSV;
-* Excel;
-* JSON.
+- CSV;
+- Excel;
+- JSON.
 
 ### Projetos de pesquisa
 
@@ -556,14 +553,8 @@ O sistema cria:
   "models": ["iPhone 13"],
   "storage_gb": [128],
   "maximum_total_cost_brl": 1800,
-  "accepted_defects": [
-    "cracked_screen",
-    "broken_back_glass"
-  ],
-  "rejected_defects": [
-    "activation_lock",
-    "no_power"
-  ],
+  "accepted_defects": ["cracked_screen", "broken_back_glass"],
+  "rejected_defects": ["activation_lock", "no_power"],
   "preferred_evidence": [
     "device_powered_on",
     "device_unlocked",
@@ -576,9 +567,9 @@ O sistema cria:
 
 O usuário escolhe:
 
-* eBay;
-* OLX;
-* outras fontes disponíveis.
+- eBay;
+- OLX;
+- outras fontes disponíveis.
 
 ## 10.4 Coletar anúncios
 
@@ -588,14 +579,14 @@ O sistema envia as buscas para os conectores.
 
 Cada anúncio é salvo com:
 
-* URL;
-* título;
-* descrição;
-* imagens;
-* preço;
-* vendedor;
-* origem;
-* data da coleta.
+- URL;
+- título;
+- descrição;
+- imagens;
+- preço;
+- vendedor;
+- origem;
+- data da coleta.
 
 ## 10.6 Analisar
 
@@ -623,11 +614,11 @@ O usuário executa novamente uma pesquisa salva.
 
 O sistema deverá:
 
-* buscar novos anúncios;
-* evitar duplicatas;
-* atualizar anúncios existentes;
-* registrar alterações de preço;
-* identificar anúncios encerrados.
+- buscar novos anúncios;
+- evitar duplicatas;
+- atualizar anúncios existentes;
+- registrar alterações de preço;
+- identificar anúncios encerrados.
 
 ## 11.2 Comparar anúncios
 
@@ -635,12 +626,12 @@ O usuário seleciona dois ou mais anúncios.
 
 O sistema compara:
 
-* preço;
-* defeitos;
-* evidências;
-* risco;
-* custo estimado;
-* oportunidade.
+- preço;
+- defeitos;
+- evidências;
+- risco;
+- custo estimado;
+- oportunidade.
 
 ## 11.3 Gerar perguntas ao vendedor
 
@@ -654,13 +645,13 @@ Exemplo:
 
 Após uma compra, o usuário poderá informar:
 
-* produto recebido;
-* defeitos reais;
-* custo real;
-* reparo;
-* valor de revenda;
-* lucro;
-* erro ou acerto da análise.
+- produto recebido;
+- defeitos reais;
+- custo real;
+- reparo;
+- valor de revenda;
+- lucro;
+- erro ou acerto da análise.
 
 Esses dados alimentarão o histórico e o aprendizado futuro.
 
@@ -814,14 +805,14 @@ created_at
 
 Exemplos de `source_type`:
 
-* title;
-* description;
-* image;
-* video;
-* seller;
-* document;
-* external_lookup;
-* user_feedback.
+- title;
+- description;
+- image;
+- video;
+- seller;
+- document;
+- external_lookup;
+- user_feedback.
 
 ## 12.11 Tabela `defects`
 
@@ -936,9 +927,7 @@ user_confirmed
       "claim": "O aparelho aparece desbloqueado com um aplicativo aberto."
     }
   ],
-  "limitations": [
-    "A imagem não comprova funcionamento em todas as áreas da tela."
-  ]
+  "limitations": ["A imagem não comprova funcionamento em todas as áreas da tela."]
 }
 ```
 
@@ -995,16 +984,16 @@ Exemplo:
 
 Um técnico pode aceitar:
 
-* bateria ruim;
-* tela quebrada;
-* carcaça danificada.
+- bateria ruim;
+- tela quebrada;
+- carcaça danificada.
 
 Mas rejeitar:
 
-* placa defeituosa;
-* iCloud;
-* MDM;
-* ausência de sinal.
+- placa defeituosa;
+- iCloud;
+- MDM;
+- ausência de sinal.
 
 ---
 
@@ -1012,49 +1001,49 @@ Mas rejeitar:
 
 ## 15.1 Dados analisados
 
-* título;
-* descrição;
-* condição;
-* especificações;
-* perguntas e respostas;
-* avaliações;
-* observações do vendedor.
+- título;
+- descrição;
+- condição;
+- especificações;
+- perguntas e respostas;
+- avaliações;
+- observações do vendedor.
 
 ## 15.2 Extrações esperadas
 
-* produto;
-* modelo;
-* armazenamento;
-* memória;
-* cor;
-* condição;
-* defeitos;
-* peças ausentes;
-* funcionamento declarado;
-* ausência de testes;
-* bloqueios;
-* reparos anteriores;
-* contradições;
-* termos vagos;
-* risco.
+- produto;
+- modelo;
+- armazenamento;
+- memória;
+- cor;
+- condição;
+- defeitos;
+- peças ausentes;
+- funcionamento declarado;
+- ausência de testes;
+- bloqueios;
+- reparos anteriores;
+- contradições;
+- termos vagos;
+- risco.
 
 ## 15.3 Frases importantes
 
 O sistema deverá reconhecer termos como:
 
-* no further testing;
-* sold as is;
-* untested;
-* for parts;
-* occasionally;
-* no returns;
-* previous repair;
-* liquid damage;
-* activation locked;
-* remote management;
-* unknown password;
-* only screen damaged;
-* everything else works.
+- no further testing;
+- sold as is;
+- untested;
+- for parts;
+- occasionally;
+- no returns;
+- previous repair;
+- liquid damage;
+- activation locked;
+- remote management;
+- unknown password;
+- only screen damaged;
+- everything else works.
 
 O sistema deverá traduzir e interpretar expressões equivalentes em outros idiomas.
 
@@ -1066,22 +1055,22 @@ O sistema deverá traduzir e interpretar expressões equivalentes em outros idio
 
 Detectar:
 
-* trincas;
-* amassados;
-* riscos;
-* peças ausentes;
-* tela ligada;
-* tela sem imagem;
-* manchas;
-* linhas;
-* oxidação visível;
-* parafusos ausentes;
-* carcaça aberta;
-* tela de configuração;
-* tela de bloqueio;
-* informações do sistema;
-* mensagens de erro;
-* configuração diferente da anunciada.
+- trincas;
+- amassados;
+- riscos;
+- peças ausentes;
+- tela ligada;
+- tela sem imagem;
+- manchas;
+- linhas;
+- oxidação visível;
+- parafusos ausentes;
+- carcaça aberta;
+- tela de configuração;
+- tela de bloqueio;
+- informações do sistema;
+- mensagens de erro;
+- configuração diferente da anunciada.
 
 ## 16.2 Inferências permitidas
 
@@ -1102,11 +1091,11 @@ O sistema também deverá registrar o que não foi mostrado.
 
 Exemplo:
 
-* sem foto da parte traseira;
-* sem foto das laterais;
-* sem foto da saúde da bateria;
-* sem foto do sistema;
-* sem vídeo usando o touch.
+- sem foto da parte traseira;
+- sem foto das laterais;
+- sem foto da saúde da bateria;
+- sem foto do sistema;
+- sem vídeo usando o touch.
 
 ---
 
@@ -1114,19 +1103,19 @@ Exemplo:
 
 ## 17.1 Sinais considerados
 
-* preço muito abaixo do mercado;
-* vendedor sem histórico;
-* conta com histórico incompatível;
-* tentativa de pagamento externo;
-* descrição copiada;
-* imagens duplicadas;
-* imagens de catálogo;
-* números de série divergentes;
-* localização inconsistente;
-* política de devolução ausente;
-* linguagem de urgência;
-* produto diferente da variação exibida;
-* item incompleto disfarçado de produto completo.
+- preço muito abaixo do mercado;
+- vendedor sem histórico;
+- conta com histórico incompatível;
+- tentativa de pagamento externo;
+- descrição copiada;
+- imagens duplicadas;
+- imagens de catálogo;
+- números de série divergentes;
+- localização inconsistente;
+- política de devolução ausente;
+- linguagem de urgência;
+- produto diferente da variação exibida;
+- item incompleto disfarçado de produto completo.
 
 ## 17.2 Resultado
 
@@ -1182,24 +1171,22 @@ interface SourceConnector {
 ```typescript
 interface ScrapingProvider {
   fetch(input: ProviderFetchInput): Promise<ProviderResponse>;
-  extract<T>(
-    input: ProviderExtractInput<T>
-  ): Promise<T>;
+  extract<T>(input: ProviderExtractInput<T>): Promise<T>;
   healthCheck(): Promise<ProviderHealth>;
 }
 ```
 
 ## 18.5 Requisitos do fornecedor para o MVP
 
-* créditos gratuitos ou plano inicial acessível;
-* API simples;
-* suporte a JavaScript;
-* saída estruturada;
-* documentação;
-* limite de uso observável;
-* estatísticas de consumo;
-* capacidade de buscar ou coletar URLs;
-* possibilidade de troca futura.
+- créditos gratuitos ou plano inicial acessível;
+- API simples;
+- suporte a JavaScript;
+- saída estruturada;
+- documentação;
+- limite de uso observável;
+- estatísticas de consumo;
+- capacidade de buscar ou coletar URLs;
+- possibilidade de troca futura.
 
 ## 18.6 Cache
 
@@ -1207,11 +1194,11 @@ A plataforma deverá evitar coletar repetidamente a mesma página.
 
 Exemplo de validade:
 
-* busca: 15 a 60 minutos;
-* anúncio ativo: 6 a 24 horas;
-* vendedor: 24 horas;
-* imagem: armazenada uma única vez;
-* anúncio encerrado: atualização menos frequente.
+- busca: 15 a 60 minutos;
+- anúncio ativo: 6 a 24 horas;
+- vendedor: 24 horas;
+- imagem: armazenada uma única vez;
+- anúncio encerrado: atualização menos frequente.
 
 ---
 
@@ -1287,24 +1274,24 @@ quality:
 
 Elementos:
 
-* campo de busca em linguagem natural;
-* pesquisas recentes;
-* projetos;
-* fontes disponíveis;
-* resumo de oportunidades.
+- campo de busca em linguagem natural;
+- pesquisas recentes;
+- projetos;
+- fontes disponíveis;
+- resumo de oportunidades.
 
 ## 20.2 Criar pesquisa
 
 Campos:
 
-* descrição livre;
-* categoria;
-* orçamento;
-* fontes;
-* defeitos aceitos;
-* defeitos rejeitados;
-* localização;
-* preferências avançadas.
+- descrição livre;
+- categoria;
+- orçamento;
+- fontes;
+- defeitos aceitos;
+- defeitos rejeitados;
+- localização;
+- preferências avançadas.
 
 A IA deverá preencher automaticamente os campos com base no texto.
 
@@ -1312,42 +1299,42 @@ A IA deverá preencher automaticamente os campos com base no texto.
 
 Visualização em:
 
-* cartões;
-* tabela;
-* comparação.
+- cartões;
+- tabela;
+- comparação.
 
 Colunas principais:
 
-* imagem;
-* título;
-* fonte;
-* preço;
-* custo estimado;
-* condição;
-* defeitos;
-* evidências;
-* risco;
-* oportunidade;
-* status.
+- imagem;
+- título;
+- fonte;
+- preço;
+- custo estimado;
+- condição;
+- defeitos;
+- evidências;
+- risco;
+- oportunidade;
+- status.
 
 ## 20.4 Página do anúncio
 
 Seções:
 
-* resumo;
-* preço;
-* vendedor;
-* especificações;
-* descrição;
-* imagens;
-* evidências;
-* defeitos;
-* contradições;
-* informações ausentes;
-* pontuações;
-* perguntas ao vendedor;
-* histórico;
-* observações.
+- resumo;
+- preço;
+- vendedor;
+- especificações;
+- descrição;
+- imagens;
+- evidências;
+- defeitos;
+- contradições;
+- informações ausentes;
+- pontuações;
+- perguntas ao vendedor;
+- histórico;
+- observações.
 
 ## 20.5 Planilha interna
 
@@ -1355,16 +1342,16 @@ O usuário poderá escolher colunas e filtros.
 
 Exemplos:
 
-* preço;
-* armazenamento;
-* liga;
-* touch;
-* Face ID;
-* câmera;
-* iCloud;
-* risco;
-* margem;
-* status.
+- preço;
+- armazenamento;
+- liga;
+- touch;
+- Face ID;
+- câmera;
+- iCloud;
+- risco;
+- margem;
+- status.
 
 ## 20.6 Exportação
 
@@ -1430,12 +1417,12 @@ create_watch
 
 O MCP não deverá expor:
 
-* cookies;
-* credenciais;
-* scraping irrestrito;
-* navegação livre;
-* operações de compra;
-* ações irreversíveis.
+- cookies;
+- credenciais;
+- scraping irrestrito;
+- navegação livre;
+- operações de compra;
+- ações irreversíveis.
 
 ---
 
@@ -1445,14 +1432,14 @@ O MCP não deverá expor:
 
 O RAG será utilizado para recuperar:
 
-* casos semelhantes;
-* anúncios históricos;
-* defeitos comuns;
-* resultados reais;
-* padrões de vendedores;
-* custos de reparo;
-* preferências do usuário;
-* documentos técnicos.
+- casos semelhantes;
+- anúncios históricos;
+- defeitos comuns;
+- resultados reais;
+- padrões de vendedores;
+- custos de reparo;
+- preferências do usuário;
+- documentos técnicos.
 
 ## 23.2 Dados estruturados continuam prioritários
 
@@ -1460,22 +1447,22 @@ Preço, modelo, condição e pontuações deverão permanecer no PostgreSQL.
 
 Embeddings serão utilizados para:
 
-* busca semântica;
-* similaridade de descrições;
-* recuperação de casos;
-* agrupamento de anúncios.
+- busca semântica;
+- similaridade de descrições;
+- recuperação de casos;
+- agrupamento de anúncios.
 
 ## 23.3 Memória do usuário
 
 O sistema aprenderá:
 
-* defeitos aceitos;
-* defeitos rejeitados;
-* marcas preferidas;
-* orçamento;
-* tolerância ao risco;
-* finalidade da compra;
-* critérios usados nas decisões.
+- defeitos aceitos;
+- defeitos rejeitados;
+- marcas preferidas;
+- orçamento;
+- tolerância ao risco;
+- finalidade da compra;
+- critérios usados nas decisões.
 
 ---
 
@@ -1485,53 +1472,53 @@ O sistema aprenderá:
 
 ### Frontend
 
-* Next.js;
-* TypeScript;
-* componente de tabela avançada;
-* interface responsiva.
+- Next.js;
+- TypeScript;
+- componente de tabela avançada;
+- interface responsiva.
 
 ### Backend
 
-* Python com FastAPI ou TypeScript com NestJS;
-* arquitetura modular;
-* filas assíncronas.
+- Python com FastAPI ou TypeScript com NestJS;
+- arquitetura modular;
+- filas assíncronas.
 
 ### Banco
 
-* Supabase/PostgreSQL;
-* pgvector;
-* Row Level Security;
-* Storage para imagens.
+- Supabase/PostgreSQL;
+- pgvector;
+- Row Level Security;
+- Storage para imagens.
 
 ### Processamento
 
-* fila de tarefas;
-* workers;
-* jobs de coleta;
-* jobs de análise;
-* jobs de atualização.
+- fila de tarefas;
+- workers;
+- jobs de coleta;
+- jobs de análise;
+- jobs de atualização.
 
 ### IA
 
-* modelo textual para extração e análise;
-* modelo multimodal para imagens;
-* embeddings;
-* schemas JSON rígidos.
+- modelo textual para extração e análise;
+- modelo multimodal para imagens;
+- embeddings;
+- schemas JSON rígidos.
 
 ### Coleta
 
-* fornecedor externo no MVP;
-* conectores próprios posteriormente;
-* Playwright/Crawlee como fallback futuro.
+- fornecedor externo no MVP;
+- conectores próprios posteriormente;
+- Playwright/Crawlee como fallback futuro.
 
 ### Monitoramento
 
-* logs;
-* métricas;
-* erros por fonte;
-* custo por execução;
-* completude da extração;
-* taxa de falha.
+- logs;
+- métricas;
+- erros por fonte;
+- custo por execução;
+- completude da extração;
+- taxa de falha.
 
 ---
 
@@ -1571,15 +1558,15 @@ Painel, planilha, API e MCP
 
 O sistema deverá identificar anúncios repetidos por:
 
-* ID externo;
-* URL;
-* título;
-* vendedor;
-* imagens;
-* hash perceptual;
-* descrição;
-* número de série;
-* combinação de campos.
+- ID externo;
+- URL;
+- título;
+- vendedor;
+- imagens;
+- hash perceptual;
+- descrição;
+- número de série;
+- combinação de campos.
 
 Anúncios semelhantes em fontes diferentes poderão ser vinculados, mas não mesclados automaticamente sem confiança suficiente.
 
@@ -1593,17 +1580,17 @@ Todo conteúdo externo será tratado como não confiável.
 
 O modelo analisador receberá instruções fixas para:
 
-* ignorar comandos presentes na descrição;
-* não executar ferramentas;
-* retornar apenas JSON;
-* separar evidência de inferência.
+- ignorar comandos presentes na descrição;
+- não executar ferramentas;
+- retornar apenas JSON;
+- separar evidência de inferência.
 
 ## 27.2 Credenciais
 
-* armazenadas em cofre de segredos;
-* nunca expostas à IA;
-* separadas por ambiente;
-* rotacionadas.
+- armazenadas em cofre de segredos;
+- nunca expostas à IA;
+- separadas por ambiente;
+- rotacionadas.
 
 ## 27.3 Ações
 
@@ -1617,11 +1604,11 @@ A plataforma deverá evitar armazenar dados pessoais desnecessários.
 
 Cada análise deverá registrar:
 
-* modelo utilizado;
-* versão do prompt;
-* data;
-* evidências;
-* versão da pontuação.
+- modelo utilizado;
+- versão do prompt;
+- data;
+- evidências;
+- versão da pontuação.
 
 ---
 
@@ -1629,25 +1616,25 @@ Cada análise deverá registrar:
 
 ## 28.1 Custos principais
 
-* coleta;
-* proxy;
-* navegador;
-* modelos multimodais;
-* armazenamento de imagens;
-* banco;
-* processamento;
-* embeddings.
+- coleta;
+- proxy;
+- navegador;
+- modelos multimodais;
+- armazenamento de imagens;
+- banco;
+- processamento;
+- embeddings.
 
 ## 28.2 Estratégias de redução
 
-* cache;
-* deduplicação;
-* análise por etapas;
-* regras antes da IA;
-* modelos menores para triagem;
-* análise visual apenas para candidatos;
-* reaproveitamento de resultados;
-* limites por plano.
+- cache;
+- deduplicação;
+- análise por etapas;
+- regras antes da IA;
+- modelos menores para triagem;
+- análise visual apenas para candidatos;
+- reaproveitamento de resultados;
+- limites por plano.
 
 ## 28.3 Pipeline econômico
 
@@ -1668,11 +1655,11 @@ Não será necessário analisar profundamente todas as imagens de todos os anún
 
 ## 29.1 Gratuito
 
-* poucas pesquisas;
-* fontes limitadas;
-* resultados limitados;
-* análise básica;
-* sem monitoramento contínuo.
+- poucas pesquisas;
+- fontes limitadas;
+- resultados limitados;
+- análise básica;
+- sem monitoramento contínuo.
 
 ## 29.2 Pessoal
 
@@ -1680,11 +1667,11 @@ Faixa hipotética:
 
 **R$ 39 a R$ 79 por mês**
 
-* mais pesquisas;
-* projetos salvos;
-* exportação;
-* análise de imagens;
-* alertas básicos.
+- mais pesquisas;
+- projetos salvos;
+- exportação;
+- análise de imagens;
+- alertas básicos.
 
 ## 29.3 Profissional
 
@@ -1692,35 +1679,35 @@ Faixa hipotética:
 
 **R$ 149 a R$ 399 por mês**
 
-* alto volume;
-* múltiplas fontes;
-* análise completa;
-* histórico;
-* monitoramento;
-* MCP;
-* exportações avançadas.
+- alto volume;
+- múltiplas fontes;
+- análise completa;
+- histórico;
+- monitoramento;
+- MCP;
+- exportações avançadas.
 
 ## 29.4 Empresa
 
 Preço negociado.
 
-* API;
-* equipes;
-* conectores privados;
-* limites elevados;
-* regras personalizadas;
-* SLA.
+- API;
+- equipes;
+- conectores privados;
+- limites elevados;
+- regras personalizadas;
+- SLA.
 
 ## 29.5 Créditos
 
 Operações de alto custo poderão consumir créditos:
 
-* navegador;
-* proxy;
-* análise de muitas imagens;
-* documentos longos;
-* atualização frequente;
-* coleta em fontes difíceis.
+- navegador;
+- proxy;
+- análise de muitas imagens;
+- documentos longos;
+- atualização frequente;
+- coleta em fontes difíceis.
 
 ---
 
@@ -1728,34 +1715,34 @@ Operações de alto custo poderão consumir créditos:
 
 ## 30.1 Métricas técnicas
 
-* taxa de coleta bem-sucedida;
-* taxa de extração de título;
-* taxa de extração de preço;
-* taxa de extração de descrição;
-* custo médio por anúncio;
-* tempo médio de processamento;
-* taxa de duplicatas;
-* erros por fonte.
+- taxa de coleta bem-sucedida;
+- taxa de extração de título;
+- taxa de extração de preço;
+- taxa de extração de descrição;
+- custo médio por anúncio;
+- tempo médio de processamento;
+- taxa de duplicatas;
+- erros por fonte.
 
 ## 30.2 Métricas de análise
 
-* precisão de modelo;
-* precisão de armazenamento;
-* precisão de condição;
-* precisão de defeitos;
-* concordância com o usuário;
-* quantidade de inferências corrigidas.
+- precisão de modelo;
+- precisão de armazenamento;
+- precisão de condição;
+- precisão de defeitos;
+- concordância com o usuário;
+- quantidade de inferências corrigidas.
 
 ## 30.3 Métricas de produto
 
-* pesquisas criadas;
-* anúncios analisados;
-* anúncios favoritados;
-* exportações;
-* retorno semanal;
-* tempo economizado;
-* oportunidades compradas;
-* satisfação do usuário.
+- pesquisas criadas;
+- anúncios analisados;
+- anúncios favoritados;
+- exportações;
+- retorno semanal;
+- tempo economizado;
+- oportunidades compradas;
+- satisfação do usuário.
 
 ## 30.4 North Star Metric
 
@@ -1792,14 +1779,14 @@ Confirmar o fluxo antes de desenvolver a plataforma completa.
 
 ### Entregas
 
-* definir categoria inicial;
-* selecionar fontes;
-* definir taxonomia de defeitos;
-* testar fornecedores de coleta;
-* coletar manualmente amostras;
-* testar modelos de texto e imagem;
-* criar planilha de referência;
-* definir fórmula inicial.
+- definir categoria inicial;
+- selecionar fontes;
+- definir taxonomia de defeitos;
+- testar fornecedores de coleta;
+- coletar manualmente amostras;
+- testar modelos de texto e imagem;
+- criar planilha de referência;
+- definir fórmula inicial.
 
 ### Resultado esperado
 
@@ -1815,34 +1802,34 @@ Criar uma ferramenta funcional para uso próprio.
 
 ### Fontes
 
-* eBay;
-* OLX.
+- eBay;
+- OLX.
 
 ### Funcionalidades
 
-* criação de projeto;
-* busca em linguagem natural;
-* interpretação estruturada;
-* coleta por fornecedor externo;
-* armazenamento no Supabase;
-* normalização;
-* análise de texto;
-* análise básica de imagens;
-* pontuação;
-* tabela;
-* filtros;
-* exportação CSV e Excel;
-* favoritar;
-* descartar;
-* observações.
+- criação de projeto;
+- busca em linguagem natural;
+- interpretação estruturada;
+- coleta por fornecedor externo;
+- armazenamento no Supabase;
+- normalização;
+- análise de texto;
+- análise básica de imagens;
+- pontuação;
+- tabela;
+- filtros;
+- exportação CSV e Excel;
+- favoritar;
+- descartar;
+- observações.
 
 ### Fora do escopo
 
-* cobrança;
-* multiusuário complexo;
-* MCP público;
-* monitoramento contínuo avançado;
-* conectores automáticos.
+- cobrança;
+- multiusuário complexo;
+- MCP público;
+- monitoramento contínuo avançado;
+- conectores automáticos.
 
 ---
 
@@ -1854,24 +1841,24 @@ Permitir uso por um pequeno grupo de testadores.
 
 ### Entregas
 
-* autenticação;
-* planos internos;
-* limites de uso;
-* projetos salvos;
-* atualização de anúncios;
-* histórico de preço;
-* análise de vendedor;
-* perguntas ao vendedor;
-* feedback sobre análise;
-* painel de custos;
-* melhoria da deduplicação;
-* logs e observabilidade.
+- autenticação;
+- planos internos;
+- limites de uso;
+- projetos salvos;
+- atualização de anúncios;
+- histórico de preço;
+- análise de vendedor;
+- perguntas ao vendedor;
+- feedback sobre análise;
+- painel de custos;
+- melhoria da deduplicação;
+- logs e observabilidade.
 
 ### Testadores
 
-* técnicos;
-* revendedores;
-* compradores frequentes.
+- técnicos;
+- revendedores;
+- compradores frequentes.
 
 ---
 
@@ -1887,26 +1874,26 @@ Começar a cobrar por uma solução especializada.
 
 ### Entregas
 
-* onboarding;
-* assinatura;
-* créditos;
-* alertas;
-* pesquisas recorrentes;
-* importação de planilhas;
-* exportação avançada;
-* comparação;
-* estimativa de reparo;
-* custo final;
-* histórico de mercado;
-* relatórios;
-* API limitada.
+- onboarding;
+- assinatura;
+- créditos;
+- alertas;
+- pesquisas recorrentes;
+- importação de planilhas;
+- exportação avançada;
+- comparação;
+- estimativa de reparo;
+- custo final;
+- histórico de mercado;
+- relatórios;
+- API limitada.
 
 ### Fontes adicionais
 
-* AliExpress;
-* Mercado Livre;
-* fonte chinesa selecionada;
-* fontes regionais.
+- AliExpress;
+- Mercado Livre;
+- fonte chinesa selecionada;
+- fontes regionais.
 
 ---
 
@@ -1918,16 +1905,16 @@ Permitir que outras IAs utilizem a plataforma.
 
 ### Entregas
 
-* servidor MCP;
-* API estável;
-* SDK;
-* autenticação por token;
-* limites;
-* webhooks;
-* ferramentas de pesquisa;
-* ferramentas de análise;
-* ferramentas de exportação;
-* documentação para desenvolvedores.
+- servidor MCP;
+- API estável;
+- SDK;
+- autenticação por token;
+- limites;
+- webhooks;
+- ferramentas de pesquisa;
+- ferramentas de análise;
+- ferramentas de exportação;
+- documentação para desenvolvedores.
 
 ### Ferramentas
 
@@ -1950,16 +1937,16 @@ Reduzir o esforço para adicionar novas fontes.
 
 ### Entregas
 
-* catálogo de fontes;
-* manifesto;
-* testes automáticos;
-* monitor de saúde;
-* conector genérico;
-* agente de onboarding;
-* sugestão automática de estratégia;
-* geração assistida de conectores;
-* revisão e publicação;
-* fallback entre fornecedores.
+- catálogo de fontes;
+- manifesto;
+- testes automáticos;
+- monitor de saúde;
+- conector genérico;
+- agente de onboarding;
+- sugestão automática de estratégia;
+- geração assistida de conectores;
+- revisão e publicação;
+- fallback entre fornecedores.
 
 ### Resultado
 
@@ -1975,16 +1962,16 @@ Transformar a base acumulada em vantagem competitiva.
 
 ### Entregas
 
-* preços históricos;
-* similaridade de anúncios;
-* imagens duplicadas;
-* padrões de vendedor;
-* defeitos por modelo;
-* custo real de reparo;
-* previsão de margem;
-* aprendizado com compras;
-* RAG;
-* personalização.
+- preços históricos;
+- similaridade de anúncios;
+- imagens duplicadas;
+- padrões de vendedor;
+- defeitos por modelo;
+- custo real de reparo;
+- previsão de margem;
+- aprendizado com compras;
+- RAG;
+- personalização.
 
 ---
 
@@ -2001,13 +1988,13 @@ Transformar a base acumulada em vantagem competitiva.
 
 Cada categoria deverá possuir:
 
-* taxonomia;
-* campos;
-* evidências;
-* regras;
-* modelo de risco;
-* fórmula de pontuação;
-* fontes especializadas.
+- taxonomia;
+- campos;
+- evidências;
+- regras;
+- modelo de risco;
+- fórmula de pontuação;
+- fontes especializadas.
 
 ---
 
@@ -2023,15 +2010,15 @@ Permitir pesquisa inteligente de qualquer tipo de ativo.
 
 ### Componentes
 
-* busca multissite;
-* análise multimodal;
-* conectores sob demanda;
-* especialistas por categoria;
-* inteligência histórica;
-* API;
-* MCP;
-* marketplace de conectores;
-* integrações corporativas.
+- busca multissite;
+- análise multimodal;
+- conectores sob demanda;
+- especialistas por categoria;
+- inteligência histórica;
+- API;
+- MCP;
+- marketplace de conectores;
+- integrações corporativas.
 
 ---
 
@@ -2039,55 +2026,55 @@ Permitir pesquisa inteligente de qualquer tipo de ativo.
 
 ## Fundação
 
-* configurar repositório;
-* configurar Supabase;
-* criar esquema inicial;
-* configurar autenticação;
-* criar workers;
-* configurar armazenamento.
+- configurar repositório;
+- configurar Supabase;
+- criar esquema inicial;
+- configurar autenticação;
+- criar workers;
+- configurar armazenamento.
 
 ## Coleta
 
-* avaliar fornecedores;
-* criar `Collection Gateway`;
-* criar conector eBay;
-* criar conector OLX;
-* armazenar dados brutos;
-* implementar cache.
+- avaliar fornecedores;
+- criar `Collection Gateway`;
+- criar conector eBay;
+- criar conector OLX;
+- armazenar dados brutos;
+- implementar cache.
 
 ## Normalização
 
-* criar schema universal;
-* mapear produtos;
-* normalizar preço;
-* normalizar condição;
-* normalizar vendedores.
+- criar schema universal;
+- mapear produtos;
+- normalizar preço;
+- normalizar condição;
+- normalizar vendedores.
 
 ## IA
 
-* criar parser de intenção;
-* criar analisador textual;
-* criar analisador visual;
-* criar schema de evidências;
-* criar explicações;
-* versionar prompts.
+- criar parser de intenção;
+- criar analisador textual;
+- criar analisador visual;
+- criar schema de evidências;
+- criar explicações;
+- versionar prompts.
 
 ## Produto
 
-* criar projetos;
-* criar tabela de resultados;
-* criar filtros;
-* criar página do anúncio;
-* criar comparação;
-* criar exportação.
+- criar projetos;
+- criar tabela de resultados;
+- criar filtros;
+- criar página do anúncio;
+- criar comparação;
+- criar exportação.
 
 ## Qualidade
 
-* criar conjunto de testes;
-* validar extração;
-* comparar análise com avaliação humana;
-* criar monitoramento de custos;
-* criar monitoramento de erros.
+- criar conjunto de testes;
+- validar extração;
+- comparar análise com avaliação humana;
+- criar monitoramento de custos;
+- criar monitoramento de erros.
 
 ---
 
@@ -2097,71 +2084,71 @@ Permitir pesquisa inteligente de qualquer tipo de ativo.
 
 Mitigação:
 
-* camada abstrata;
-* múltiplos adaptadores;
-* armazenamento próprio;
-* possibilidade de migração.
+- camada abstrata;
+- múltiplos adaptadores;
+- armazenamento próprio;
+- possibilidade de migração.
 
 ## 34.2 Custo elevado
 
 Mitigação:
 
-* cache;
-* análise em etapas;
-* limites;
-* triagem;
-* créditos;
-* processamento seletivo.
+- cache;
+- análise em etapas;
+- limites;
+- triagem;
+- créditos;
+- processamento seletivo.
 
 ## 34.3 Falsos positivos
 
 Mitigação:
 
-* confiança;
-* evidências;
-* revisão humana;
-* feedback;
-* comparação entre modelos.
+- confiança;
+- evidências;
+- revisão humana;
+- feedback;
+- comparação entre modelos.
 
 ## 34.4 Mudanças nos sites
 
 Mitigação:
 
-* monitoramento;
-* testes;
-* conectores versionados;
-* fallback;
-* fornecedor externo.
+- monitoramento;
+- testes;
+- conectores versionados;
+- fallback;
+- fornecedor externo.
 
 ## 34.5 Risco jurídico ou contratual
 
 Mitigação:
 
-* priorizar APIs e fontes acessíveis;
-* revisar termos;
-* limitar coleta;
-* permitir remoção;
-* obter parcerias;
-* separar fontes por nível de autorização.
+- priorizar APIs e fontes acessíveis;
+- revisar termos;
+- limitar coleta;
+- permitir remoção;
+- obter parcerias;
+- separar fontes por nível de autorização.
 
 ## 34.6 Escopo excessivo
 
 Mitigação:
 
-* foco inicial em eletrônicos;
-* duas fontes;
-* poucas funções essenciais;
-* roadmap gradual.
+- foco inicial em eletrônicos;
+- duas fontes;
+- poucas funções essenciais;
+- roadmap gradual.
 
 ## 34.7 Usuário confiar demais na IA
 
 Mitigação:
 
-* não garantir condição;
-* mostrar incerteza;
-* apresentar evidências;
-* recomendar inspeção;
-* diferenciar declaração e inferência.
+- não garantir condição;
+- mostrar incerteza;
+- apresentar evidências;
+- recomendar inspeção;
+- diferenciar declaração e inferência.
 
 ---
 
@@ -2169,45 +2156,45 @@ Mitigação:
 
 ## Produto
 
-* começar com eletrônicos;
-* focar em iPhone e MacBook;
-* oferecer busca, tabela e exportação;
-* não construir marketplace universal inicialmente.
+- começar com eletrônicos;
+- focar em iPhone e MacBook;
+- oferecer busca, tabela e exportação;
+- não construir marketplace universal inicialmente.
 
 ## Coleta
 
-* usar fornecedor externo;
-* começar com duas fontes;
-* encapsular o fornecedor;
-* armazenar dados brutos.
+- usar fornecedor externo;
+- começar com duas fontes;
+- encapsular o fornecedor;
+- armazenar dados brutos.
 
 ## IA
 
-* regras e extração determinística primeiro;
-* modelo textual depois;
-* visão apenas nos candidatos relevantes;
-* saída sempre em schema.
+- regras e extração determinística primeiro;
+- modelo textual depois;
+- visão apenas nos candidatos relevantes;
+- saída sempre em schema.
 
 ## Banco
 
-* PostgreSQL como fonte principal;
-* Storage para imagens;
-* pgvector apenas quando necessário.
+- PostgreSQL como fonte principal;
+- Storage para imagens;
+- pgvector apenas quando necessário.
 
 ## Interface
 
-* painel web;
-* tabela poderosa;
-* filtros;
-* página detalhada;
-* exportação.
+- painel web;
+- tabela poderosa;
+- filtros;
+- página detalhada;
+- exportação.
 
 ## Arquitetura
 
-* modular desde o início;
-* conectores substituíveis;
-* análise independente da coleta;
-* API interna como núcleo.
+- modular desde o início;
+- conectores substituíveis;
+- análise independente da coleta;
+- API interna como núcleo.
 
 ---
 
@@ -2252,13 +2239,12 @@ O diferencial não será apenas coletar páginas.
 
 O diferencial será transformar informação desorganizada em:
 
-* dados;
-* evidências;
-* risco;
-* contexto;
-* histórico;
-* oportunidade;
-* decisão explicável.
+- dados;
+- evidências;
+- risco;
+- contexto;
+- histórico;
+- oportunidade;
+- decisão explicável.
 
 O produto final deverá funcionar como um pesquisador técnico que examina milhares de anúncios, organiza os resultados e mostra não apenas o que foi encontrado, mas o que realmente parece valer a pena.
-

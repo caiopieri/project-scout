@@ -10,7 +10,7 @@ export class PgSellerRepository implements SellerRepository {
               positive_feedback_percentage as "positiveFeedbackPercentage", review_count as "reviewCount",
               location, account_type as "accountType", first_seen_at as "firstSeenAt"
        FROM sellers WHERE id = $1`,
-      [id]
+      [id],
     );
     return res.rows.length > 0 ? res.rows[0] : null;
   }
@@ -21,12 +21,14 @@ export class PgSellerRepository implements SellerRepository {
               positive_feedback_percentage as "positiveFeedbackPercentage", review_count as "reviewCount",
               location, account_type as "accountType", first_seen_at as "firstSeenAt"
        FROM sellers WHERE source_id = $1 AND external_id = $2`,
-      [sourceId, externalId]
+      [sourceId, externalId],
     );
     return res.rows.length > 0 ? res.rows[0] : null;
   }
 
-  async upsertSeller(seller: Omit<Seller, 'id' | 'firstSeenAt'> & { id?: string }): Promise<Seller> {
+  async upsertSeller(
+    seller: Omit<Seller, 'id' | 'firstSeenAt'> & { id?: string },
+  ): Promise<Seller> {
     const res = await this.sql.query<Seller>(
       `INSERT INTO sellers (source_id, external_id, name, rating, positive_feedback_percentage, review_count, location, account_type)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -47,7 +49,7 @@ export class PgSellerRepository implements SellerRepository {
         seller.reviewCount || 0,
         seller.location || null,
         seller.accountType || 'unknown',
-      ]
+      ],
     );
     return res.rows[0];
   }

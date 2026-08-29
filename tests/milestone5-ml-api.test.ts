@@ -151,7 +151,10 @@ describe('Mercado Livre connector', () => {
   it('does not rotate the refresh token for a policy-level 403', async () => {
     const fetcher = vi.fn(async (input: string | URL) => {
       if (String(input).endsWith('/oauth/token'))
-        return Response.json({ access_token: 'unexpected-token', refresh_token: 'unexpected-refresh' });
+        return Response.json({
+          access_token: 'unexpected-token',
+          refresh_token: 'unexpected-refresh',
+        });
       return Response.json(
         {
           code: 'PA_UNAUTHORIZED_RESULT_FROM_POLICIES',

@@ -15,7 +15,7 @@ export class InMemoryUserListingActionRepository implements UserListingActionRep
   }
 
   async setAction(
-    action: Omit<UserListingAction, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
+    action: Omit<UserListingAction, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
   ): Promise<UserListingAction> {
     const key = this.getKey(action.userId, action.listingId, action.projectId);
     const existing = this.actions.get(key);
@@ -42,7 +42,11 @@ export class InMemoryUserListingActionRepository implements UserListingActionRep
     return { ...created };
   }
 
-  async getAction(userId: string, listingId: string, projectId: string): Promise<UserListingAction | null> {
+  async getAction(
+    userId: string,
+    listingId: string,
+    projectId: string,
+  ): Promise<UserListingAction | null> {
     const key = this.getKey(userId, listingId, projectId);
     const item = this.actions.get(key);
     return item ? { ...item } : null;

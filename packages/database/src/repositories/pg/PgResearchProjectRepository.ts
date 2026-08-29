@@ -53,11 +53,24 @@ export class PgResearchProjectRepository implements ResearchProjectRepository {
          interpretation_ambiguities, interpretation_warnings, unidentified_fields
        ) VALUES ($1,$2,$3,$4,$5,$6,$7,'1.0.0',$8,$9,$10,$11,$12,$13,$14,$15,$16)
        RETURNING ${projectColumns}`,
-      [userId, project.name, project.description ?? null, project.structuredQuery.category ?? 'unknown',
-        project.naturalLanguageQuery, JSON.stringify(project.structuredQuery), project.status,
-        metadata.taxonomyVersion, metadata.provider, metadata.model, metadata.promptOrRuleVersion,
-        metadata.interpretedAt, metadata.confidence, JSON.stringify(metadata.ambiguities),
-        JSON.stringify(metadata.warnings), JSON.stringify(metadata.unidentifiedFields)],
+      [
+        userId,
+        project.name,
+        project.description ?? null,
+        project.structuredQuery.category ?? 'unknown',
+        project.naturalLanguageQuery,
+        JSON.stringify(project.structuredQuery),
+        project.status,
+        metadata.taxonomyVersion,
+        metadata.provider,
+        metadata.model,
+        metadata.promptOrRuleVersion,
+        metadata.interpretedAt,
+        metadata.confidence,
+        JSON.stringify(metadata.ambiguities),
+        JSON.stringify(metadata.warnings),
+        JSON.stringify(metadata.unidentifiedFields),
+      ],
     );
     return result.rows[0];
   }
@@ -74,11 +87,24 @@ export class PgResearchProjectRepository implements ResearchProjectRepository {
          interpretation_warnings=$13, unidentified_fields=$14, updated_at=NOW()
        WHERE id=$15 AND user_id=$16 AND status <> 'deleted'
        RETURNING ${projectColumns}`,
-      [next.name, next.description ?? null, next.structuredQuery.category ?? 'unknown',
-        next.naturalLanguageQuery, JSON.stringify(next.structuredQuery), metadata.taxonomyVersion,
-        metadata.provider, metadata.model, metadata.promptOrRuleVersion, metadata.interpretedAt,
-        metadata.confidence, JSON.stringify(metadata.ambiguities), JSON.stringify(metadata.warnings),
-        JSON.stringify(metadata.unidentifiedFields), id, userId],
+      [
+        next.name,
+        next.description ?? null,
+        next.structuredQuery.category ?? 'unknown',
+        next.naturalLanguageQuery,
+        JSON.stringify(next.structuredQuery),
+        metadata.taxonomyVersion,
+        metadata.provider,
+        metadata.model,
+        metadata.promptOrRuleVersion,
+        metadata.interpretedAt,
+        metadata.confidence,
+        JSON.stringify(metadata.ambiguities),
+        JSON.stringify(metadata.warnings),
+        JSON.stringify(metadata.unidentifiedFields),
+        id,
+        userId,
+      ],
     );
     return result.rows[0];
   }
@@ -100,7 +126,11 @@ export class PgResearchProjectRepository implements ResearchProjectRepository {
     if (result.rowCount === 0) throw new Error('Project not found or access denied.');
   }
 
-  private async setStatus(id: string, userId: string, status: 'active' | 'archived'): Promise<ResearchProject> {
+  private async setStatus(
+    id: string,
+    userId: string,
+    status: 'active' | 'archived',
+  ): Promise<ResearchProject> {
     const result = await this.sql.query<ResearchProject>(
       `UPDATE research_projects SET status=$1, updated_at=NOW()
        WHERE id=$2 AND user_id=$3 AND status <> 'deleted' RETURNING ${projectColumns}`,

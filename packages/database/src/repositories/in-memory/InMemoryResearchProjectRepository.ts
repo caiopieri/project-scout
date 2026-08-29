@@ -24,7 +24,9 @@ export class InMemoryResearchProjectRepository implements ResearchProjectReposit
 
   async findByUserId(userId: string, includeDeleted = false): Promise<ResearchProject[]> {
     return Array.from(this.projects.values())
-      .filter((project) => project.userId === userId && (includeDeleted || project.status !== 'deleted'))
+      .filter(
+        (project) => project.userId === userId && (includeDeleted || project.status !== 'deleted'),
+      )
       .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
       .map((p) => ({ ...p }));
   }
@@ -75,10 +77,19 @@ export class InMemoryResearchProjectRepository implements ResearchProjectReposit
   async softDelete(id: string, userId: string): Promise<void> {
     const project = await this.findById(id, userId);
     if (!project) throw new Error(`Project ${id} not found or access denied for user ${userId}`);
-    this.projects.set(id, { ...project, status: 'deleted', deletedAt: new Date(), updatedAt: new Date() });
+    this.projects.set(id, {
+      ...project,
+      status: 'deleted',
+      deletedAt: new Date(),
+      updatedAt: new Date(),
+    });
   }
 
-  private async setStatus(id: string, userId: string, status: 'active' | 'archived'): Promise<ResearchProject> {
+  private async setStatus(
+    id: string,
+    userId: string,
+    status: 'active' | 'archived',
+  ): Promise<ResearchProject> {
     const project = await this.findById(id, userId);
     if (!project) throw new Error(`Project ${id} not found or access denied for user ${userId}`);
     const updated = { ...project, status, updatedAt: new Date() };

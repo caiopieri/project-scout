@@ -16,7 +16,10 @@ export class NodePgSqlExecutor implements SqlExecutor {
     }
   }
 
-  async query<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<SqlQueryResult<T>> {
+  async query<T = Record<string, unknown>>(
+    sql: string,
+    params: unknown[] = [],
+  ): Promise<SqlQueryResult<T>> {
     const result = await this.pool.query(sql, params);
     return {
       rows: result.rows as T[],

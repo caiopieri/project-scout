@@ -35,32 +35,35 @@ export interface SupabaseRestConfig {
   accessToken: string;
 }
 
-const mapProject = (row: ProjectRow): ResearchProject => researchProjectSchema.parse({
-  id: row.id,
-  userId: row.user_id,
-  name: row.name,
-  description: row.description ?? undefined,
-  category: row.category,
-  naturalLanguageQuery: row.natural_language_query,
-  structuredQuery: row.structured_query,
-  interpretation: {
-    confidence: row.interpretation_confidence,
-    ambiguities: row.interpretation_ambiguities,
-    warnings: row.interpretation_warnings,
-    unidentifiedFields: row.unidentified_fields,
-    provider: row.interpreter_provider,
-    model: row.interpreter_model,
-    promptOrRuleVersion: row.interpreter_version,
-    taxonomyVersion: row.taxonomy_version,
-    interpretedAt: row.interpreted_at,
-  },
-  status: row.status,
-  deletedAt: row.deleted_at ? new Date(row.deleted_at) : null,
-  createdAt: new Date(row.created_at),
-  updatedAt: new Date(row.updated_at),
-});
+const mapProject = (row: ProjectRow): ResearchProject =>
+  researchProjectSchema.parse({
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    description: row.description ?? undefined,
+    category: row.category,
+    naturalLanguageQuery: row.natural_language_query,
+    structuredQuery: row.structured_query,
+    interpretation: {
+      confidence: row.interpretation_confidence,
+      ambiguities: row.interpretation_ambiguities,
+      warnings: row.interpretation_warnings,
+      unidentifiedFields: row.unidentified_fields,
+      provider: row.interpreter_provider,
+      model: row.interpreter_model,
+      promptOrRuleVersion: row.interpreter_version,
+      taxonomyVersion: row.taxonomy_version,
+      interpretedAt: row.interpreted_at,
+    },
+    status: row.status,
+    deletedAt: row.deleted_at ? new Date(row.deleted_at) : null,
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at),
+  });
 
-const metadataColumns = (project: CreateResearchProject | UpdateResearchProject): Record<string, unknown> => {
+const metadataColumns = (
+  project: CreateResearchProject | UpdateResearchProject,
+): Record<string, unknown> => {
   if (!project.interpretation) return {};
   return {
     taxonomy_version: project.interpretation.taxonomyVersion,
@@ -79,13 +82,17 @@ export class SupabaseRestResearchProjectRepository implements ResearchProjectRep
   constructor(private readonly config: SupabaseRestConfig) {}
 
   async findById(id: string, userId: string): Promise<ResearchProject | null> {
-    const rows = await this.request<ProjectRow[]>(`research_projects?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}&status=neq.deleted&limit=1`);
+    const rows = await this.request<ProjectRow[]>(
+      `research_projects?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}&status=neq.deleted&limit=1`,
+    );
     return rows[0] ? mapProject(rows[0]) : null;
   }
 
   async findByUserId(userId: string, includeDeleted = false): Promise<ResearchProject[]> {
     const status = includeDeleted ? '' : '&status=neq.deleted';
-    const rows = await this.request<ProjectRow[]>(`research_projects?user_id=eq.${encodeURIComponent(userId)}${status}&order=updated_at.desc`);
+    const rows = await this.request<ProjectRow[]>(
+      `research_projects?user_id=eq.${encodeURIComponent(userId)}${status}&order=updated_at.desc`,
+    );
     return rows.map(mapProject);
   }
 
@@ -107,11 +114,19 @@ export class SupabaseRestResearchProjectRepository implements ResearchProjectRep
     return mapProject(rows[0]);
   }
 
-  async update(id: string, userId: string, project: UpdateResearchProject): Promise<ResearchProject> {
-    const payload: Record<string, unknown> = { updated_at: new Date().toISOString(), ...metadataColumns(project) };
+  async update(
+    id: string,
+    userId: string,
+    project: UpdateResearchProject,
+  ): Promise<ResearchProject> {
+    const payload: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+      ...metadataColumns(project),
+    };
     if (project.name !== undefined) payload.name = project.name;
     if (project.description !== undefined) payload.description = project.description;
-    if (project.naturalLanguageQuery !== undefined) payload.natural_language_query = project.naturalLanguageQuery;
+    if (project.naturalLanguageQuery !== undefined)
+      payload.natural_language_query = project.naturalLanguageQuery;
     if (project.structuredQuery !== undefined) {
       payload.structured_query = project.structuredQuery;
       payload.category = project.structuredQuery.category ?? 'unknown';
@@ -128,13 +143,25 @@ export class SupabaseRestResearchProjectRepository implements ResearchProjectRep
   }
 
   async softDelete(id: string, userId: string): Promise<void> {
-    await this.patchOne(id, userId, { status: 'deleted', deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+    await this.patchOne(id, userId, {
+      status: 'deleted',
+      deleted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
   }
 
-  private async patchOne(id: string, userId: string, body: Record<string, unknown>): Promise<ResearchProject> {
-    const rows = await this.request<ProjectRow[]>(`research_projects?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}&status=neq.deleted`, {
-      method: 'PATCH', body: JSON.stringify(body),
-    });
+  private async patchOne(
+    id: string,
+    userId: string,
+    body: Record<string, unknown>,
+  ): Promise<ResearchProject> {
+    const rows = await this.request<ProjectRow[]>(
+      `research_projects?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}&status=neq.deleted`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      },
+    );
     if (!rows[0]) throw new Error('Project not found or access denied.');
     return mapProject(rows[0]);
   }

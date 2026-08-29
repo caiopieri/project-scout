@@ -7,20 +7,21 @@ describe('text analysis transport boundary', () => {
     const description = 'x'.repeat(TEXT_ANALYSIS_DESCRIPTION_MAX_LENGTH + 5);
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () =>
-        new Response(
-          JSON.stringify([
-            {
-              analysis_run_id: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa',
-              listing_id: 'bbbbbbbb-bbbb-4bbb-abbb-bbbbbbbbbbbb',
-              title: 'Oversized listing',
-              description,
-              condition: 'used',
-              attempt_count: 1,
-            },
-          ]),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        ),
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify([
+              {
+                analysis_run_id: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa',
+                listing_id: 'bbbbbbbb-bbbb-4bbb-abbb-bbbbbbbbbbbb',
+                title: 'Oversized listing',
+                description,
+                condition: 'used',
+                attempt_count: 1,
+              },
+            ]),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          ),
       ),
     );
 

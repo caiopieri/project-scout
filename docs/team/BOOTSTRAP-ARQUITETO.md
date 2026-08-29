@@ -73,12 +73,12 @@ handoff.
 
 ### O que a execução live já provou, e o que não provou
 
-| Provado | Não provado |
-| ------- | ----------- |
-| 210 chamadas Browse reais, orçamento respeitado | Execução que fecha com contadores preenchidos |
-| Paginação real (offsets 0, 100, 200) | Caminho de escrita em volume |
-| 207 anúncios reais persistidos numa execução | Que o usuário consiga ler os 207 sem 414 |
-| Três anúncios conferidos no navegador, reais | Qualquer coisa sobre preço de referência ou custo |
+| Provado                                         | Não provado                                       |
+| ----------------------------------------------- | ------------------------------------------------- |
+| 210 chamadas Browse reais, orçamento respeitado | Execução que fecha com contadores preenchidos     |
+| Paginação real (offsets 0, 100, 200)            | Caminho de escrita em volume                      |
+| 207 anúncios reais persistidos numa execução    | Que o usuário consiga ler os 207 sem 414          |
+| Três anúncios conferidos no navegador, reais    | Qualquer coisa sobre preço de referência ou custo |
 
 **Coleta ponta a ponta ainda é meio gol.** Uma execução gravou 207 anúncios e se
 declarou `failed` com contador zero; outra ficou `running` para sempre depois que
