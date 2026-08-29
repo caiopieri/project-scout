@@ -246,7 +246,9 @@ describe('Milestone 4 Worker producer and consumer', () => {
       vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
         const url = String(input);
         expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer local-service-key');
-        if (url.includes('/rpc/claim_collection_run'))
+        if (url.includes('/rest/v1/collection_runs') && !init?.method)
+          return Response.json([runRow('running', true, 1)]);
+        if (url.includes('/rest/v1/collection_runs') && init?.method === 'PATCH')
           return Response.json([runRow('running', true, 1)]);
         if (url.includes('/rest/v1/research_projects'))
           return Response.json([{ structured_query: criteria }]);

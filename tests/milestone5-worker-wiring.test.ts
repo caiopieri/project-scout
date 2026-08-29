@@ -28,17 +28,17 @@ const criteria = {
   excludedKeywords: [],
 };
 
-const runRow = (status: 'running' | 'completed', provider: string) => ({
+const runRow = (status: 'pending' | 'running' | 'completed', provider: string) => ({
   id: runId,
   project_id: projectId,
   source_id: sourceId,
   status,
   idempotency_key: 'm5-worker-wire',
   queued_at: now,
-  started_at: now,
+  started_at: status === 'running' ? now : null,
   finished_at: status === 'completed' ? now : null,
   lease_expires_at: null,
-  attempt_count: 1,
+  attempt_count: status === 'pending' ? 0 : 1,
   items_found: status === 'completed' ? 1 : 0,
   items_created: 0,
   items_updated: 0,
@@ -135,8 +135,15 @@ describe('Milestone 5 Worker eBay adapter wiring', () => {
       'fetch',
       vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
         const url = String(input);
-        if (url.includes('/rpc/claim_collection_run'))
-          return Response.json([runRow('running', 'ebay-mock-v1')]);
+        if (url.includes('/rest/v1/collection_runs') && !init?.method)
+          return Response.json([runRow('pending', 'ebay-mock-v1')]);
+        if (url.includes('/rest/v1/collection_runs') && init?.method === 'PATCH') {
+          if (url.includes('status=eq.pending'))
+            return Response.json([runRow('running', 'ebay-mock-v1')]);
+          const body = JSON.parse(String(init.body)) as { provider?: string };
+          collectionPatches.push(body);
+          return Response.json([runRow('running', body.provider ?? 'ebay-api-sandbox-v1')]);
+        }
         if (url.includes('/rest/v1/collection_runs') && init?.method === 'PATCH') {
           const body = JSON.parse(String(init.body)) as { status?: string; provider?: string };
           collectionPatches.push(body);
@@ -259,8 +266,13 @@ describe('Milestone 5 Worker eBay adapter wiring', () => {
           expires_in: 7200,
           token_type: 'Application Access Token',
         });
-      if (url.includes('/rpc/claim_collection_run'))
+      if (url.includes('/rest/v1/collection_runs') && !init?.method)
+        return Response.json([runRow('pending', 'ebay-api-production-v1')]);
+      if (url.includes('/rest/v1/collection_runs') && init?.method === 'PATCH') {
+        if (url.includes('status=eq.pending'))
+          return Response.json([runRow('running', 'ebay-api-production-v1')]);
         return Response.json([runRow('running', 'ebay-api-production-v1')]);
+      }
       if (url.includes('/rest/v1/collection_runs') && init?.method === 'PATCH')
         return Response.json([runRow('running', 'ebay-api-production-v1')]);
       if (url.includes('/rpc/complete_collection_run_with_health'))
@@ -358,10 +370,10 @@ describe('Milestone 5 Worker eBay adapter wiring', () => {
           token_type: 'Application Access Token',
         });
       }
-      if (url.includes('/rpc/claim_collection_run')) {
-        const body = JSON.parse(String(init?.body)) as { p_run_id: string };
-        return Response.json([runRow('running', 'ebay-api-production-v1', body.p_run_id)]);
-      }
+      if (url.includes('/rest/v1/collection_runs') && !init?.method)
+        return Response.json([runRow('pending', 'ebay-api-production-v1')]);
+      if (url.includes('/rest/v1/collection_runs') && init?.method === 'PATCH')
+        return Response.json([runRow('running', 'ebay-api-production-v1')]);
       if (url.includes('/rest/v1/collection_runs') && init?.method === 'PATCH')
         return Response.json([runRow('running', 'ebay-api-production-v1')]);
       if (url.includes('/rpc/complete_collection_run_with_health'))

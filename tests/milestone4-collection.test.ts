@@ -55,6 +55,9 @@ class MemoryRunRepository implements CollectionRunRepository {
   };
   criteria: ResearchCriteria | null = criteria;
   lastHealth: CollectorHealth | undefined;
+  claimCalls = 0;
+  releaseCalls = 0;
+  failCalls = 0;
 
   async createOrFind(_input: CreateCollectionRunInput) {
     return { run: this.run, created: true };
@@ -69,9 +72,21 @@ class MemoryRunRepository implements CollectionRunRepository {
     this.run = { ...this.run, queuedAt: new Date() };
     return this.run;
   }
-  async claim(id: string) {
-    if (id !== this.run.id || this.run.status !== 'pending') return null;
-    this.run = { ...this.run, status: 'running', attemptCount: this.run.attemptCount + 1 };
+  async claim(id: string, expectedAttemptCount: number, startedAt?: Date) {
+    this.claimCalls += 1;
+    if (
+      id !== this.run.id ||
+      this.run.status !== 'pending' ||
+      this.run.attemptCount !== expectedAttemptCount
+    )
+      return null;
+    this.run = {
+      ...this.run,
+      status: 'running',
+      attemptCount: this.run.attemptCount + 1,
+      startedAt: startedAt ?? new Date(),
+      leaseExpiresAt: new Date(Date.now() + 300_000),
+    };
     return this.run;
   }
   async setProvider(_id: string, provider: string) {
@@ -97,6 +112,7 @@ class MemoryRunRepository implements CollectionRunRepository {
     return this.run;
   }
   async releaseForRetry(_id: string, error: ConnectorError, health?: CollectorHealth) {
+    this.releaseCalls += 1;
     this.lastHealth = health;
     this.run = {
       ...this.run,
@@ -108,6 +124,7 @@ class MemoryRunRepository implements CollectionRunRepository {
     return this.run;
   }
   async fail(_id: string, error: ConnectorError, health?: CollectorHealth) {
+    this.failCalls += 1;
     this.lastHealth = health;
     this.run = {
       ...this.run,
@@ -425,5 +442,92 @@ describe('Milestone 4 Collection Gateway', () => {
       new DefaultCollectionGateway(new MockEbayConnector()),
     ).process(createCollectionTask(runId));
     expect(outcome).toEqual({ action: 'retry', delaySeconds: 30 });
+    expect(repository.claimCalls).toBe(0);
+  });
+
+  it('does not close a running lease that is absent or expired on first delivery', async () => {
+    const repository = new MemoryRunRepository();
+    repository.run = { ...repository.run, status: 'running' };
+    const processor = new CollectionTaskProcessor(
+      repository,
+      new DefaultCollectionGateway(new MockEbayConnector()),
+    );
+    await expect(processor.process(createCollectionTask(runId), 0)).resolves.toEqual({
+      action: 'retry',
+      delaySeconds: 30,
+    });
+    repository.run = {
+      ...repository.run,
+      leaseExpiresAt: new Date(Date.now() - 1),
+    };
+    await expect(processor.process(createCollectionTask(runId), 1)).resolves.toEqual({
+      action: 'retry',
+      delaySeconds: 30,
+    });
+    expect(repository.failCalls).toBe(0);
+    expect(repository.claimCalls).toBe(0);
+  });
+
+  it('closes only a redelivered expired run as an orphan without resolving a gateway', async () => {
+    const repository = new MemoryRunRepository();
+    repository.run = {
+      ...repository.run,
+      status: 'running',
+      leaseExpiresAt: new Date(Date.now() - 1),
+    };
+    const resolver = { resolve: vi.fn() };
+    const outcome = await new CollectionTaskProcessor(repository, resolver).process(
+      createCollectionTask(runId),
+      2,
+    );
+    expect(outcome).toEqual({ action: 'ack', status: 'failed' });
+    expect(repository.run).toMatchObject({
+      status: 'failed',
+      errorCode: 'COLLECTION_RUN_ORPHANED',
+    });
+    expect(repository.failCalls).toBe(1);
+    expect(repository.releaseCalls).toBe(0);
+    expect(resolver.resolve).not.toHaveBeenCalled();
+  });
+
+  it('fails terminally after collection returns instead of retrying and recollecting', async () => {
+    const repository = new MemoryRunRepository();
+    const connector = new MockEbayConnector();
+    const search = vi.spyOn(connector, 'search');
+    const triage = {
+      process: vi.fn(async () => {
+        throw new ConnectorError('triage write failed', 'transient', 'TRIAGE_WRITE_FAILED');
+      }),
+    };
+    const ingestor = {
+      ingest: vi.fn(async () => ({
+        itemsCreated: 5,
+        itemsUpdated: 0,
+        listingIds: [],
+        listingIdsByExternalId: {},
+      })),
+    };
+    const processor = new CollectionTaskProcessor(
+      repository,
+      new DefaultCollectionGateway(connector),
+      3,
+      ingestor,
+      undefined,
+      undefined,
+      undefined,
+      triage,
+    );
+
+    await expect(processor.process(createCollectionTask(runId))).resolves.toEqual({
+      action: 'ack',
+      status: 'failed',
+    });
+    expect(repository.releaseCalls).toBe(0);
+    expect(repository.run).toMatchObject({
+      status: 'failed',
+      errorCode: 'TRIAGE_WRITE_FAILED',
+      error: 'triage write failed',
+    });
+    expect(search).toHaveBeenCalledOnce();
   });
 });

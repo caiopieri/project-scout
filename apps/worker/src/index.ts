@@ -12,6 +12,7 @@ import {
   GenericListingMapper,
   ListingIngestionService,
   SourceCollectionGatewayRegistry,
+  normalizeDeliveryAttempts,
   type CollectionLimits,
 } from '@scout/collection';
 import { SupabaseRestCollectionRunRepository } from '@scout/database/collection';
@@ -629,7 +630,10 @@ export default {
           ),
           queryFamilyRepository,
         );
-        const outcome = await processor.process(message.body);
+        const outcome = await processor.process(
+          message.body,
+          normalizeDeliveryAttempts(message.attempts),
+        );
         if (outcome.action === 'retry') message.retry({ delaySeconds: outcome.delaySeconds });
         else message.ack();
       } catch (error) {

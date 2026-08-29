@@ -256,6 +256,9 @@ export type CollectionTaskOutcome =
   | { action: 'ack'; status: 'completed' | 'ignored' | 'failed' }
   | { action: 'retry'; delaySeconds: number };
 
+export const normalizeDeliveryAttempts = (value: unknown): number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 1 ? value : 1;
+
 export class CollectionTaskProcessor {
   constructor(
     private readonly repository: CollectionRunRepository,
@@ -269,18 +272,53 @@ export class CollectionTaskProcessor {
     private readonly queryFamilyRepository?: import('@scout/domain').SearchQueryFamilyRepository,
   ) {}
 
-  async process(rawTask: unknown): Promise<CollectionTaskOutcome> {
+  async process(rawTask: unknown, rawDeliveryAttempts: unknown = 1): Promise<CollectionTaskOutcome> {
     const parsed = collectionTaskSchema.safeParse(rawTask);
     if (!parsed.success) return { action: 'ack', status: 'failed' };
 
-    const run = await this.repository.claim(parsed.data.runId);
+    const deliveryAttempts = normalizeDeliveryAttempts(rawDeliveryAttempts);
+    const observed = await this.repository.findByRunId(parsed.data.runId);
+    if (!observed) return { action: 'ack', status: 'ignored' };
+    if (observed.status === 'running') {
+      const leaseExpired = observed.leaseExpiresAt && observed.leaseExpiresAt < new Date();
+      if (leaseExpired && deliveryAttempts > 1) {
+        const orphaned = new ConnectorError(
+          'Collection run lease expired before a message redelivery claimed it.',
+          'permanent',
+          'COLLECTION_RUN_ORPHANED',
+        );
+        await this.repository.fail(
+          observed.id,
+          orphaned,
+          buildDegradedCollectorHealth(
+            observed.id,
+            Math.max(1, observed.attemptCount),
+            observed.sourceId,
+            observed.provider,
+            1,
+            orphaned,
+          ),
+        );
+        return { action: 'ack', status: 'failed' };
+      }
+      return { action: 'retry', delaySeconds: 30 };
+    }
+    if (observed.status !== 'pending') return { action: 'ack', status: 'ignored' };
+
+    const run = await this.repository.claim(
+      observed.id,
+      observed.attemptCount,
+      observed.startedAt,
+    );
     if (!run) {
-      const existing = await this.repository.findByRunId(parsed.data.runId);
-      if (existing?.status === 'running') return { action: 'retry', delaySeconds: 30 };
+      const current = await this.repository.findByRunId(parsed.data.runId);
+      if (current?.status === 'running' || current?.status === 'pending')
+        return { action: 'retry', delaySeconds: 30 };
       return { action: 'ack', status: 'ignored' };
     }
 
     let gateway: CollectionGateway | undefined;
+    let collectionReturned = false;
     try {
       gateway =
         'resolve' in this.gatewayOrResolver
@@ -307,6 +345,7 @@ export class CollectionTaskProcessor {
             queryFamily.queries.map(({ query }) => query),
           )
         : await gateway.collect(criteria);
+      collectionReturned = true;
       if (queryFamily && this.queryFamilyRepository) {
         try {
           await this.queryFamilyRepository.saveFamily({
@@ -398,7 +437,7 @@ export class CollectionTaskProcessor {
               'permanent',
               'UNEXPECTED_COLLECTION_ERROR',
             );
-      if (error.kind === 'transient' && run.attemptCount < this.maxAttempts) {
+      if (error.kind === 'transient' && !collectionReturned && run.attemptCount < this.maxAttempts) {
         await this.repository.releaseForRetry(
           run.id,
           error,

@@ -90,11 +90,23 @@ export class SupabaseRestCollectionRunRepository implements CollectionRunReposit
     return mapRun(rows[0]);
   }
 
-  async claim(id: string) {
-    const rows = await this.request<CollectionRunRow[]>('rpc/claim_collection_run', {
-      method: 'POST',
-      body: JSON.stringify({ p_run_id: id }),
-    });
+  async claim(id: string, expectedAttemptCount: number, startedAt?: Date) {
+    const claimedAt = new Date();
+    const rows = await this.request<CollectionRunRow[]>(
+      `collection_runs?id=eq.${encodeURIComponent(id)}&status=eq.pending&attempt_count=eq.${expectedAttemptCount}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: 'running',
+          started_at: (startedAt ?? claimedAt).toISOString(),
+          lease_expires_at: new Date(claimedAt.getTime() + 5 * 60 * 1000).toISOString(),
+          attempt_count: expectedAttemptCount + 1,
+          error: null,
+          error_kind: null,
+          error_code: null,
+        }),
+      },
+    );
     return rows[0] ? mapRun(rows[0]) : null;
   }
 
@@ -169,7 +181,13 @@ export class SupabaseRestCollectionRunRepository implements CollectionRunReposit
         p_health: parsedHealth,
       }),
     }).then((rows) => {
-      if (!rows[0]) throw new Error('Collection run failure transition was rejected.');
+      if (!rows[0]) {
+        return this.findByRunId(id).then((current) => {
+          if (current && (current.status === 'completed' || current.status === 'failed'))
+            return current;
+          throw new Error('Collection run failure transition was rejected.');
+        });
+      }
       return mapRun(rows[0]);
     });
   }
