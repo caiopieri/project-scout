@@ -72,7 +72,7 @@
 | Raw store content-addressed (R2)                   | ✅     | SHA-256, schema version                                                                                                                                                                                    |
 | Normalização + upsert transacional                 | ✅     | Identidade `(source_id, external_id)`                                                                                                                                                                      |
 | Webhook de privacidade eBay                        | ✅     | Assinatura verificada, fila durável, R2 antes de PostgreSQL                                                                                                                                                |
-| UI de resultados                                   | 🟡     | Repositório lê IDs em blocos de 50 e recompõe ordem em fixture de 123; painel de execução mostra estado/funil, motivos, posição de chamadas e estado parcial; live ≥100 e custo monetário seguem pendentes |
+| UI de resultados                                   | 🟡     | Repositório lê IDs em blocos de 50 e recompõe ordem em fixture de 123; painel de execução foi exercitado durante coleta live e mostrou fonte, funil, contadores e posição de chamadas; a reidratação de runs históricas não existe e o acompanhamento live caiu duas vezes no Wrangler antes de carregar motivos/estado final |
 | `/api/*` em produção                               | ❌     | Desabilitado (`PUBLIC_API_ENABLED=false`)                                                                                                                                                                  |
 
 ## Dívidas conhecidas
@@ -89,3 +89,7 @@
 5. `collection_runs.estimated_cost` permanece em zero porque não representa
    chamadas. A posição de requests passa a ser persistida quando o connector a
    reporta; quota efetiva, custo monetário e replay operacional seguem pendentes.
+6. O painel de execução não reidrata uma run histórica; ele só preenche o funil
+   após iniciar uma coleta. A tela live também depende de o runtime manter o
+   acompanhamento até o estado terminal; duas tentativas do R4 perderam a
+   conexão do Wrangler após a 17ª chamada e uma deixou uma run `running`.
