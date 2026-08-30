@@ -53,6 +53,9 @@ export interface EbayRequestTelemetryEvent {
   status?: number;
   errorCode?: string;
   retryAfterSeconds?: number;
+  total?: number;
+  nextPresent?: boolean;
+  q?: string;
 }
 
 export interface EbayRequestBudgetSnapshot {
@@ -131,7 +134,21 @@ export class EbayApiAdapter implements SourceConnector {
       environment: this.config.environment,
       marketplaceId: this.marketplaceId,
     });
-    const raw = await this.requestJson(url, 'search');
+    const raw = await this.requestJson(url, 'search', (data) => {
+      const response = ebaySearchResponseSchema.safeParse(data);
+      if (!response.success) {
+        throw new ConnectorError(
+          'eBay search returned an invalid payload.',
+          'permanent',
+          'EBAY_SEARCH_INVALID_RESPONSE',
+        );
+      }
+      return {
+        total: response.data.total,
+        nextPresent: response.data.next !== undefined,
+        q: url.searchParams.get('q') ?? '',
+      };
+    });
     const response = ebaySearchResponseSchema.safeParse(raw);
     if (!response.success) {
       throw new ConnectorError(
@@ -215,7 +232,13 @@ export class EbayApiAdapter implements SourceConnector {
     }
   }
 
-  private async requestJson(url: URL, operation: EbayRequestOperation): Promise<unknown> {
+  private async requestJson(
+    url: URL,
+    operation: EbayRequestOperation,
+    getSuccessTelemetry?: (
+      data: unknown,
+    ) => Pick<EbayRequestTelemetryEvent, 'total' | 'nextPresent' | 'q'> | undefined,
+  ): Promise<unknown> {
     const maxAttempts = this.config.maxAttempts ?? 3;
     const maxRequests = this.config.maxBrowseRequests;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -278,6 +301,7 @@ export class EbayApiAdapter implements SourceConnector {
             observedAt: this.now(),
             outcome: 'success',
             status: response.status,
+            ...(getSuccessTelemetry?.(json.data) ?? {}),
           });
           return json.data;
         }

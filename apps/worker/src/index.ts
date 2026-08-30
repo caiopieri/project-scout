@@ -157,6 +157,9 @@ const logEbayRequestTelemetry: EbayRequestTelemetryLogger = (event) => {
     outcome: event.outcome,
     ...(event.status === undefined ? {} : { status: event.status }),
     ...(event.errorCode === undefined ? {} : { errorCode: event.errorCode }),
+    ...(event.operation === 'search'
+      ? { total: event.total, nextPresent: event.nextPresent, q: event.q }
+      : {}),
   });
 };
 

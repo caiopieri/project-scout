@@ -196,6 +196,9 @@ describe('Milestone 5 eBay official API adapter', () => {
         observedAt: new Date('2026-07-28T12:00:00.000Z').getTime(),
         outcome: 'success',
         status: 200,
+        total: 3,
+        nextPresent: true,
+        q: 'Apple iPhone 13 128GB',
       },
     ]);
     expect(events[0]).not.toHaveProperty('url');
@@ -206,6 +209,56 @@ describe('Milestone 5 eBay official API adapter', () => {
       requestsRemaining: 1,
       exhausted: false,
     });
+  });
+
+  it('emits search telemetry with nextPresent false when eBay omits next', async () => {
+    const events: EbayRequestTelemetryEvent[] = [];
+    const fetcher = vi.fn<EbayFetch>(async (input) =>
+      String(input).includes('/oauth2/token')
+        ? tokenResponse()
+        : Response.json({ total: 0, itemSummaries: [] }),
+    );
+    const connector = adapter(
+      fetcher,
+      { maxAttempts: 1, maxBrowseRequests: 2 },
+      { onRequest: (event) => events.push(event) },
+    );
+
+    await connector.search({ criteria, limit: 1 });
+
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        operation: 'search',
+        outcome: 'success',
+        total: 0,
+        nextPresent: false,
+        q: 'Apple iPhone 13 128GB',
+      }),
+    );
+  });
+
+  it('does not add search pagination telemetry fields to details events', async () => {
+    const events: EbayRequestTelemetryEvent[] = [];
+    const fetcher = vi.fn<EbayFetch>(async (input) =>
+      String(input).includes('/oauth2/token') ? tokenResponse() : Response.json(itemFixture),
+    );
+    const connector = adapter(
+      fetcher,
+      { maxAttempts: 1, maxBrowseRequests: 2 },
+      { onRequest: (event) => events.push(event) },
+    );
+
+    await connector.fetchDetails('v1|145000000001|0');
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      operation: 'details',
+      outcome: 'success',
+      status: 200,
+    });
+    expect(events[0]).not.toHaveProperty('total');
+    expect(events[0]).not.toHaveProperty('nextPresent');
+    expect(events[0]).not.toHaveProperty('q');
   });
 
   it('does not let a telemetry consumer break requests', async () => {
