@@ -214,13 +214,10 @@ export class BoundedCollectionQueryRunner {
     let pagesFetched = 0;
     let truncated = false;
     let requestMetrics: import('@scout/schemas').CollectionRequestMetrics | undefined;
-    for (const [index, query] of boundedQueries.entries()) {
+    for (const query of boundedQueries) {
       const remaining = limit - items.length;
       if (remaining <= 0) break;
-      const queriesRemaining = boundedQueries.length - index;
-      const perQueryLimit =
-        query === undefined ? remaining : Math.max(1, Math.ceil(remaining / queriesRemaining));
-      const result = await this.gateway.collect(criteria, perQueryLimit, query, {
+      const result = await this.gateway.collect(criteria, remaining, query, {
         previewFilter: this.previewFilter,
         excludeExternalIds: seenExternalIds,
         onProgress: options.onProgress
