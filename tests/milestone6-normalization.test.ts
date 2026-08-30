@@ -66,6 +66,9 @@ describe('Milestone 6 normalization and deduplication', () => {
       priceMinor: 29999,
       shippingCostMinor: 1550,
       totalVisibleCostMinor: 31549,
+      rawDataMetadata: {
+        landedCost: expect.objectContaining({ status: 'known', totalMinor: 31549 }),
+      },
       location: 'Austin, TX, 78701, US',
       status: 'active',
       seller: {
@@ -84,6 +87,15 @@ describe('Milestone 6 normalization and deduplication', () => {
     expect(listing.shippingCostMinor).toBeNull();
     expect(listing.totalVisibleCostMinor).toBe(listing.priceMinor);
     expect(listing.rawDataMetadata.shippingCostKnown).toBe(false);
+    expect(listing.rawDataMetadata.landedCost).toMatchObject({
+      status: 'indeterminate',
+      totalMinor: null,
+      missing: ['shipping'],
+      components: {
+        itemPrice: { amountMinor: listing.priceMinor, origin: 'informado' },
+        shipping: { amountMinor: null, origin: 'desconhecido' },
+      },
+    });
     expect(() =>
       normalizedListingInputSchema.parse({
         ...listing,

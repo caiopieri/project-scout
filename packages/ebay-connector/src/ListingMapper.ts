@@ -1,5 +1,6 @@
-import type { ListingMapper } from '@scout/domain';
+import { calculateUsToUsLandedCost, type ListingMapper } from '@scout/domain';
 import {
+  listingRawDataMetadataSchema,
   normalizedListingInputSchema,
   rawListingRecordSchema,
   type InferredProduct,
@@ -55,6 +56,11 @@ export class EbayListingMapper implements ListingMapper {
         )
         .filter((amount): amount is number => amount !== undefined) ?? [];
     const shippingCostMinor = shippingAmounts.length > 0 ? Math.min(...shippingAmounts) : null;
+    const landedCost = calculateUsToUsLandedCost({
+      itemPriceMinor: record.preview.price.amountMinor,
+      shippingCostMinor,
+      currency: record.preview.price.currency,
+    });
     const location = item?.itemLocation
       ? [
           item.itemLocation.city,
@@ -94,7 +100,10 @@ export class EbayListingMapper implements ListingMapper {
       currency: record.preview.price.currency,
       priceMinor: record.preview.price.amountMinor,
       shippingCostMinor,
-      totalVisibleCostMinor: record.preview.price.amountMinor + (shippingCostMinor ?? 0),
+      totalVisibleCostMinor:
+        shippingCostMinor === null
+          ? record.preview.price.amountMinor
+          : record.preview.price.amountMinor + shippingCostMinor,
       seller: record.preview.sellerExternalId
         ? {
             externalId: record.preview.sellerExternalId,
@@ -116,11 +125,12 @@ export class EbayListingMapper implements ListingMapper {
       specifications,
       images: [...new Set(imageUrls)].map((url, position) => ({ url, position })),
       inferredProduct: inferProduct(item?.title ?? record.preview.title, specifications),
-      rawDataMetadata: {
+      rawDataMetadata: listingRawDataMetadataSchema.parse({
         conditionId: item?.conditionId ?? optionalString(record.payload, 'conditionId') ?? null,
         marketplaceId: item?.listingMarketplaceId ?? null,
         shippingCostKnown: shippingCostMinor !== null,
-      },
+        landedCost,
+      }),
     });
   }
 }

@@ -277,6 +277,99 @@ export const productIdentityMediaSchema = z
   .default({ imageCount: 0, primaryImagePresent: false });
 export type ProductIdentityMedia = z.infer<typeof productIdentityMediaSchema>;
 
+const landedCostMinorSchema = z
+  .number()
+  .int()
+  .nonnegative()
+  .refine(Number.isSafeInteger, 'Minor units must be a safe integer');
+
+export const landedCostComponentOriginSchema = z.enum([
+  'informado',
+  'tabelado',
+  'estimado',
+  'desconhecido',
+]);
+export type LandedCostComponentOrigin = z.infer<typeof landedCostComponentOriginSchema>;
+
+export const landedCostComponentSchema = z
+  .object({
+    amountMinor: landedCostMinorSchema.nullable(),
+    currency: z.string().length(3),
+    origin: landedCostComponentOriginSchema,
+  })
+  .strict();
+export type LandedCostComponent = z.infer<typeof landedCostComponentSchema>;
+
+export const landedCostSchema = z
+  .object({
+    route: z.literal('US_TO_US'),
+    policyVersion: z.literal('landed-cost.us-us.v1'),
+    status: z.enum(['known', 'indeterminate']),
+    currency: z.string().length(3),
+    components: z
+      .object({ itemPrice: landedCostComponentSchema, shipping: landedCostComponentSchema })
+      .strict(),
+    totalMinor: landedCostMinorSchema.nullable(),
+    missing: z.array(z.string().min(1)),
+  })
+  .strict()
+  .superRefine((cost, context) => {
+    const { itemPrice, shipping } = cost.components;
+    const issue = (path: (string | number)[], message: string) =>
+      context.addIssue({ code: z.ZodIssueCode.custom, path, message });
+    if (itemPrice.currency !== cost.currency || shipping.currency !== cost.currency)
+      issue(['currency'], 'Landed-cost components must use the result currency.');
+    if (itemPrice.origin !== 'informado' || itemPrice.amountMinor === null)
+      issue(['components', 'itemPrice'], 'Item price must be informed and valued.');
+    if (cost.status === 'known') {
+      if (
+        itemPrice.amountMinor === null ||
+        shipping.origin !== 'informado' ||
+        shipping.amountMinor === null ||
+        cost.totalMinor !== itemPrice.amountMinor + shipping.amountMinor
+      )
+        issue(['totalMinor'], 'Known landed cost must equal item price plus shipping.');
+      if (cost.missing.length)
+        issue(['missing'], 'Known landed cost cannot have missing components.');
+    } else {
+      if (
+        shipping.origin !== 'desconhecido' ||
+        shipping.amountMinor !== null ||
+        cost.totalMinor !== null
+      )
+        issue(['totalMinor'], 'Indeterminate landed cost must not have a total.');
+      if (!cost.missing.includes('shipping'))
+        issue(['missing'], 'Indeterminate landed cost must name missing shipping.');
+    }
+  });
+export type LandedCost = z.infer<typeof landedCostSchema>;
+
+export const usToUsLandedCostInputSchema = z
+  .object({
+    itemPriceMinor: landedCostMinorSchema,
+    shippingCostMinor: landedCostMinorSchema.nullable(),
+    currency: z.string().length(3),
+  })
+  .strict();
+export type UsToUsLandedCostInput = z.infer<typeof usToUsLandedCostInputSchema>;
+
+export const listingRawDataMetadataSchema = z
+  .object({
+    shippingCostKnown: z.boolean().optional(),
+    landedCost: landedCostSchema.optional(),
+  })
+  .catchall(jsonValueSchema)
+  .superRefine((metadata, context) => {
+    const expectedStatus = metadata.shippingCostKnown === true ? 'known' : 'indeterminate';
+    if (metadata.landedCost && metadata.landedCost.status !== expectedStatus) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['landedCost', 'status'],
+        message: 'Landed-cost status must match the explicit shipping-known signal.',
+      });
+    }
+  });
+
 // Listing Schema
 export const listingSchema = z.object({
   id: z.string().uuid(),
@@ -306,11 +399,37 @@ export const listingSchema = z.object({
 });
 export type Listing = z.infer<typeof listingSchema>;
 
-export const listingTransportSchema = listingSchema.extend({
-  publishedAt: z.coerce.date().optional(),
-  firstCollectedAt: z.coerce.date(),
-  lastUpdatedAt: z.coerce.date(),
-});
+export const listingTransportSchema = listingSchema
+  .extend({
+    publishedAt: z.coerce.date().optional(),
+    firstCollectedAt: z.coerce.date(),
+    lastUpdatedAt: z.coerce.date(),
+    landedCost: landedCostSchema.optional(),
+    rawDataMetadata: listingRawDataMetadataSchema.default({}),
+  })
+  .superRefine((listing, context) => {
+    if (!listing.landedCost) return;
+    if (
+      listing.landedCost.status === 'known' &&
+      listing.rawDataMetadata.shippingCostKnown !== true
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['landedCost', 'status'],
+        message: 'Known landed cost requires an explicit known shipping signal.',
+      });
+    }
+    if (
+      listing.landedCost.status === 'indeterminate' &&
+      listing.rawDataMetadata.shippingCostKnown === true
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['landedCost', 'status'],
+        message: 'Known shipping cannot have an indeterminate landed cost.',
+      });
+    }
+  });
 export type ListingTransport = z.infer<typeof listingTransportSchema>;
 
 // Listing Snapshot Schema

@@ -144,6 +144,10 @@ export type {
   CrossSourceIdentityCandidateTransport,
 };
 
+export { calculateUsToUsLandedCost } from './landed-cost';
+export type { UsToUsLandedCostInput } from '@scout/schemas';
+export type { LandedCost, LandedCostComponent, LandedCostComponentOrigin } from '@scout/schemas';
+
 // Repository Ports
 
 export interface ResearchProjectRepository {
