@@ -87,11 +87,17 @@ Handoffs: [S1.1](docs/handoffs/HANDOFF-S1.1.md) ·
 | **S2.2** | Extração dirigida por schema, em lote        | 10–20 anúncios por requisição, cada um envelopado; saída em array validado com id de retorno; anúncio malicioso não altera o comportamento nem contamina os vizinhos do lote |
 | **S2.3** | Evidência e defeito a partir de anúncio real | Um anúncio real do eBay produz defeitos e evidências com origem e grau persistidos, e o desconhecido é registrado como desconhecido                                          |
 
+> **Round 2 bloqueado em 2026-08-30**: S2.1–S2.3 exigem `GEMINI_API_KEY` e três
+> decisões do fundador — quais campos do anúncio podem ser enviados ao provedor,
+> política de retenção e privacidade, e orçamento máximo de chamadas por análise.
+> Conforme [AGENTS.md §3](AGENTS.md), o round seguinte **independente** assumiu.
+
 ### Round 3 — Decisão na tela
 
 | #        | Fatia                                                  | Pronto quando                                                                                                                                                                     |
 | -------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **S3.1** | **Custo total na porta** ([spec](docs/custo-total.md)) | Um item importado tem a conta aberta linha a linha com origem por componente; componente ausente bloqueia o ranqueamento em vez de virar zero; câmbio persistido com data e fonte |
+| **S3.1a** | Custo na porta `US → US` ([handoff](docs/handoffs/HANDOFF-S3.1a.md)) | Primeira quebra da S3.1: anúncio com preço e frete conhecidos abre a conta com origem por componente; frete não declarado vira `INDETERMINADO`, fica fora do ranking e nomeia o que falta, em vez de virar zero |
 | **S3.2** | Métricas de mercado                                    | Mediana limpa por IQR por segmento, com `n` e janela visíveis; abaixo do mínimo responde "amostra insuficiente"                                                                   |
 | **S3.3** | Score explicável                                       | Todo score abre a conta: fatores positivos, negativos, ausentes e contraditórios, com a versão da política                                                                        |
 | **S3.4** | Feed, cards e filtros                                  | Lista ranqueada, filtro como lente, paginação estável, triagem por teclado, estados de vazio/parcial/degradado                                                                    |
