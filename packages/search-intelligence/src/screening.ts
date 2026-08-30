@@ -73,7 +73,8 @@ const payloadAspects = (record: RawListingRecord) => {
 const payloadAdditionalImages = (record: RawListingRecord) => {
   const payload = jsonObjectSchema.parse(record.payload);
   const parsed = rawListingImageReferenceSchema.array().safeParse(payload.additionalImages);
-  return parsed.success ? parsed.data.slice(0, 20) : [];
+  const maxAdditionalImages = record.preview.imageUrl ? 19 : 20;
+  return parsed.success ? parsed.data.slice(0, maxAdditionalImages) : [];
 };
 
 const attributeValue = (aspects: ReturnType<typeof payloadAspects>, names: string[]) => {

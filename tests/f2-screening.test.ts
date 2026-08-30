@@ -119,6 +119,29 @@ describe('F2 cheap screening and product identity', () => {
     );
   });
 
+  it('caps total identity media at 20 images while preserving the primary image', () => {
+    const identity = new ProductIdentityEngine().identify(
+      {
+        ...listing('Apple iPhone 13 128GB'),
+        preview: {
+          ...listing('Apple iPhone 13 128GB').preview,
+          imageUrl: 'https://images.example.test/iphone-primary.jpg',
+        },
+        payload: {
+          additionalImages: Array.from({ length: 20 }, (_, index) => ({
+            imageUrl: `https://images.example.test/iphone-${index + 1}.jpg`,
+          })),
+        },
+      },
+      criteria,
+    );
+
+    expect(identity).toMatchObject({
+      media: { imageCount: 20, primaryImagePresent: true },
+    });
+    expect(identity.evidence).toContain('media:additional-images:19');
+  });
+
   it('fails closed for malformed structured attributes and media references', () => {
     const identity = new ProductIdentityEngine().identify(
       {
