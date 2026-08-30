@@ -42,6 +42,33 @@ const defaultValuationPolicy = {
   transactionRate: '0',
 };
 
+const formatMinorMoney = (currency: string, amountMinor: number | null) =>
+  amountMinor === null ? 'indeterminado' : `${currency} ${(amountMinor / 100).toFixed(2)}`;
+
+function LandedCostSummary({ listing }: { listing: ListingTransport }) {
+  const landedCost = listing.landedCost;
+  if (!landedCost || landedCost.status === 'indeterminate') {
+    return (
+      <p className="muted">
+        Custo indeterminado · falta: {landedCost?.missing.join(', ') || 'shipping'}
+      </p>
+    );
+  }
+  return (
+    <div className="muted">
+      <p>
+        Preço: {formatMinorMoney(landedCost.currency, landedCost.components.itemPrice.amountMinor)}{' '}
+        · {landedCost.components.itemPrice.origin}
+      </p>
+      <p>
+        Frete: {formatMinorMoney(landedCost.currency, landedCost.components.shipping.amountMinor)} ·{' '}
+        {landedCost.components.shipping.origin}
+      </p>
+      <p>Custo na porta: {formatMinorMoney(landedCost.currency, landedCost.totalMinor)}</p>
+    </div>
+  );
+}
+
 async function readJson(response: Response): Promise<unknown> {
   const body = await response.json().catch(() => ({ error: 'Resposta inválida do servidor.' }));
   if (!response.ok) {
@@ -1006,14 +1033,18 @@ function ProjectDetail({
   useEffect(() => {
     let cancelled = false;
     void Promise.all(
-      listings.map(async (listing) => {
-        try {
-          const raw = await request(`/api/projects/${project.id}/listings/${listing.id}/valuation`);
-          return [listing.id, opportunityValuationTransportSchema.parse(raw)] as const;
-        } catch {
-          return null;
-        }
-      }),
+      listings
+        .filter((listing) => listing.landedCost?.status === 'known')
+        .map(async (listing) => {
+          try {
+            const raw = await request(
+              `/api/projects/${project.id}/listings/${listing.id}/valuation`,
+            );
+            return [listing.id, opportunityValuationTransportSchema.parse(raw)] as const;
+          } catch {
+            return null;
+          }
+        }),
     ).then((entries) => {
       const validEntries = entries.filter(
         (entry): entry is readonly [string, OpportunityValuationTransport] => entry !== null,
@@ -1148,11 +1179,9 @@ function ProjectDetail({
             <div>
               <div className="meta">eBay · {listing.condition}</div>
               <h3>{listing.title}</h3>
-              <p className="muted">
-                {listing.currency} {listing.totalVisibleCost.toFixed(2)}
-                {listing.location ? ` · ${listing.location}` : ''}
-              </p>
-              {valuations[listing.id] && (
+              <LandedCostSummary listing={listing} />
+              {listing.location ? <p className="muted">{listing.location}</p> : null}
+              {valuations[listing.id] && listing.landedCost?.status === 'known' && (
                 <p className="valuation">
                   Mercado estimado: {listing.currency}{' '}
                   {(valuations[listing.id].estimatedMarketPriceMinor / 100).toFixed(2)} · Compra

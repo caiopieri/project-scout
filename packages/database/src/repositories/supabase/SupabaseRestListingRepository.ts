@@ -1,9 +1,11 @@
 import {
+  listingRawDataMetadataSchema,
   listingTransportSchema,
   priceHistorySchema,
   type ListingTransport,
   type PriceHistory,
 } from '@scout/schemas';
+import { calculateUsToUsLandedCost } from '@scout/domain';
 import { z } from 'zod';
 import type { SupabaseRestConfig } from './SupabaseRestResearchProjectRepository';
 
@@ -42,8 +44,33 @@ interface PriceHistoryRow {
   collected_at: string;
 }
 
-const mapListing = (row: ListingRow): ListingTransport =>
-  listingTransportSchema.parse({
+const decimalToMinor = (value: number | string): number => {
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(String(value));
+  if (!match) throw new Error('Persisted monetary value is not a decimal amount.');
+  const fraction = match[2] ?? '';
+  if (fraction.length > 2 && /[1-9]/.test(fraction.slice(2))) {
+    throw new Error('Persisted monetary value has more than two decimal places.');
+  }
+  const amountMinor = Number(match[1]) * 100 + Number(fraction.padEnd(2, '0').slice(0, 2));
+  if (!Number.isSafeInteger(amountMinor)) throw new Error('Persisted monetary value is unsafe.');
+  return amountMinor;
+};
+
+const deriveLandedCost = (
+  row: ListingRow,
+  metadata: ReturnType<typeof listingRawDataMetadataSchema.parse>,
+) =>
+  calculateUsToUsLandedCost({
+    itemPriceMinor: decimalToMinor(row.price),
+    shippingCostMinor:
+      metadata.shippingCostKnown === true ? decimalToMinor(row.shipping_cost) : null,
+    currency: row.currency,
+  });
+
+const mapListing = (row: ListingRow): ListingTransport => {
+  const rawDataMetadata = listingRawDataMetadataSchema.parse(row.raw_data_metadata);
+  const landedCost = rawDataMetadata.landedCost ?? deriveLandedCost(row, rawDataMetadata);
+  return listingTransportSchema.parse({
     id: row.id,
     sourceId: row.source_id,
     externalId: row.external_id,
@@ -66,8 +93,10 @@ const mapListing = (row: ListingRow): ListingTransport =>
     rawDataPath: row.raw_data_path,
     rawContentHash: row.raw_content_hash ?? undefined,
     rawSchemaVersion: row.raw_schema_version ?? undefined,
-    rawDataMetadata: row.raw_data_metadata,
+    rawDataMetadata,
+    landedCost,
   });
+};
 
 const listingSelect = [
   'id',
@@ -99,6 +128,14 @@ export const LISTING_ID_BATCH_SIZE = 50;
 
 export class SupabaseRestListingRepository {
   constructor(private readonly config: SupabaseRestConfig) {}
+
+  async findById(listingId: string): Promise<ListingTransport | null> {
+    const validatedListingId = z.string().uuid().parse(listingId);
+    const rows = await this.request<ListingRow[]>(
+      `listings?id=eq.${encodeURIComponent(validatedListingId)}&select=${listingSelect}&limit=1`,
+    );
+    return rows[0] ? mapListing(rows[0]) : null;
+  }
 
   async findByProjectId(projectId: string): Promise<ListingTransport[]> {
     const links = await this.request<Array<{ listing_id: string }>>(

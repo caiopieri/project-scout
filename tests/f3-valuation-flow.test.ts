@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { OpportunityValuation, OpportunityValuationRepository } from '@scout/domain';
+import {
+  calculateUsToUsLandedCost,
+  type OpportunityValuation,
+  type OpportunityValuationRepository,
+} from '@scout/domain';
 import { CollectionOpportunityValuationProcessor } from '@scout/valuation';
 import { rawListingRecordSchema, type CollectionResult } from '@scout/schemas';
 
@@ -74,6 +78,49 @@ describe('F3 collection opportunity flow', () => {
       maxPurchasePriceMinor: 82000,
     });
     expect(repository.values[0].missing).toContain('longitudinal price history');
+  });
+
+  it('does not persist valuation for a listing with indeterminate landed cost', async () => {
+    const result: CollectionResult = {
+      items: [record('a', 80000)],
+      pagesFetched: 1,
+      provider: 'fixture',
+    };
+    const repository = new MemoryValuationRepository();
+    const listingRepository = {
+      findById: async () => ({
+        rawDataMetadata: { shippingCostKnown: false },
+        landedCost: calculateUsToUsLandedCost({
+          itemPriceMinor: 80000,
+          shippingCostMinor: null,
+          currency: 'BRL',
+        }),
+      }),
+      getPriceHistory: async () => [],
+    };
+    await new CollectionOpportunityValuationProcessor(
+      repository,
+      undefined,
+      undefined,
+      listingRepository,
+    ).evaluate({
+      sourceId: '00000000-0000-4000-a000-000000000001',
+      result,
+      persistence: {
+        itemsCreated: 1,
+        itemsUpdated: 0,
+        listingIds: ['11111111-1111-4111-a111-111111111111'],
+        listingIdsByExternalId: { a: '11111111-1111-4111-a111-111111111111' },
+      },
+      policy: {
+        processingCostMinor: 5000,
+        desiredMarginMinor: 20000,
+        repairReserveMinor: 1000,
+        transactionCostRate: 0.1,
+      },
+    });
+
+    expect(repository.values).toHaveLength(0);
   });
 
   it('passes listing condition into valuation instead of mixing incompatible comparables', async () => {

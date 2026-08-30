@@ -9,8 +9,19 @@ import type {
   CollectionPersistenceSummary,
   ValuationPolicy,
 } from '@scout/schemas';
-import { valuationMarketContextSchema } from '@scout/schemas';
+import {
+  landedCostSchema,
+  listingRawDataMetadataSchema,
+  valuationMarketContextSchema,
+} from '@scout/schemas';
 import { DeterministicValuationEngine } from './index';
+
+type PersistedListingReader = Pick<ListingRepository, 'getPriceHistory'> & {
+  findById?: (listingId: string) => Promise<{
+    rawDataMetadata: unknown;
+    landedCost?: unknown;
+  } | null>;
+};
 
 const payloadText = (payload: Record<string, unknown>, key: string): string | undefined => {
   const value = payload[key];
@@ -25,7 +36,7 @@ export class CollectionOpportunityValuationProcessor implements CollectionOpport
     private readonly repository: OpportunityValuationRepository,
     private readonly engine = new DeterministicValuationEngine(),
     private readonly clock: () => Date = () => new Date(),
-    private readonly listingRepository?: Pick<ListingRepository, 'getPriceHistory'>,
+    private readonly listingRepository?: PersistedListingReader,
     private readonly observationRepository?: ListingObservationReader,
   ) {}
 
@@ -40,6 +51,23 @@ export class CollectionOpportunityValuationProcessor implements CollectionOpport
       const listingId = input.persistence.listingIdsByExternalId[record.preview.externalId];
       if (!listingId) {
         throw new Error(`Persisted listing is missing for ${record.preview.externalId}.`);
+      }
+      if (this.listingRepository?.findById) {
+        const persistedListing = await this.listingRepository.findById(listingId);
+        if (!persistedListing) continue;
+        const persistedMetadata = listingRawDataMetadataSchema.parse(
+          persistedListing.rawDataMetadata,
+        );
+        const landedCost = persistedListing.landedCost
+          ? landedCostSchema.parse(persistedListing.landedCost)
+          : persistedMetadata.landedCost;
+        if (
+          landedCost?.status === 'indeterminate' ||
+          (landedCost?.status === 'known' && persistedMetadata.shippingCostKnown !== true) ||
+          (!landedCost && persistedMetadata.shippingCostKnown !== true)
+        ) {
+          continue;
+        }
       }
       const historicalPrices = this.listingRepository
         ? (await this.listingRepository.getPriceHistory(listingId)).map((history) => ({
