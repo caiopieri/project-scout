@@ -237,6 +237,25 @@ describe('Milestone 5 eBay official API adapter', () => {
     );
   });
 
+  it('keeps the existing success event before rejecting an invalid search payload', async () => {
+    const events: EbayRequestTelemetryEvent[] = [];
+    const fetcher = vi.fn<EbayFetch>(async (input) =>
+      String(input).includes('/oauth2/token')
+        ? tokenResponse()
+        : Response.json({ itemSummaries: 'invalid' }),
+    );
+    const connector = adapter(fetcher, {}, { onRequest: (event) => events.push(event) });
+
+    await expect(connector.search({ criteria, limit: 1 })).rejects.toMatchObject({
+      code: 'EBAY_SEARCH_INVALID_RESPONSE',
+    });
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ operation: 'search', outcome: 'success', status: 200 });
+    expect(events[0]).not.toHaveProperty('total');
+    expect(events[0]).not.toHaveProperty('nextPresent');
+    expect(events[0]).not.toHaveProperty('q');
+  });
+
   it('does not add search pagination telemetry fields to details events', async () => {
     const events: EbayRequestTelemetryEvent[] = [];
     const fetcher = vi.fn<EbayFetch>(async (input) =>

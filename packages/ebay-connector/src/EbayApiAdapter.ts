@@ -136,13 +136,7 @@ export class EbayApiAdapter implements SourceConnector {
     });
     const raw = await this.requestJson(url, 'search', (data) => {
       const response = ebaySearchResponseSchema.safeParse(data);
-      if (!response.success) {
-        throw new ConnectorError(
-          'eBay search returned an invalid payload.',
-          'permanent',
-          'EBAY_SEARCH_INVALID_RESPONSE',
-        );
-      }
+      if (!response.success) return undefined;
       return {
         total: response.data.total,
         nextPresent: response.data.next !== undefined,
