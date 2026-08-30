@@ -33,7 +33,7 @@
 
 | Fonte                                     | Estado | Observação                                                                                                                                                                                                                                                                           |
 | ----------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| eBay                                      | ✅     | Browse Production foi exercitado live: runs concluídas com 136 e 137 anúncios observados, família de queries, triagem e reobservação de preço; URLs reais foram conferidas. Quota efetiva, custo monetário e replay operacional seguem pendentes |
+| eBay                                      | ✅     | Browse Production foi exercitado live: runs concluídas com 136, 137 e 22 anúncios observados, família de queries, triagem, reobservação de preço e funil live da UI; URLs reais foram conferidas. Quota efetiva, custo monetário e replay operacional seguem pendentes |
 | Mercado Livre                             | 🟡     | Adapter + OAuth escritos, nunca rodaram live; suspenso por decisão de 2026-08-15                                                                                                                                                                                                     |
 | Xianyu                                    | ❌     | Apenas boundary "indisponível"                                                                                                                                                                                                                                                       |
 | OLX, Facebook Marketplace                 | ❌     | Nunca iniciados                                                                                                                                                                                                                                                                      |
@@ -72,7 +72,7 @@
 | Raw store content-addressed (R2)                   | ✅     | SHA-256, schema version                                                                                                                                                                                    |
 | Normalização + upsert transacional                 | ✅     | Identidade `(source_id, external_id)`                                                                                                                                                                      |
 | Webhook de privacidade eBay                        | ✅     | Assinatura verificada, fila durável, R2 antes de PostgreSQL                                                                                                                                                |
-| UI de resultados                                   | 🟡     | Repositório lê IDs em blocos de 50 e recompõe ordem em fixture de 123; painel de execução foi exercitado durante coleta live e mostrou fonte, funil, contadores e posição de chamadas; a reidratação de runs históricas não existe e o acompanhamento live caiu duas vezes no Wrangler antes de carregar motivos/estado final |
+| UI de resultados                                   | ✅     | Repositório lê IDs em blocos de 50 e recompõe ordem; painel de execução foi exercitado por coleta live no eBay Production com fonte, estado, funil, motivos e posição de chamadas até o terminal; a reidratação de runs históricas não existe |
 | `/api/*` em produção                               | ❌     | Desabilitado (`PUBLIC_API_ENABLED=false`)                                                                                                                                                                  |
 
 ## Dívidas conhecidas
@@ -90,6 +90,7 @@
    chamadas. A posição de requests passa a ser persistida quando o connector a
    reporta; quota efetiva, custo monetário e replay operacional seguem pendentes.
 6. O painel de execução não reidrata uma run histórica; ele só preenche o funil
-   após iniciar uma coleta. A tela live também depende de o runtime manter o
-   acompanhamento até o estado terminal; duas tentativas do R4 perderam a
-   conexão do Wrangler após a 17ª chamada e uma deixou uma run `running`.
+   após iniciar uma coleta. Duas tentativas do R4 perderam a conexão do
+   Wrangler após a 17ª chamada; a execução seguinte pelo Miniflare/workerd
+   direto chegou ao terminal, enquanto a run `0c39189b-971e-4234-9e72-f644392ccf72`
+   permanece `running` com `finished_at` nulo como evidência honesta do abandono.
