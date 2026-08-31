@@ -1,4 +1,4 @@
-# Estado real — verificado em 2026-08-30
+# Estado real — verificado em 2026-08-31
 
 > Este é o único documento que declara o que **existe**. Roadmap declara o que
 > vai existir; arquitetura declara como deve ser feito. Se algum outro documento
@@ -54,7 +54,7 @@
 | Score final e ranking de oportunidades     | ❌     | `packages/scoring` era só uma constante; removido                                                                                                                                                                             |
 | Exportação CSV/XLSX                        | ❌     | `packages/exports` era só uma constante; removido                                                                                                                                                                             |
 | Memória de mercado / histórico de preço    | ✅     | Ingestão transacional live gravou duas observações por 135 anúncios reobservados; 279 observações contra 189 snapshots confirmaram snapshots condicionados ao hash |
-| Preço de referência por produto            | ❌     | Depende do acervo acumular ao longo do tempo                                                                                                                                                                                  |
+| Preço de referência por segmento           | ✅     | Rota e tela exibem mediana de preço pedido em minor units por produto inferido + condição; janela de 30 dias, mínimo 10 e IQR 1,5; amostras menores falham fechado                                                                 |
 | Detecção de golpe                          | ❌     | 13 sinais especificados no PRD original §17, nenhum implementado                                                                                                                                                              |
 | Risco de vendedor                          | ❌     | Nenhuma implementação                                                                                                                                                                                                         |
 | Agente conversacional                      | ❌     | Contrato definido em `agente.md`; nada construído                                                                                                                                                                             |
