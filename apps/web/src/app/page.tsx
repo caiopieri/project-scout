@@ -75,10 +75,10 @@ function MarketMetricsSummary({ metrics }: { metrics: MarketMetricsTransport | n
   if (!metrics) return null;
   return (
     <section>
-      <div className="results-head"><div className="eyebrow">Mediana limpa · {metrics.windowDays} dias</div></div>
+      <div className="results-head"><div className="eyebrow">Preço pedido · mediana limpa · {metrics.windowDays} dias</div></div>
       {metrics.segments.map((segment) => (
         <p className="muted" key={`${segment.product.brand}-${segment.product.model}-${segment.product.variant ?? ''}-${segment.condition}-${segment.currency}`}>
-          {segment.product.brand} {segment.product.model}{segment.product.variant ? ` ${segment.product.variant}` : ''} · {segment.condition} · {segment.status === 'known' ? `Mediana: ${formatMinorMoney(segment.currency, segment.medianMinor)}` : 'Amostra insuficiente'} · n {segment.nRaw} → {segment.nTrimmed} ({segment.nDiscarded} descartado(s))
+          {segment.product.brand} {segment.product.model}{segment.product.variant ? ` ${segment.product.variant}` : ''} · {segment.condition} · {segment.status === 'known' ? `Mediana: ${formatMinorMoney(segment.currency, segment.medianMinor)}` : 'Amostra insuficiente'} · n {segment.nRaw}/{metrics.minimumObservations} → {segment.nTrimmed} ({segment.nDiscarded} descartado(s))
         </p>
       ))}
     </section>
