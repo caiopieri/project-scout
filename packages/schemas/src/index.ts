@@ -463,6 +463,77 @@ export const priceHistoryTransportSchema = priceHistorySchema.extend({
 });
 export type PriceHistoryTransport = z.infer<typeof priceHistoryTransportSchema>;
 
+const marketMetricProductSchema = z
+  .object({
+    brand: z.string().trim().min(1),
+    model: z.string().trim().min(1),
+    variant: z.string().trim().min(1).optional(),
+  })
+  .strict();
+export type MarketMetricProduct = z.infer<typeof marketMetricProductSchema>;
+
+const marketMetricMinorSchema = z
+  .number()
+  .int()
+  .nonnegative()
+  .refine(Number.isSafeInteger, 'Minor units must be a safe integer');
+export const marketMetricObservationSchema = z
+  .object({
+    product: marketMetricProductSchema,
+    condition: z.string().trim().min(1),
+    currency: z.string().regex(/^[A-Z]{3}$/),
+    priceMinor: marketMetricMinorSchema,
+    observedAt: z.date(),
+  })
+  .strict();
+export type MarketMetricObservation = z.infer<typeof marketMetricObservationSchema>;
+
+export const marketMetricsInputSchema = z
+  .object({
+    observations: z.array(marketMetricObservationSchema),
+    windowDays: z.number().int().positive().default(30),
+    minimumObservations: z.number().int().min(10),
+    iqrMultiplier: z.literal(1.5),
+    asOf: z.date().default(() => new Date()),
+  })
+  .strict();
+export type MarketMetricsInput = z.infer<typeof marketMetricsInputSchema>;
+
+export const marketMetricSegmentSchema = z
+  .object({
+    product: marketMetricProductSchema,
+    condition: z.string().min(1),
+    currency: z.string().regex(/^[A-Z]{3}$/),
+    windowDays: z.number().int().positive(),
+    nRaw: z.number().int().nonnegative(),
+    nTrimmed: z.number().int().nonnegative(),
+    nDiscarded: z.number().int().nonnegative(),
+    status: z.enum(['known', 'AMOSTRA_INSUFICIENTE']),
+    medianMinor: marketMetricMinorSchema.nullable(),
+  })
+  .strict()
+  .superRefine((segment, context) => {
+    if (segment.nTrimmed + segment.nDiscarded !== segment.nRaw)
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['nTrimmed'], message: 'Invalid counts.' });
+    if (segment.status === 'known' && segment.medianMinor === null)
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['medianMinor'], message: 'Known metrics need a median.' });
+    if (segment.status === 'AMOSTRA_INSUFICIENTE' && segment.medianMinor !== null)
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['medianMinor'], message: 'Insufficient samples cannot carry a median.' });
+  });
+export type MarketMetricSegment = z.infer<typeof marketMetricSegmentSchema>;
+
+export const marketMetricsSchema = z
+  .object({
+    windowDays: z.number().int().positive(),
+    minimumObservations: z.number().int().min(10),
+    iqrMultiplier: z.literal(1.5),
+    segments: z.array(marketMetricSegmentSchema),
+  })
+  .strict();
+export type MarketMetrics = z.infer<typeof marketMetricsSchema>;
+export const marketMetricsTransportSchema = marketMetricsSchema;
+export type MarketMetricsTransport = z.infer<typeof marketMetricsTransportSchema>;
+
 // Product Catalog Schema
 export const productSchema = z.object({
   id: z.string().uuid(),

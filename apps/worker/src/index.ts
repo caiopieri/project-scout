@@ -49,6 +49,7 @@ import {
 } from '@scout/search-intelligence';
 import { UnavailableXianyuConnector } from '@scout/xianyu-connector';
 import { CollectionOpportunityValuationProcessor } from '@scout/valuation';
+import { calculateMarketMetrics } from '@scout/domain';
 import {
   authenticatedUserSchema,
   crossSourceIdentityCandidateReviewRequestSchema,
@@ -58,6 +59,8 @@ import {
   projectIdSchema,
   idempotencyKeySchema,
   listingTriageReviewRequestSchema,
+  marketMetricsInputSchema,
+  marketMetricsTransportSchema,
   priceHistoryTransportSchema,
   searchTermObservationReviewRequestSchema,
   textAnalysisBatchTaskSchema,
@@ -432,6 +435,25 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     const project = await repository.findById(projectId, user.id);
     if (!project) throw new HttpError(404, 'Project not found.');
     return json(await listingRepository.findByProjectId(projectId), 200, env.WEB_ORIGIN);
+  }
+  const marketMetricsMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/market-metrics$/);
+  if (marketMetricsMatch) {
+    if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
+    const projectId = projectIdSchema.parse(marketMetricsMatch[1]);
+    const project = await repository.findById(projectId, user.id);
+    if (!project) throw new HttpError(404, 'Project not found.');
+    const windowDays = 30;
+    const asOf = new Date();
+    const observations = await listingRepository.getMarketMetricObservationsByProjectId(projectId, windowDays, asOf);
+    return json(
+      marketMetricsTransportSchema.parse(
+        calculateMarketMetrics(
+          marketMetricsInputSchema.parse({ observations, windowDays, minimumObservations: 10, iqrMultiplier: 1.5, asOf }),
+        ),
+      ),
+      200,
+      env.WEB_ORIGIN,
+    );
   }
   const priceHistoryMatch = url.pathname.match(
     /^\/api\/projects\/([^/]+)\/listings\/([^/]+)\/price-history$/,

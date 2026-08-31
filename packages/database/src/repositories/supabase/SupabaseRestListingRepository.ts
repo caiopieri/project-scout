@@ -5,7 +5,7 @@ import {
   type ListingTransport,
   type PriceHistory,
 } from '@scout/schemas';
-import { calculateUsToUsLandedCost } from '@scout/domain';
+import { calculateUsToUsLandedCost, type MarketMetricObservation } from '@scout/domain';
 import { z } from 'zod';
 import type { SupabaseRestConfig } from './SupabaseRestResearchProjectRepository';
 
@@ -125,6 +125,7 @@ const listingSelect = [
 ].join(',');
 
 export const LISTING_ID_BATCH_SIZE = 50;
+export const PRICE_HISTORY_ID_BATCH_SIZE = 50;
 
 export class SupabaseRestListingRepository {
   constructor(private readonly config: SupabaseRestConfig) {}
@@ -182,6 +183,51 @@ export class SupabaseRestListingRepository {
         collectedAt: new Date(row.collected_at),
       })),
     );
+  }
+
+  async getMarketMetricObservationsByProjectId(
+    projectId: string,
+    windowDays: number,
+    asOf = new Date(),
+  ): Promise<MarketMetricObservation[]> {
+    const listings = await this.findByProjectId(projectId);
+    const eligible = listings.filter((listing) => {
+      const product = listing.inferredProduct;
+      const condition = listing.condition.trim().toLowerCase();
+      return Boolean(product?.brand?.trim() && product.model?.trim()) && ![condition, product?.brand, product?.model].some((value) => ['unknown', 'desconhecido'].includes(value?.trim().toLowerCase() ?? ''));
+    });
+    const cutoff = new Date(asOf.getTime() - windowDays * 24 * 60 * 60 * 1000).toISOString();
+    const observations: MarketMetricObservation[] = [];
+    for (let offset = 0; offset < eligible.length; offset += PRICE_HISTORY_ID_BATCH_SIZE) {
+      const batch = eligible.slice(offset, offset + PRICE_HISTORY_ID_BATCH_SIZE);
+      const rows = await this.request<PriceHistoryRow[]>(
+        `price_history?listing_id=in.(${batch.map(({ id }) => id).join(',')})&collected_at=gte.${encodeURIComponent(cutoff)}&collected_at=lte.${encodeURIComponent(asOf.toISOString())}&select=id,listing_id,price,shipping_cost,status,collected_at&order=collected_at.asc`,
+      );
+      for (const row of rows) {
+        const listing = batch.find(({ id }) => id === row.listing_id);
+        if (!listing) continue;
+        const history = priceHistorySchema.parse({
+          id: row.id,
+          listingId: row.listing_id,
+          price: Number(row.price),
+          shippingCost: Number(row.shipping_cost),
+          status: row.status,
+          collectedAt: new Date(row.collected_at),
+        });
+        observations.push({
+          product: {
+            brand: listing.inferredProduct!.brand!.trim(),
+            model: listing.inferredProduct!.model!.trim(),
+            ...(listing.inferredProduct!.variant?.trim() ? { variant: listing.inferredProduct!.variant.trim() } : {}),
+          },
+          condition: listing.condition.trim(),
+          currency: listing.currency,
+          priceMinor: decimalToMinor(row.price),
+          observedAt: history.collectedAt,
+        });
+      }
+    }
+    return observations;
   }
 
   private async request<T>(path: string): Promise<T> {

@@ -242,6 +242,41 @@ describe('Milestone 3 Worker API', () => {
     });
   });
 
+  it('returns a validated clean market median from batched price history', async () => {
+    const listingId = '66666666-6666-4666-a666-666666666666';
+    const listing = {
+      ...listingRow(listingId, makeLandedCost('known', 30000, 0, 30000)),
+      inferred_product: { brand: 'Apple', model: 'iPhone 13', confidence: 1, evidenceIds: [] },
+    };
+    const history = Array.from({ length: 10 }, (_, index) => ({
+      id: `77777777-7777-4777-a777-${(index + 1).toString().padStart(12, '0')}`,
+      listing_id: listingId,
+      price: (300 + index).toFixed(2),
+      shipping_cost: '0.00',
+      status: 'active',
+      collected_at: new Date(Date.now() - index * 86400000).toISOString(),
+    }));
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.endsWith('/auth/v1/user')) return Response.json({ id: userId, email: 'owner@example.test' });
+      if (url.includes('/rest/v1/profiles')) return new Response(null, { status: 201 });
+      if (url.includes('/rest/v1/research_projects')) return Response.json([projectRow()]);
+      if (url.includes('/rest/v1/research_project_listings')) return Response.json([{ listing_id: listingId }]);
+      if (url.includes('/rest/v1/listings')) return Response.json([listing]);
+      if (url.includes('/rest/v1/price_history')) return Response.json(history);
+      throw new Error(`Unexpected fetch: ${url}`);
+    }));
+
+    const response = await call(`/api/projects/${projectId}/market-metrics`);
+    const body = (await response.json()) as { windowDays: number; segments: Array<Record<string, unknown>> };
+    expect(response.status).toBe(200);
+    expect(urls.some((url) => url.includes('price_history?listing_id=in.('))).toBe(true);
+    expect(body).toMatchObject({ windowDays: 30 });
+    expect(body.segments[0]).toMatchObject({ status: 'known', medianMinor: 30450, nRaw: 10, nTrimmed: 10, nDiscarded: 0 });
+  });
+
   it('lists and reviews only validated search observations through the authenticated route', async () => {
     const observationId = '44444444-4444-4444-a444-444444444444';
     const familyId = '55555555-5555-4555-a555-555555555555';

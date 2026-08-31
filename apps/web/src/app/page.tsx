@@ -9,6 +9,7 @@ import type {
   ListingTransport,
   ListingTriageDecisionTransport,
   ListingTriageReviewTransport,
+  MarketMetricsTransport,
   OpportunityValuationTransport,
   PriceHistoryTransport,
   ResearchProject,
@@ -24,6 +25,7 @@ import {
   listingTriageDecisionTransportSchema,
   listingTriageReviewTransportSchema,
   listingTriageReviewRequestSchema,
+  marketMetricsTransportSchema,
   opportunityValuationTransportSchema,
   priceHistoryTransportSchema,
   researchCriteriaSchema,
@@ -66,6 +68,20 @@ function LandedCostSummary({ listing }: { listing: ListingTransport }) {
       </p>
       <p>Custo na porta: {formatMinorMoney(landedCost.currency, landedCost.totalMinor)}</p>
     </div>
+  );
+}
+
+function MarketMetricsSummary({ metrics }: { metrics: MarketMetricsTransport | null }) {
+  if (!metrics) return null;
+  return (
+    <section>
+      <div className="results-head"><div className="eyebrow">Mediana limpa · {metrics.windowDays} dias</div></div>
+      {metrics.segments.map((segment) => (
+        <p className="muted" key={`${segment.product.brand}-${segment.product.model}-${segment.product.variant ?? ''}-${segment.condition}-${segment.currency}`}>
+          {segment.product.brand} {segment.product.model}{segment.product.variant ? ` ${segment.product.variant}` : ''} · {segment.condition} · {segment.status === 'known' ? `Mediana: ${formatMinorMoney(segment.currency, segment.medianMinor)}` : 'Amostra insuficiente'} · n {segment.nRaw} → {segment.nTrimmed} ({segment.nDiscarded} descartado(s))
+        </p>
+      ))}
+    </section>
   );
 }
 
@@ -852,6 +868,7 @@ function ProjectDetail({
   request: (path: string, init?: RequestInit) => Promise<unknown>;
 }) {
   const [listings, setListings] = useState<ListingTransport[]>([]);
+  const [marketMetrics, setMarketMetrics] = useState<MarketMetricsTransport | null>(null);
   const [valuations, setValuations] = useState<Record<string, OpportunityValuationTransport>>({});
   const [loadingListings, setLoadingListings] = useState(true);
   const [listingError, setListingError] = useState<string | null>(null);
@@ -890,6 +907,14 @@ function ProjectDetail({
     return () => {
       cancelled = true;
     };
+  }, [project.id, request]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void request(`/api/projects/${project.id}/market-metrics`)
+      .then((raw) => { if (!cancelled) setMarketMetrics(marketMetricsTransportSchema.parse(raw)); })
+      .catch(() => { if (!cancelled) setMarketMetrics(null); });
+    return () => { cancelled = true; };
   }, [project.id, request]);
 
   useEffect(() => {
@@ -1078,6 +1103,7 @@ function ProjectDetail({
         </div>
       ))}
       <pre>{JSON.stringify(project.structuredQuery, null, 2)}</pre>
+      <MarketMetricsSummary metrics={marketMetrics} />
       <div className="results-head">
         <div className="eyebrow">Identidade entre fontes</div>
         <strong>
