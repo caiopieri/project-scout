@@ -64,6 +64,54 @@ function projectRow(status = 'active') {
   };
 }
 
+const makeLandedCost = (
+  status: 'known' | 'indeterminate',
+  itemPriceMinor: number,
+  shippingCostMinor: number | null,
+  totalMinor: number | null,
+) => ({
+  route: 'US_TO_US',
+  policyVersion: 'landed-cost.us-us.v1',
+  status,
+  currency: 'USD',
+  components: {
+    itemPrice: { amountMinor: itemPriceMinor, currency: 'USD', origin: 'informado' },
+    shipping: {
+      amountMinor: shippingCostMinor,
+      currency: 'USD',
+      origin: shippingCostMinor === null ? 'desconhecido' : 'informado',
+    },
+  },
+  totalMinor,
+  missing: shippingCostMinor === null ? ['shipping'] : [],
+});
+
+const listingRow = (id: string, landedCost: ReturnType<typeof makeLandedCost>) => ({
+  id,
+  source_id: '00000000-0000-4000-a000-000000000001',
+  external_id: id,
+  url: `https://www.ebay.com/itm/${id}`,
+  title: id,
+  description: 'Fixture',
+  condition: 'Used',
+  currency: 'USD',
+  price: landedCost.components.itemPrice.amountMinor / 100,
+  shipping_cost: (landedCost.components.shipping.amountMinor ?? 0) / 100,
+  total_visible_cost: (landedCost.totalMinor ?? landedCost.components.itemPrice.amountMinor) / 100,
+  seller_id: null,
+  location: null,
+  status: 'active',
+  published_at: null,
+  first_collected_at: '2026-08-30T12:00:00.000Z',
+  last_updated_at: '2026-08-30T12:00:00.000Z',
+  specifications: {},
+  inferred_product: null,
+  raw_data_path: `raw/${id}.json`,
+  raw_content_hash: null,
+  raw_schema_version: null,
+  raw_data_metadata: { shippingCostKnown: landedCost.status === 'known', landedCost },
+});
+
 function mockSupabase(restResponse: unknown = [], onRest?: (init?: RequestInit) => void) {
   vi.stubGlobal(
     'fetch',
@@ -152,6 +200,46 @@ describe('Milestone 3 Worker API', () => {
     expect((await call(`/api/projects/${projectId}/archive`, 'POST')).status).toBe(200);
     expect((await call(`/api/projects/${projectId}/restore`, 'POST')).status).toBe(200);
     expect((await call(`/api/projects/${projectId}`, 'DELETE')).status).toBe(204);
+  });
+
+  it('returns known and indeterminate landed costs through the listings route', async () => {
+    const knownListingId = '11111111-1111-4111-a111-111111111111';
+    const unknownListingId = '22222222-2222-4222-a222-222222222222';
+    const knownLandedCost = makeLandedCost('known', 29999, 1550, 31549);
+    const unknownLandedCost = makeLandedCost('indeterminate', 10000, null, null);
+    const rows = [
+      listingRow(knownListingId, knownLandedCost),
+      listingRow(unknownListingId, unknownLandedCost),
+    ];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url.endsWith('/auth/v1/user'))
+          return Response.json({ id: userId, email: 'owner@example.test' });
+        if (url.includes('/rest/v1/profiles')) return new Response(null, { status: 201 });
+        if (url.includes('/rest/v1/research_projects')) return Response.json([projectRow()]);
+        if (url.includes('/rest/v1/research_project_listings'))
+          return Response.json(rows.map(({ id }) => ({ listing_id: id })));
+        if (url.includes('/rest/v1/listings')) return Response.json(rows);
+        throw new Error(`Unexpected fetch: ${url}`);
+      }),
+    );
+
+    const response = await call(`/api/projects/${projectId}/listings`);
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as Array<{
+      id: string;
+      landedCost: { status: string; totalMinor: number | null; missing: string[] };
+    }>;
+    expect(body).toHaveLength(2);
+    expect(body[0].landedCost).toMatchObject({ status: 'known', totalMinor: 31549 });
+    expect(body[1].landedCost).toMatchObject({
+      status: 'indeterminate',
+      totalMinor: null,
+      missing: ['shipping'],
+    });
   });
 
   it('lists and reviews only validated search observations through the authenticated route', async () => {
