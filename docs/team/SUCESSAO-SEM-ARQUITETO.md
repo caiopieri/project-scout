@@ -119,6 +119,14 @@ morreu duas por pressão de memória. **O runtime que se provou estável é
 Miniflare/workerd direto, sem proxy Wrangler** — R1, R2 e R3 rodaram nele sem
 uma queda.
 
+### 3.2.1 O watchdog do Docker morreu com a sessão
+
+Durante a sessão de 30–31/08 havia um script de vigia religando o Docker
+automaticamente. Ele vivia na área temporária daquela sessão e **não existe
+mais**. Ninguém está religando Docker sozinho: quando cair, religue à mão e
+anote a hora. Se a queda virar rotina, isso é um pedido de infraestrutura
+para o Caio, não uma fatia do ROADMAP.
+
 ### 3.3 Preserve antes de limpar
 
 Duas vezes nesta sessão trabalho não commitado quase se perdeu. Antes de podar

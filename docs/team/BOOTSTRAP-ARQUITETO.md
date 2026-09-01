@@ -1,5 +1,14 @@
 # Bootstrap do Arquiteto
 
+> **DOCUMENTO HISTÓRICO, NÃO ACIONÁVEL HOJE.** O papel de arquiteto está
+> **vago** desde 2026-09-01 e nenhum agente deve assumi-lo por conta própria.
+> Use este bloco **apenas** se o Caio nomear explicitamente um novo
+> arquiteto. Enquanto isso, a autoridade é
+> [SUCESSAO-SEM-ARQUITETO.md](./SUCESSAO-SEM-ARQUITETO.md).
+>
+> O bloco de sucessão abaixo cita `Engenheiro2` e `Dev2`, que **não existem
+> mais**. Os terminais atuais chamam-se `Engenheiro` e `Dev`.
+
 > Bloco de sucessão. Cola-se em um terminal novo quando o arquiteto é
 > substituído. Diferente dos outros papéis, **o arquiteto não é limpo** — este
 > documento existe porque houve troca de titular, não rotina de contexto.
@@ -55,59 +64,15 @@ COMO FALAR COM O CAIO (AGENTS.md §9):
 
 ---
 
-## Estado na troca de titular (2026-08-25)
+## Estado — obsoleto, ver a fonte de verdade
 
-**Time no Maestri:** `Engenheiro2` (codex, 5.6-luna xhigh) e `Dev2` (codex,
-5.6-luna high, `--yolo`), conectados entre si. O time anterior (`Engenheiro`,
-`Dev`) foi dispensado por estouro de quota. **Quota de Codex esgota por sessão,
-não por conta** — recrutar agente novo destrava.
+O que existia aqui descrevia 2026-08-25 e **está errado hoje**: dizia que
+S1.1b-1b estava em curso e que S1.1b-2, S1.2 e S1.3 eram fila futura.
+Todas foram fechadas com evidência **live** entre 30 e 31 de agosto, junto
+com S3.1a e S3.2a em integração local.
 
-**Fechado hoje:** S1.1 (coleta real do eBay), S1.1b-1 (orçamento explícito e
-paginação real), S1.1b-1c (orçamento na rota de sonda). CI verde em todas.
+Não releia estado a partir deste arquivo. As fontes de verdade são:
 
-**Em curso:** S1.1b-1b — caminho de escrita em volume e execução órfã. O Dev2
-está na fase de medição; o plano proíbe implementar se a causa medida divergir do
-handoff.
-
-**Fila depois:** S1.1b-2, S1.2, S1.3.
-
-### O que a execução live já provou, e o que não provou
-
-| Provado                                         | Não provado                                       |
-| ----------------------------------------------- | ------------------------------------------------- |
-| 210 chamadas Browse reais, orçamento respeitado | Execução que fecha com contadores preenchidos     |
-| Paginação real (offsets 0, 100, 200)            | Caminho de escrita em volume                      |
-| 207 anúncios reais persistidos numa execução    | Que o usuário consiga ler os 207 sem 414          |
-| Três anúncios conferidos no navegador, reais    | Qualquer coisa sobre preço de referência ou custo |
-
-**Coleta ponta a ponta ainda é meio gol.** Uma execução gravou 207 anúncios e se
-declarou `failed` com contador zero; outra ficou `running` para sempre depois que
-o consumidor morreu. Não descreva isso como funcionando.
-
-### Dívidas vivas, em ordem de risco
-
-1. **Quota do eBay é o recurso que sangra.** Cada execução que falha faz retry e
-   regasta o orçamento inteiro. Já foram ~600 a 900 chamadas Browse num dia.
-2. `collection_runs.estimated_cost` continua zero.
-3. `.dev.vars` local está com `EBAY_GLOBAL_REQUESTS_PER_MINUTE=300` e
-   `EBAY_BROWSE_BUDGET_PER_RUN` — valores de máquina local, agressivos demais
-   para virar base de `wrangler secret`.
-4. `user_listing_actions` tem constraint única errada para acervo global; corrige
-   na S3.5.
-5. Tabelas F4–F7 órfãs no banco; `npm run format:check` vermelho em ~25 arquivos
-   legados. Não limpe sem ser pedido.
-
-### A armadilha central deste repositório
-
-Ele já produziu ~2.000 linhas de código testado, aprovado e **inalcançável** —
-suíte verde, sistema sem fazer nada. Toda fatia entrega um caminho que o Caio
-alcança pela API ou pela tela. Teste que passa sem alcançar rota é o modo de
-falha da casa: foi assim que a rota `/internal/ebay/probe` driblou o orçamento
-por uma fatia inteira.
-
-### O que o Caio precisa e ainda não tem
-
-Ele está abrindo uma loja e **precisa comprar agora**. O sistema hoje não diz o
-que é barato: não tem preço de referência, custo até a porta, nem ranqueamento.
-Isso chega em S3.1, S3.2 e S3.4. Até lá, garimpo manual continua sendo o caminho
-real dele — e oferecer isso é legítimo.
+- [docs/status.md](../status.md) — o que existe;
+- [LOG-VERIFICACAO.md](../../LOG-VERIFICACAO.md) — o que foi executado e em que nível;
+- [SUCESSAO-SEM-ARQUITETO.md](./SUCESSAO-SEM-ARQUITETO.md) §6 — estado, dívidas e o que está em voo.

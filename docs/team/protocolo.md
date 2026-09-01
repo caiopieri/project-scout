@@ -9,9 +9,16 @@
 
 | Papel          | Quem                                    | Contexto                | Autoridade                                      |
 | -------------- | --------------------------------------- | ----------------------- | ----------------------------------------------- |
-| **Arquiteto**  | Claude Code · Opus 5 (maestro)          | **nunca limpo**         | Define módulos, verifica entrega, aprova avanço |
+| **Arquiteto**  | **VAGO desde 2026-09-01**               | —                       | Ver [SUCESSAO-SEM-ARQUITETO.md](./SUCESSAO-SEM-ARQUITETO.md): nenhum agente assume este papel; o que ele arbitrava passou ao Caio |
 | **Engenheiro** | Codex · gpt-5.6-luna **xhigh**          | limpo **a cada módulo** | Planeja cada spec, revisa o dev, faz merge      |
 | **Dev**        | Codex · gpt-5.6-luna **high**, `--yolo` | limpo **a cada spec**   | Escreve código na branch da spec                |
+
+> **O ciclo abaixo pressupunha um arquiteto.** Com o papel vago, os passos de
+> entrega de módulo e aprovação de avanço não têm dono: leia
+> [SUCESSAO-SEM-ARQUITETO.md](./SUCESSAO-SEM-ARQUITETO.md) §1, que substitui
+> essa arbitragem por uma triagem explícita. O resto deste protocolo —
+> Engenheiro, Dev, higiene de contexto, guardrails do `--yolo` — continua
+> valendo integralmente.
 
 **Módulo** = um Round do [ROADMAP](../../ROADMAP.md) (ex.: Round 1).
 **Spec** = uma fatia numerada (ex.: S1.1), com handoff próprio.
