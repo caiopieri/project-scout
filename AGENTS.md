@@ -10,6 +10,7 @@
 
 | Documento                                                  | Responde                                                             |
 | ---------------------------------------------------------- | -------------------------------------------------------------------- |
+| **[docs/team/SUCESSAO-SEM-ARQUITETO.md](docs/team/SUCESSAO-SEM-ARQUITETO.md)** | **Leia primeiro.** O papel de arquiteto está vago: quem decide o quê, e os invariantes que não se negociam |
 | [docs/vision.md](docs/vision.md)                           | O que estamos construindo e por quê                                  |
 | [docs/prd.md](docs/prd.md)                                 | O que a primeira aplicação precisa fazer                             |
 | [docs/status.md](docs/status.md)                           | O que **existe** hoje — a única fonte de verdade sobre capacidade    |
