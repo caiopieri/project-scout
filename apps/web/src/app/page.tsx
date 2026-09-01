@@ -71,6 +71,26 @@ function LandedCostSummary({ listing }: { listing: ListingTransport }) {
   );
 }
 
+function ReferenceDiscountSummary({ listing }: { listing: ListingTransport }) {
+  const discount = listing.referenceDiscount;
+  if (!discount) return null;
+  if (discount.status === 'NAO_RANQUEAVEL')
+    return <p className="muted">NAO_RANQUEAVEL · {discount.missing.join(' · ')}</p>;
+  return (
+    <div className="muted">
+      <p>Desconto sobre a referência: {formatMinorMoney(discount.currency, discount.discountMinor)}</p>
+      <p>
+        Custo usado: {formatMinorMoney(discount.currency, discount.landedCostMinor)} · Mediana:{' '}
+        {formatMinorMoney(discount.currency, discount.referenceMedianMinor)}
+      </p>
+      <p>
+        Mercado: n {discount.market.nRaw} → {discount.market.nTrimmed} · janela{' '}
+        {discount.market.windowDays} dias · política {discount.policy.version}
+      </p>
+    </div>
+  );
+}
+
 function MarketMetricsSummary({ metrics }: { metrics: MarketMetricsTransport | null }) {
   if (!metrics) return null;
   return (
@@ -1206,6 +1226,7 @@ function ProjectDetail({
               <div className="meta">eBay · {listing.condition}</div>
               <h3>{listing.title}</h3>
               <LandedCostSummary listing={listing} />
+              <ReferenceDiscountSummary listing={listing} />
               {listing.location ? <p className="muted">{listing.location}</p> : null}
               {valuations[listing.id] && listing.landedCost?.status === 'known' && (
                 <p className="valuation">

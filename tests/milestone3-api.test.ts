@@ -242,6 +242,43 @@ describe('Milestone 3 Worker API', () => {
     });
   });
 
+  it('returns leave-one-out reference discounts without ranking an incomplete listing', async () => {
+    const targetId = '66666666-6666-4666-a666-666666666666';
+    const refusedId = '99999999-9999-4999-a999-999999999999';
+    const peerIds = Array.from({ length: 10 }, (_, index) => `88888888-8888-4888-a888-${(index + 1).toString().padStart(12, '0')}`);
+    const product = { brand: 'Apple', model: 'iPhone 13', variant: '128GB', confidence: 1, evidenceIds: [] };
+    const listings = [
+      { ...listingRow(targetId, makeLandedCost('known', 20000, 0, 20000)), inferred_product: product },
+      ...peerIds.map((id, index) => ({ ...listingRow(id, makeLandedCost('known', 30000 + index * 100, 0, 30000 + index * 100)), inferred_product: product })),
+      { ...listingRow(refusedId, makeLandedCost('indeterminate', 20000, null, null)), inferred_product: null },
+    ];
+    const history = [
+      { id: '77777777-7777-4777-a777-777777777777', listing_id: targetId, price: '9999.00', shipping_cost: '0.00', status: 'active', collected_at: new Date().toISOString() },
+      ...peerIds.map((listing_id, index) => ({ id: `77777777-7777-4777-a777-${(index + 1).toString().padStart(12, '0')}`, listing_id, price: (300 + index).toFixed(2), shipping_cost: '0.00', status: 'active', collected_at: new Date(Date.now() - (index + 1) * 3600000).toISOString() })),
+    ];
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith('/auth/v1/user')) return Response.json({ id: userId, email: 'owner@example.test' });
+      if (url.includes('/rest/v1/profiles')) return new Response(null, { status: 201 });
+      if (url.includes('/rest/v1/research_projects')) return Response.json([projectRow()]);
+      if (url.includes('/rest/v1/research_project_listings')) return Response.json(listings.map(({ id }) => ({ listing_id: id })));
+      if (url.includes('/rest/v1/listings')) return Response.json(listings);
+      if (url.includes('/rest/v1/price_history')) return Response.json(history);
+      throw new Error(`Unexpected fetch: ${url}`);
+    }));
+
+    const response = await call(`/api/projects/${projectId}/listings`);
+    const body = (await response.json()) as Array<{ id: string; referenceDiscount: Record<string, unknown> }>;
+    const target = body.find(({ id }) => id === targetId)!;
+    const refused = body.find(({ id }) => id === refusedId)!;
+    expect(response.status).toBe(200);
+    expect(target.referenceDiscount).toMatchObject({ status: 'known', landedCostMinor: 20000, referenceMedianMinor: 30450, discountMinor: 10450, market: { nRaw: 10, nTrimmed: 10, windowDays: 30 } });
+    expect(refused.referenceDiscount).toMatchObject({ status: 'NAO_RANQUEAVEL', missing: ['CUSTO_INDETERMINADO', 'AMOSTRA_INSUFICIENTE'] });
+    expect(refused.referenceDiscount).not.toHaveProperty('discountMinor');
+    expect(refused.referenceDiscount).not.toHaveProperty('landedCostMinor');
+    expect(refused.referenceDiscount).not.toHaveProperty('referenceMedianMinor');
+  });
+
   it('returns a validated clean market median from batched price history', async () => {
     const listingId = '66666666-6666-4666-a666-666666666666';
     const listing = {

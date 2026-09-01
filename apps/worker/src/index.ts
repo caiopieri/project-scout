@@ -49,7 +49,7 @@ import {
 } from '@scout/search-intelligence';
 import { UnavailableXianyuConnector } from '@scout/xianyu-connector';
 import { CollectionOpportunityValuationProcessor } from '@scout/valuation';
-import { calculateMarketMetrics } from '@scout/domain';
+import { calculateMarketMetrics, calculateReferenceDiscount } from '@scout/domain';
 import {
   authenticatedUserSchema,
   crossSourceIdentityCandidateReviewRequestSchema,
@@ -58,10 +58,12 @@ import {
   interpretIntentInputSchema,
   projectIdSchema,
   idempotencyKeySchema,
+  listingTransportSchema,
   listingTriageReviewRequestSchema,
   marketMetricsInputSchema,
   marketMetricsTransportSchema,
   priceHistoryTransportSchema,
+  referenceDiscountPolicySchema,
   searchTermObservationReviewRequestSchema,
   textAnalysisBatchTaskSchema,
   textAnalysisTaskSchema,
@@ -434,7 +436,45 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     const projectId = projectIdSchema.parse(listingsMatch[1]);
     const project = await repository.findById(projectId, user.id);
     if (!project) throw new HttpError(404, 'Project not found.');
-    return json(await listingRepository.findByProjectId(projectId), 200, env.WEB_ORIGIN);
+    const listings = await listingRepository.findByProjectId(projectId);
+    const asOf = new Date();
+    const policy = referenceDiscountPolicySchema.parse({
+      version: 'reference-discount.us-us.v1',
+      windowDays: 30,
+      minimumObservations: 10,
+      iqrMultiplier: 1.5,
+      referenceTreatment: 'leave_one_listing_out',
+    });
+    const observations = await listingRepository.getMarketMetricObservationsWithListingId(
+      listings,
+      policy.windowDays,
+      asOf,
+    );
+    return json(
+      listings.map((listing) => {
+        const marketMetrics = calculateMarketMetrics({
+          observations: observations
+            .filter(({ listingId }) => listingId !== listing.id)
+            .map(({ listingId: _listingId, ...observation }) => observation),
+          windowDays: policy.windowDays,
+          minimumObservations: policy.minimumObservations,
+          iqrMultiplier: policy.iqrMultiplier,
+          asOf,
+        });
+        return listingTransportSchema.parse({
+          ...listing,
+          referenceDiscount: calculateReferenceDiscount({
+            landedCost: listing.landedCost!,
+            marketMetrics,
+            product: listing.inferredProduct,
+            condition: listing.condition,
+            policy,
+          }),
+        });
+      }),
+      200,
+      env.WEB_ORIGIN,
+    );
   }
   const marketMetricsMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/market-metrics$/);
   if (marketMetricsMatch) {

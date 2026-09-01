@@ -405,6 +405,7 @@ export const listingTransportSchema = listingSchema
     firstCollectedAt: z.coerce.date(),
     lastUpdatedAt: z.coerce.date(),
     landedCost: landedCostSchema.optional(),
+    referenceDiscount: referenceDiscountSchema.optional(),
     rawDataMetadata: listingRawDataMetadataSchema.default({}),
   })
   .superRefine((listing, context) => {
@@ -533,6 +534,22 @@ export const marketMetricsSchema = z
 export type MarketMetrics = z.infer<typeof marketMetricsSchema>;
 export const marketMetricsTransportSchema = marketMetricsSchema;
 export type MarketMetricsTransport = z.infer<typeof marketMetricsTransportSchema>;
+
+export const referenceDiscountPolicySchema = z.object({ version: z.literal('reference-discount.us-us.v1'), windowDays: z.literal(30), minimumObservations: z.literal(10), iqrMultiplier: z.literal(1.5), referenceTreatment: z.literal('leave_one_listing_out') }).strict();
+export type ReferenceDiscountPolicy = z.infer<typeof referenceDiscountPolicySchema>;
+const referenceDiscountMissingSchema = z.enum(['CUSTO_INDETERMINADO', 'AMOSTRA_INSUFICIENTE', 'MOEDA_DIVERGENTE']);
+const referenceDiscountMarketSchema = z.object({ nRaw: z.number().int().nonnegative(), nTrimmed: z.number().int().nonnegative(), windowDays: z.literal(30) }).strict();
+const referenceDiscountCommonSchema = z.object({ currency: z.string().length(3), policy: referenceDiscountPolicySchema, referenceTreatment: z.literal('leave_one_listing_out') });
+const referenceDiscountSignedMinorSchema = z.number().int().refine(Number.isSafeInteger);
+const referenceDiscountKnownSchema = referenceDiscountCommonSchema.extend({ status: z.literal('known'), landedCostMinor: marketMetricMinorSchema, referenceMedianMinor: marketMetricMinorSchema, discountMinor: referenceDiscountSignedMinorSchema, market: referenceDiscountMarketSchema }).strict();
+const referenceDiscountUnrankableSchema = referenceDiscountCommonSchema.extend({ status: z.literal('NAO_RANQUEAVEL'), missing: z.array(referenceDiscountMissingSchema).min(1) }).strict();
+export const referenceDiscountSchema = z.discriminatedUnion('status', [
+  referenceDiscountKnownSchema,
+  referenceDiscountUnrankableSchema,
+]);
+export type ReferenceDiscount = z.infer<typeof referenceDiscountSchema>;
+export const referenceDiscountInputSchema = z.object({ landedCost: landedCostSchema, marketMetrics: marketMetricsSchema, product: inferredProductSchema.nullable(), condition: z.string().min(1), policy: referenceDiscountPolicySchema }).strict();
+export type ReferenceDiscountInput = z.infer<typeof referenceDiscountInputSchema>;
 
 // Product Catalog Schema
 export const productSchema = z.object({

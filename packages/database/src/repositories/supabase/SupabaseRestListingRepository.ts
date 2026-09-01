@@ -190,14 +190,26 @@ export class SupabaseRestListingRepository {
     windowDays: number,
     asOf = new Date(),
   ): Promise<MarketMetricObservation[]> {
-    const listings = await this.findByProjectId(projectId);
+    const observations = await this.getMarketMetricObservationsWithListingId(
+      await this.findByProjectId(projectId),
+      windowDays,
+      asOf,
+    );
+    return observations.map(({ listingId: _listingId, ...observation }) => observation);
+  }
+
+  async getMarketMetricObservationsWithListingId(
+    listings: ListingTransport[],
+    windowDays: number,
+    asOf = new Date(),
+  ): Promise<Array<MarketMetricObservation & { listingId: string }>> {
     const eligible = listings.filter((listing) => {
       const product = listing.inferredProduct;
       const condition = listing.condition.trim().toLowerCase();
       return Boolean(product?.brand?.trim() && product.model?.trim()) && ![condition, product?.brand, product?.model].some((value) => ['unknown', 'desconhecido'].includes(value?.trim().toLowerCase() ?? ''));
     });
     const cutoff = new Date(asOf.getTime() - windowDays * 24 * 60 * 60 * 1000).toISOString();
-    const observations: MarketMetricObservation[] = [];
+    const observations: Array<MarketMetricObservation & { listingId: string }> = [];
     for (let offset = 0; offset < eligible.length; offset += PRICE_HISTORY_ID_BATCH_SIZE) {
       const batch = eligible.slice(offset, offset + PRICE_HISTORY_ID_BATCH_SIZE);
       const rows = await this.request<PriceHistoryRow[]>(
@@ -215,6 +227,7 @@ export class SupabaseRestListingRepository {
           collectedAt: new Date(row.collected_at),
         });
         observations.push({
+          listingId: listing.id,
           product: {
             brand: listing.inferredProduct!.brand!.trim(),
             model: listing.inferredProduct!.model!.trim(),

@@ -146,9 +146,11 @@ export type {
 
 export { calculateUsToUsLandedCost } from './landed-cost';
 export { calculateMarketMetrics } from './market-metrics';
+export { calculateReferenceDiscount } from './reference-discount';
 export type { UsToUsLandedCostInput } from '@scout/schemas';
 export type { LandedCost, LandedCostComponent, LandedCostComponentOrigin } from '@scout/schemas';
 export type { MarketMetricObservation, MarketMetrics, MarketMetricSegment } from '@scout/schemas';
+export type { ReferenceDiscount, ReferenceDiscountInput, ReferenceDiscountPolicy } from '@scout/schemas';
 
 // Repository Ports
 
