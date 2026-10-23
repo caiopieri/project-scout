@@ -292,18 +292,23 @@ export const buildDegradedCollectorHealth = (
 ) => {
   const state = error.code.includes('RATE_LIMITED')
     ? 'RATE_LIMITED'
-    : error.code.includes('OAUTH') ||
-        error.code.includes('AUTH') ||
-        error.code.includes('CONFIGURATION') ||
-        error.code.includes('UNAUTHORIZED')
-      ? 'LOGIN_REQUIRED'
-      : error.code.includes('INVALID_RESPONSE') ||
-          error.code.includes('INVALID_JSON') ||
-          error.code.includes('MAPPING_INVALID') ||
-          error.code.includes('PAGINATION_INVALID') ||
-          error.code.includes('CURSOR_LOOP')
+    : error.code === 'CAPTCHA'
+      ? 'CAPTCHA'
+      : error.code === 'CONTENT_CHANGED'
         ? 'CONTENT_CHANGED'
-        : 'ERROR';
+        : error.code === 'LOGIN_REQUIRED' ||
+            error.code.includes('OAUTH') ||
+            error.code.includes('AUTH') ||
+            error.code.includes('CONFIGURATION') ||
+            error.code.includes('UNAUTHORIZED')
+          ? 'LOGIN_REQUIRED'
+          : error.code.includes('INVALID_RESPONSE') ||
+              error.code.includes('INVALID_JSON') ||
+              error.code.includes('MAPPING_INVALID') ||
+              error.code.includes('PAGINATION_INVALID') ||
+              error.code.includes('CURSOR_LOOP')
+            ? 'CONTENT_CHANGED'
+            : 'ERROR';
   return collectorHealthSchema.parse({
     collectionRunId,
     attemptNumber,

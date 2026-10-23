@@ -111,6 +111,8 @@ describe('Milestone 4 Worker producer and consumer', () => {
           return Response.json({ id: userId, email: 'owner@example.test' });
         if (url.includes('/rest/v1/profiles')) return new Response(null, { status: 201 });
         if (url.includes('/rest/v1/research_projects')) return Response.json([projectRow()]);
+        if (url.includes('/rpc/source_circuit_allows'))
+          return Response.json([{ allowed: true, state: 'closed', reason: null, reopen_after: null }]);
         if (url.includes('/rpc/request_ebay_collection_run')) return Response.json([runRow()]);
         if (url.includes('/rpc/mark_collection_run_queued'))
           return Response.json([runRow('pending', true)]);
@@ -137,6 +139,8 @@ describe('Milestone 4 Worker producer and consumer', () => {
           return Response.json({ id: userId, email: 'owner@example.test' });
         if (url.includes('/rest/v1/profiles')) return new Response(null, { status: 201 });
         if (url.includes('/rest/v1/research_projects')) return Response.json([projectRow()]);
+        if (url.includes('/rpc/source_circuit_allows'))
+          return Response.json([{ allowed: true, state: 'closed', reason: null, reopen_after: null }]);
         if (url.includes('/rpc/request_ebay_collection_run'))
           return Response.json([runRow('pending', true)]);
         throw new Error(`Unexpected fetch: ${url}`);

@@ -82,6 +82,7 @@ import {
   agentChatRequestSchema,
   agentChatResponseSchema,
   collectionRunRequestSchema,
+  researchCriteriaSchema,
   moneySchema,
   onDemandExtractionRequestSchema,
   rawListingRecordSchema,
@@ -583,6 +584,87 @@ async function handleLocalAgent(request: Request, env: Env, url: URL): Promise<R
   throw new HttpError(404, 'Route not found.');
 }
 
+const serviceRest = async <T>(env: Env, path: string, init: RequestInit = {}): Promise<T> => {
+  const service = serviceRoleConfig(env);
+  const response = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
+    ...init,
+    headers: {
+      apikey: service.anonKey,
+      Authorization: `Bearer ${service.accessToken}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+      ...(init.headers ?? {}),
+    },
+  });
+  if (!response.ok) throw new Error(`Supabase ops request failed (${response.status}).`);
+  return response.json() as Promise<T>;
+};
+
+const circuitAllows = async (env: Env, sourceId: string) =>
+  (
+    await serviceRest<
+      Array<{ allowed: boolean; state: string; reason: string | null; reopen_after: string | null }>
+    >(env, 'rpc/source_circuit_allows', {
+      method: 'POST',
+      body: JSON.stringify({ p_source_id: sourceId }),
+    })
+  )[0];
+
+/** One known search per source with a minimum expected result; it detects breakage early. */
+const SOURCE_CANARIES = [
+  {
+    sourceId: SOURCE_IDS.ebay,
+    criteria: { brands: ['Apple'], models: ['iPhone 13'] },
+    expectedMinItems: 1,
+  },
+  {
+    sourceId: SOURCE_IDS.swappa,
+    criteria: { brands: ['Apple'], models: ['iPhone 13'] },
+    expectedMinItems: 5,
+  },
+];
+
+export const runSourceCanaries = async (env: Env, actor: string) => {
+  const gateways = configuredCollectionGateways(env);
+  const results = [];
+  for (const canary of SOURCE_CANARIES) {
+    const gate = await circuitAllows(env, canary.sourceId);
+    if (!gate?.allowed) {
+      results.push({ sourceId: canary.sourceId, skipped: `circuit ${gate?.state}` });
+      continue;
+    }
+    const started = Date.now();
+    let items = 0;
+    let errorCode: string | null = null;
+    try {
+      const result = await gateways
+        .resolve(canary.sourceId)
+        .collect(researchCriteriaSchema.parse(canary.criteria), canary.expectedMinItems + 5);
+      items = result.items.length;
+    } catch (error) {
+      errorCode = error instanceof ConnectorError ? error.code : 'CANARY_UNEXPECTED_ERROR';
+    }
+    const ok = errorCode === null && items >= canary.expectedMinItems;
+    await serviceRest(env, 'canary_runs', {
+      method: 'POST',
+      body: JSON.stringify({
+        source_id: canary.sourceId,
+        ok,
+        items,
+        expected_min_items: canary.expectedMinItems,
+        error_code: errorCode ?? (ok ? null : 'CANARY_BELOW_EXPECTED'),
+        latency_ms: Date.now() - started,
+      }),
+    });
+    results.push({ sourceId: canary.sourceId, ok, items, errorCode });
+  }
+  await serviceRest(env, 'ops_audit', {
+    method: 'POST',
+    body: JSON.stringify({ actor, action: 'canaries.run', details: { results } }),
+  });
+  return results;
+};
+
 async function handleApi(request: Request, env: Env, url: URL): Promise<Response> {
   const { user, accessToken } = await authenticate(request, env);
   const repository = new SupabaseRestResearchProjectRepository({
@@ -709,6 +791,49 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
       );
     }
     throw new HttpError(405, 'Method not allowed.');
+  }
+  if (url.pathname === '/api/ops/health') {
+    if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
+    const [circuits, incidents, canaries, audit] = await Promise.all([
+      serviceRest(env, 'source_circuits?select=*'),
+      serviceRest(env, 'incidents?select=*&order=opened_at.desc&limit=30'),
+      serviceRest(env, 'canary_runs?select=*&order=checked_at.desc&limit=30'),
+      serviceRest(env, 'ops_audit?select=*&order=created_at.desc&limit=20'),
+    ]);
+    return json({ circuits, incidents, canaries, audit }, 200, env.WEB_ORIGIN);
+  }
+  if (url.pathname === '/api/ops/canaries/run') {
+    if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed.');
+    return json({ results: await runSourceCanaries(env, `user:${user.id}`) }, 200, env.WEB_ORIGIN);
+  }
+  const circuitResetMatch = url.pathname.match(/^\/api\/ops\/circuits\/([^/]+)\/reset$/);
+  if (circuitResetMatch) {
+    if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed.');
+    const sourceId = projectIdSchema.parse(circuitResetMatch[1]);
+    const [before] = await serviceRest<unknown[]>(
+      env,
+      `source_circuits?source_id=eq.${sourceId}&select=*`,
+    );
+    await serviceRest(env, `source_circuits?source_id=eq.${sourceId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        state: 'half_open',
+        reopen_after: null,
+        probe_started_at: null,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+    await serviceRest(env, 'ops_audit', {
+      method: 'POST',
+      body: JSON.stringify({
+        actor_user_id: user.id,
+        actor: 'user',
+        action: 'circuit.reset',
+        source_id: sourceId,
+        details: { before: before ?? null },
+      }),
+    });
+    return json({ sourceId, state: 'half_open' }, 200, env.WEB_ORIGIN);
   }
   if (url.pathname === '/api/sources') {
     if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
@@ -1561,6 +1686,13 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
       const body =
         request.headers.get('Content-Length') === '0' ? {} : await request.json().catch(() => ({}));
       const sourceId = collectionRunRequestSchema.parse(body).sourceId;
+      // A source whose circuit is open is not touched at all: the caller gets 503 with the reason.
+      const gate = await circuitAllows(env, sourceId ?? SOURCE_IDS.ebay);
+      if (gate && !gate.allowed)
+        throw new HttpError(
+          503,
+          `Source circuit is ${gate.state} (${gate.reason ?? 'failures'}); next attempt after ${gate.reopen_after ?? 'reset'}.`,
+        );
       const created = await collectionRepository.createOrFind({
         projectId,
         idempotencyKey,
@@ -1662,7 +1794,23 @@ export default {
       return json({ error: 'Internal server error.' }, 500, env.WEB_ORIGIN);
     }
   },
+  async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
+    await runSourceCanaries(env, 'cron');
+  },
   async queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
+    if (batch.queue?.endsWith('-dlq')) {
+      for (const message of batch.messages) {
+        await serviceRest(env, 'incidents', {
+          method: 'POST',
+          body: JSON.stringify({
+            kind: 'DLQ_MESSAGE',
+            evidence: { queue: batch.queue, body: message.body },
+          }),
+        });
+        message.ack();
+      }
+      return;
+    }
     const serviceConfig = {
       baseUrl: env.SUPABASE_URL,
       anonKey: env.SUPABASE_SERVICE_ROLE_KEY,

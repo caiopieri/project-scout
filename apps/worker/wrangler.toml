@@ -73,6 +73,19 @@ max_batch_size = 5
 max_batch_timeout = 2
 max_retries = 12
 
+# S8: dead letters become incidents instead of disappearing.
+[[queues.consumers]]
+queue = "ebay-collect-dlq"
+max_batch_size = 5
+
+[[queues.consumers]]
+queue = "analysis-dlq"
+max_batch_size = 5
+
+# S8: canary probes per source.
+[triggers]
+crons = ["*/30 * * * *"]
+
 # Remote production resources are isolated from local/development bindings.
 [env.production]
 name = "project-scout-worker-production"

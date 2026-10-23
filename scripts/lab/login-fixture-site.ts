@@ -1,6 +1,7 @@
 // Lab stand-in for a source that requires login, on loopback :8098. GET /login shows a form,
 // POST /login sets a session cookie, and /listings/* serves the recorded Swappa page only to a
-// browser holding that cookie (everyone else is redirected to /login).
+// browser holding that cookie (everyone else is redirected to /login). /blocked/* always answers
+// 403, to drill how the system degrades when a source blocks it.
 // Usage: npx vite-node scripts/lab/login-fixture-site.ts
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -12,6 +13,12 @@ createServer((request, response) => {
   const url = new URL(request.url ?? '/', 'http://127.0.0.1:8098');
   const loggedIn = (request.headers.cookie ?? '').includes(`sid=${SESSION}`);
   if (url.pathname === '/robots.txt') return response.end('User-agent: *\nDisallow: /cgi-bin/\n');
+  // Simulates a source that starts blocking the collector (resilience drills).
+  if (url.pathname.startsWith('/blocked/')) {
+    console.log(`blocked request ${url.pathname}`);
+    response.writeHead(403, { 'Content-Type': 'text/html' });
+    return response.end('<html>Access denied</html>');
+  }
   if (url.pathname === '/login' && request.method === 'POST') {
     response.writeHead(302, {
       'Set-Cookie': `sid=${SESSION}; HttpOnly; Path=/; Max-Age=86400`,
