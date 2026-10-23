@@ -666,6 +666,15 @@ const containsCredentialKey = (value: unknown, depth = 0): boolean => {
   );
 };
 
+export const onDemandExtractionRequestSchema = z
+  .object({
+    url: z.string().url().max(2000),
+    // The user states the site's terms allow collection; required for anything but loopback.
+    termsConfirmed: z.boolean().default(false),
+  })
+  .strict();
+export type OnDemandExtractionRequest = z.infer<typeof onDemandExtractionRequestSchema>;
+
 // Listing feed: two declared groups. Unbacked items are unknown, never "worst", so they are
 // never ordered by discount nor mixed with rankable items.
 export const listingFeedGroupSchema = z.enum(['rankable', 'unbacked']);

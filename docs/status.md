@@ -27,6 +27,7 @@
 | `ScrapingProvider` (porta genérica)                 | 🟡     | Implementação HTTP (camada 4); navegador ainda não |
 | Proxy / rotação de IP                               | ❌     | Nenhuma implementação                                                                                                                                                                                                                                    |
 | Local Agent (coleta na máquina do usuário)  | 🟡     | `apps/local-agent` puxa tarefas com token próprio, usa a sessão do usuário e devolve só registros; credencial não sai da máquina (verificado no banco). Provado contra site de login em loopback |
+| Fonte sob demanda (URL colada)             | 🟡     | Extrator genérico JSON-LD → LLM com verificação ancorada nos links da própria página; auditoria por extração; provado live em loja de prática (116/117) |
 | Auto-cura (detectar quebra → diagnosticar → propor) | ❌     | Removido em `1291a6e`; eram funções puras sem chamador                                                                                                                                                                                                   |
 
 ## Fontes

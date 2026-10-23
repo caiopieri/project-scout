@@ -1276,6 +1276,79 @@ function LocalAgentPanel({
   );
 }
 
+function OnDemandSourcePanel({
+  projectId,
+  request,
+}: {
+  projectId: string;
+  request: (path: string, init?: RequestInit) => Promise<unknown>;
+}) {
+  const [url, setUrl] = useState('');
+  const [termsConfirmed, setTermsConfirmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const extract = async () => {
+    setBusy(true);
+    setResult(null);
+    try {
+      const body = (await request(`/api/projects/${projectId}/extract`, {
+        method: 'POST',
+        body: JSON.stringify({ url, termsConfirmed }),
+      })) as {
+        method: string;
+        documents: number;
+        droppedUnverified: number;
+        itemsCreated: number;
+        itemsUpdated: number;
+        domain: string;
+      };
+      setResult(
+        `${body.domain} · ${body.method === 'json-ld' ? 'dados estruturados da página' : 'extração por IA verificada'} · ${body.documents} anúncio(s), ${body.droppedUnverified} descartado(s) por não aparecerem na página, ${body.itemsCreated} novo(s), ${body.itemsUpdated} atualizado(s). Recarregue a lista.`,
+      );
+    } catch (caught) {
+      setResult(caught instanceof Error ? caught.message : 'Falha na extração.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="valuation-settings">
+      <div className="eyebrow">Fonte sob demanda · cole uma URL de listagem</div>
+      <p className="muted">
+        Um único extrator genérico (dados estruturados primeiro, IA depois) lê a página; nada de
+        código novo por site. Respeita robots.txt e para em bloqueio. Cada item da IA precisa
+        aparecer no texto da página.
+      </p>
+      <div className="actions">
+        <input
+          type="url"
+          value={url}
+          placeholder="https://…"
+          onChange={(event) => setUrl(event.target.value)}
+          style={{ flex: 1 }}
+        />
+        <label className="check-row">
+          <input
+            type="checkbox"
+            checked={termsConfirmed}
+            onChange={(event) => setTermsConfirmed(event.target.checked)}
+          />
+          Os termos deste site permitem coleta
+        </label>
+        <button
+          type="button"
+          className="button secondary"
+          disabled={busy || !url}
+          onClick={() => void extract()}
+        >
+          {busy ? 'Extraindo…' : 'Extrair anúncios'}
+        </button>
+      </div>
+      {result && <div className="notice">{result}</div>}
+    </div>
+  );
+}
+
 async function readJson(response: Response): Promise<unknown> {
   const body = await response.json().catch(() => ({ error: 'Resposta inválida do servidor.' }));
   if (!response.ok) {
@@ -2635,6 +2708,7 @@ function ProjectDetail({
       </div>
       {analysisNotice && <div className="notice">{analysisNotice}</div>}
       <LocalAgentPanel projectId={project.id} request={request} />
+      <OnDemandSourcePanel projectId={project.id} request={request} />
       <AgentPanel
         projectId={project.id}
         request={request}

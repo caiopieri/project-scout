@@ -3,7 +3,10 @@ import {
   DeterministicTextAnalyzer,
   FallbackTextAnalyzer,
   GeminiVisualAnalyzer,
+  htmlToExtractionText,
+  LlmListingExtractor,
   ScoutAgent,
+  verifyCandidates,
   selectVisualCheckupImages,
   type AgentTool,
   GeminiTextAnalyzer,
@@ -19,6 +22,7 @@ import {
   DefaultCollectionGateway,
   GenericListingMapper,
   HttpScrapingProvider,
+  extractSchemaOrgOffers,
   ListingIngestionService,
   SourceCollectionGatewayRegistry,
   type CollectionLimits,
@@ -60,6 +64,7 @@ import { CollectionOpportunityValuationProcessor } from '@scout/valuation';
 import {
   calculateMarketMetrics,
   calculateListingScore,
+  ConnectorError,
   calculateReferenceDiscount,
   REFERENCE_POLICY_V1,
   sliceListingFeed,
@@ -77,6 +82,9 @@ import {
   agentChatRequestSchema,
   agentChatResponseSchema,
   collectionRunRequestSchema,
+  moneySchema,
+  onDemandExtractionRequestSchema,
+  rawListingRecordSchema,
   localAgentRegistrationSchema,
   localAgentResultSchema,
   localAgentTaskRequestSchema,
@@ -1116,6 +1124,131 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
       : [];
     return json(
       agentChatResponseSchema.parse(await agent.run([...context, ...input.messages], tools)),
+      200,
+      env.WEB_ORIGIN,
+    );
+  }
+  const extractMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/extract$/);
+  if (extractMatch) {
+    if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed.');
+    const projectId = projectIdSchema.parse(extractMatch[1]);
+    if (!(await repository.findById(projectId, user.id)))
+      throw new HttpError(404, 'Project not found.');
+    const input = onDemandExtractionRequestSchema.parse(await parseBody(request));
+    const target = new URL(input.url);
+    const loopback = /^(127\.0\.0\.1|localhost)$/.test(target.hostname);
+    if (!loopback && !input.termsConfirmed)
+      throw new HttpError(400, "Confirm that the site's terms allow collection before extracting.");
+    const service = serviceRoleConfig(env);
+    const audit = async (row: Record<string, unknown>) =>
+      fetch(`${env.SUPABASE_URL}/rest/v1/on_demand_extractions`, {
+        method: 'POST',
+        headers: {
+          apikey: service.anonKey,
+          Authorization: `Bearer ${service.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: user.id,
+          project_id: projectId,
+          url: target.toString(),
+          terms_confirmed: input.termsConfirmed,
+          ...row,
+        }),
+      });
+    let page;
+    try {
+      page = await new HttpScrapingProvider({ minIntervalMs: 0 }).fetchPage({
+        url: target.toString(),
+      });
+    } catch (error) {
+      const code = error instanceof ConnectorError ? error.code : 'SOURCE_UNAVAILABLE';
+      await audit({ error_code: code });
+      throw new HttpError(422, `The page could not be collected: ${code}.`);
+    }
+    // Cascade: structured data first (free and exact), the LLM only when there is none.
+    let method = 'json-ld';
+    let documents = extractSchemaOrgOffers(page.content, page.url);
+    let dropped = 0;
+    let usage: { input: number; output: number } | null = null;
+    if (!documents.length) {
+      method = 'llm';
+      const text = htmlToExtractionText(page.content);
+      const extractor = new LlmListingExtractor(
+        'groq',
+        env.GROQ_API_KEY ?? '',
+        env.GROQ_MODEL ?? undefined,
+      );
+      const extracted = await extractor.extract(text);
+      usage = extracted.usage;
+      const verified = verifyCandidates(extracted.candidates, text, page.url);
+      documents = verified.documents;
+      dropped = verified.dropped;
+    }
+    const sourceResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/ensure_on_demand_source`, {
+      method: 'POST',
+      headers: {
+        apikey: service.anonKey,
+        Authorization: `Bearer ${service.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_domain: target.host }),
+    });
+    if (!sourceResponse.ok) throw new HttpError(502, 'On-demand source could not be registered.');
+    const sourceId = projectIdSchema.parse(await sourceResponse.json());
+    const records = documents.flatMap((document) => {
+      const price = moneySchema.safeParse(document.price);
+      if (!price.success) return [];
+      return [
+        rawListingRecordSchema.parse({
+          preview: {
+            externalId: document.externalId,
+            url: document.url,
+            title: document.title,
+            price: price.data,
+            imageUrl: document.imageUrls[0],
+          },
+          payload: { ...document.fields, extractedBy: document.extractedBy },
+        }),
+      ];
+    });
+    const summary = records.length
+      ? await new ListingIngestionService(
+          new GenericListingMapper(),
+          new R2RawListingObjectStore(env.RAW_BUCKET, env.EBAY_IDENTITY_HASH_SECRET ?? ''),
+          new SupabaseRestListingIngestionRepository(service),
+        ).ingest({
+          projectId,
+          sourceId,
+          result: {
+            items: records,
+            pagesFetched: 1,
+            provider: `on-demand:${method}`,
+            truncated: false,
+          },
+        })
+      : { itemsCreated: 0, itemsUpdated: 0, listingIds: [] };
+    await audit({
+      source_id: sourceId,
+      method,
+      documents: documents.length,
+      dropped_unverified: dropped,
+      items_created: summary.itemsCreated,
+      items_updated: summary.itemsUpdated,
+    });
+    return json(
+      {
+        sourceId,
+        domain: target.host,
+        method,
+        documents: documents.length,
+        droppedUnverified: dropped,
+        withoutPrice: documents.length - records.length,
+        itemsCreated: summary.itemsCreated,
+        itemsUpdated: summary.itemsUpdated,
+        usage,
+        sample: documents.slice(0, 3).map(({ title, price, url }) => ({ title, price, url })),
+      },
       200,
       env.WEB_ORIGIN,
     );
