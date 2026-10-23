@@ -122,7 +122,7 @@ export const exportListings = (listings: ListingTransport[], format: ExportForma
   const stamp = new Date().toISOString().slice(0, 10);
   return format === 'csv'
     ? {
-        body: `﻿${toCsv(rows)}`,
+        body: `\uFEFF${toCsv(rows)}`,
         contentType: 'text/csv; charset=utf-8',
         filename: `scout-listings-${stamp}.csv`,
       }

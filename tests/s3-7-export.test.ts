@@ -44,7 +44,7 @@ describe('S3.7 export of the current selection', () => {
   it('writes CSV with escaping, unknowns as empty cells and formulas neutralized', () => {
     const file = exportListings([listing({}), hostile], 'csv');
     expect(file.contentType).toContain('text/csv');
-    const lines = String(file.body).replace(/^﻿/, '').split('\r\n');
+    const lines = String(file.body).replace(/^\uFEFF/, '').split('\r\n');
     expect(lines[0]).toBe(
       'group,title,url,condition,currency,price,shipping,landed_cost,landed_cost_status,reference_median,reference_distance_pct,reference_n,refusal_reasons,score,score_status,score_policy,heart,label',
     );
