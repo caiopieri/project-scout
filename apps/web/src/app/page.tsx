@@ -6,6 +6,9 @@ import type {
   CollectionRunTransport,
   CrossSourceIdentityCandidateTransport,
   InterpretIntentResult,
+  ListingFeedGroup,
+  ListingFeedPage,
+  ListingFeedSort,
   ListingTransport,
   ListingTriageDecisionTransport,
   ListingTriageReviewTransport,
@@ -21,6 +24,8 @@ import {
   crossSourceIdentityCandidateReviewRequestSchema,
   crossSourceIdentityCandidateTransportSchema,
   interpretIntentResultSchema,
+  listingFeedPageSchema,
+  listingFeedSortSchema,
   listingTransportSchema,
   listingTriageDecisionTransportSchema,
   listingTriageReviewTransportSchema,
@@ -121,6 +126,181 @@ function MarketMetricsSummary({ metrics }: { metrics: MarketMetricsTransport | n
           {segment.product.brand} {segment.product.model}{segment.product.variant ? ` ${segment.product.variant}` : ''} · {segment.condition} · {segment.status === 'known' ? `Mediana: ${formatMinorMoney(segment.currency, segment.medianMinor)}` : 'Amostra insuficiente'} · n {segment.nRaw}/{metrics.minimumObservations} → {segment.nTrimmed} ({segment.nDiscarded} descartado(s))
         </p>
       ))}
+    </section>
+  );
+}
+
+const feedSortLabels: Record<ListingFeedSort, string> = {
+  discount: 'Distância da referência',
+  totalCost: 'Custo total',
+  price: 'Preço',
+  newest: 'Mais recentes',
+};
+
+const refusalGroupLabel =
+  'Sem lastro: custo, segmento ou amostra desconhecidos. Não é pior — é desconhecido, por isso não é ordenado por desconto.';
+
+interface FeedGroupState {
+  items: ListingTransport[];
+  nextOffset: number | null;
+}
+
+function ListingFeed({
+  projectId,
+  request,
+  renderListingCard,
+}: {
+  projectId: string;
+  request: (path: string, init?: RequestInit) => Promise<unknown>;
+  renderListingCard: (listing: ListingTransport) => JSX.Element;
+}) {
+  const [sort, setSort] = useState<ListingFeedSort>('discount');
+  const [snapshot, setSnapshot] = useState<string | null>(null);
+  const [groups, setGroups] = useState<Record<ListingFeedGroup, FeedGroupState>>({
+    rankable: { items: [], nextOffset: null },
+    unbacked: { items: [], nextOffset: null },
+  });
+  const [totals, setTotals] = useState({ rankable: 0, unbacked: 0 });
+  const [newSinceSnapshot, setNewSinceSnapshot] = useState(0);
+  const [sources, setSources] = useState<ListingFeedPage['sources']>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const fetchPage = useCallback(
+    async (group: ListingFeedGroup, offset: number, at: string | null, limit = 25) => {
+      const params = new URLSearchParams({ group, sort, offset: String(offset), limit: String(limit) });
+      if (at) params.set('snapshot', at);
+      return listingFeedPageSchema.parse(await request(`/api/projects/${projectId}/feed?${params}`));
+    },
+    [projectId, request, sort],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    void (async () => {
+      try {
+        const rankable = await fetchPage('rankable', 0, null);
+        const at = rankable.snapshot.toISOString();
+        const unbacked = await fetchPage('unbacked', 0, at);
+        if (cancelled) return;
+        setSnapshot(at);
+        setGroups({
+          rankable: { items: rankable.items, nextOffset: rankable.nextOffset },
+          unbacked: { items: unbacked.items, nextOffset: unbacked.nextOffset },
+        });
+        setTotals(rankable.totals);
+        setNewSinceSnapshot(0);
+        setSources(rankable.sources);
+      } catch (caught) {
+        if (!cancelled) setError(caught instanceof Error ? caught.message : 'Falha ao carregar a lista.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchPage, reloadKey]);
+
+  useEffect(() => {
+    if (!snapshot) return;
+    const timer = setInterval(() => {
+      void fetchPage('rankable', 0, snapshot, 1)
+        .then((page) => {
+          setNewSinceSnapshot(page.newSinceSnapshot);
+          setSources(page.sources);
+        })
+        .catch(() => undefined);
+    }, 20_000);
+    return () => clearInterval(timer);
+  }, [fetchPage, snapshot]);
+
+  const loadMore = async (group: ListingFeedGroup) => {
+    const current = groups[group];
+    if (current.nextOffset === null || !snapshot) return;
+    try {
+      const page = await fetchPage(group, current.nextOffset, snapshot);
+      setGroups((previous) => ({
+        ...previous,
+        [group]: { items: [...previous[group].items, ...page.items], nextOffset: page.nextOffset },
+      }));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Falha ao carregar mais itens.');
+    }
+  };
+
+  const collecting = sources.some((source) => source.state === 'collecting');
+  const failed = sources.filter((source) => source.state === 'failed');
+  const truncated = sources.filter((source) => source.state === 'truncated');
+  const empty = !loading && !error && totals.rankable + totals.unbacked === 0;
+
+  return (
+    <section>
+      <div className="results-head">
+        <div className="eyebrow">Anúncios coletados</div>
+        <strong>
+          {loading ? 'Carregando primeira página…' : `${totals.rankable} ranqueável(is) · ${totals.unbacked} sem lastro`}
+        </strong>
+      </div>
+      <label className="muted">
+        Ordenar ranqueáveis por{' '}
+        <select value={sort} onChange={(event) => setSort(event.target.value as ListingFeedSort)}>
+          {listingFeedSortSchema.options.map((option) => (
+            <option key={option} value={option}>
+              {feedSortLabels[option]}
+            </option>
+          ))}
+        </select>
+      </label>
+      {newSinceSnapshot > 0 && (
+        <button type="button" className="button secondary" onClick={() => setReloadKey((key) => key + 1)}>
+          +{newSinceSnapshot} novo(s) · atualizar
+        </button>
+      )}
+      {collecting && <div className="notice">Coletando ao vivo — novos itens não reordenam esta lista.</div>}
+      {failed.length > 0 && (
+        <div className="notice">
+          Resultado parcial: {failed.length} fonte(s) falharam ({failed.map((source) => source.reason).join(', ')}).
+        </div>
+      )}
+      {truncated.length > 0 && (
+        <div className="notice">Coleta truncada pelo orçamento de chamadas em {truncated.length} fonte(s).</div>
+      )}
+      {error && <div className="notice">{error}</div>}
+      {empty && <p className="muted">Nenhum anúncio foi associado a este projeto ainda.</p>}
+      {!loading && totals.rankable > 0 && (
+        <>
+          <p className="muted">
+            Ranqueáveis: distância do custo até a mediana de preço pedido do segmento. Não é margem; desconto
+            grande costuma ser defeito que a mediana não captura.
+          </p>
+          <div className="listing-list">{groups.rankable.items.map(renderListingCard)}</div>
+          {groups.rankable.nextOffset !== null && (
+            <button type="button" className="button secondary" onClick={() => void loadMore('rankable')}>
+              Carregar mais ranqueáveis
+            </button>
+          )}
+        </>
+      )}
+      {!loading && totals.unbacked > 0 && (
+        <>
+          <div className="results-head">
+            <div className="eyebrow">Sem lastro</div>
+            <strong>{totals.unbacked}</strong>
+          </div>
+          <p className="muted">{refusalGroupLabel}</p>
+          <div className="listing-list">{groups.unbacked.items.map(renderListingCard)}</div>
+          {groups.unbacked.nextOffset !== null && (
+            <button type="button" className="button secondary" onClick={() => void loadMore('unbacked')}>
+              Carregar mais sem lastro
+            </button>
+          )}
+        </>
+      )}
+      {snapshot && <p className="meta">Snapshot {new Date(snapshot).toLocaleString('pt-BR')}</p>}
     </section>
   );
 }
@@ -910,7 +1090,6 @@ function ProjectDetail({
   const [listings, setListings] = useState<ListingTransport[]>([]);
   const [marketMetrics, setMarketMetrics] = useState<MarketMetricsTransport | null>(null);
   const [valuations, setValuations] = useState<Record<string, OpportunityValuationTransport>>({});
-  const [loadingListings, setLoadingListings] = useState(true);
   const [listingError, setListingError] = useState<string | null>(null);
   const [observations, setObservations] = useState<SearchTermObservationTransport[]>([]);
   const [observationError, setObservationError] = useState<string | null>(null);
@@ -931,7 +1110,6 @@ function ProjectDetail({
 
   useEffect(() => {
     let cancelled = false;
-    setLoadingListings(true);
     setListingError(null);
     void request(`/api/projects/${project.id}/listings`)
       .then((raw) => {
@@ -940,9 +1118,6 @@ function ProjectDetail({
       .catch((error) => {
         if (!cancelled)
           setListingError(error instanceof Error ? error.message : 'Falha ao carregar anúncios.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingListings(false);
       });
     return () => {
       cancelled = true;
@@ -1121,6 +1296,108 @@ function ProjectDetail({
     };
   }, [listings, project.id, request]);
 
+  const renderListingCard = (listing: ListingTransport) => (
+      <article className="listing-card" key={listing.id}>
+        <div>
+          <div className="meta">eBay · {listing.condition}</div>
+          <h3>{listing.title}</h3>
+          <LandedCostSummary listing={listing} />
+          <ReferenceDiscountSummary listing={listing} />
+          {listing.location ? <p className="muted">{listing.location}</p> : null}
+          {valuations[listing.id] && listing.landedCost?.status === 'known' && (
+            <p className="valuation">
+              Mercado estimado: {listing.currency}{' '}
+              {(valuations[listing.id].estimatedMarketPriceMinor / 100).toFixed(2)} · Compra
+              máxima: {listing.currency}{' '}
+              {(valuations[listing.id].maxPurchasePriceMinor / 100).toFixed(2)} · Deal{' '}
+              {Math.round(valuations[listing.id].scores.dealScore)}
+            </p>
+          )}
+          {triageDecisions.find((decision) => decision.listingId === listing.id) && (
+            <>
+              <p className="muted">
+                Triagem:{' '}
+                {
+                  triageDecisions.find((decision) => decision.listingId === listing.id)!
+                    .investigation.state
+                }
+                {triageReviews[listing.id]
+                  ? ` · revisão ${triageReviews[listing.id].status}`
+                  : ''}
+              </p>
+              <p className="muted">
+                Identidade:{' '}
+                {[
+                  triageDecisions.find((decision) => decision.listingId === listing.id)!
+                    .identity.attributes.brand,
+                  triageDecisions.find((decision) => decision.listingId === listing.id)!
+                    .identity.attributes.model,
+                ]
+                  .filter(Boolean)
+                  .join(' · ') || 'não identificada'}{' '}
+                ·{' '}
+                {
+                  triageDecisions.find((decision) => decision.listingId === listing.id)!
+                    .identity.media.imageCount
+                }{' '}
+                imagem(ns)
+              </p>
+            </>
+          )}
+          {expandedHistoryId === listing.id && priceHistories[listing.id] && (
+            <div className="history">
+              <strong>Histórico de preço</strong>
+              {priceHistories[listing.id].length === 0 ? (
+                <p className="muted">Nenhuma observação registrada.</p>
+              ) : (
+                <ul>
+                  {priceHistories[listing.id].map((observation) => (
+                    <li key={observation.id}>
+                      {listing.currency} {observation.price.toFixed(2)} · {observation.status} ·{' '}
+                      {observation.collectedAt.toLocaleString('pt-BR')}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="actions">
+          <a className="button secondary" href={listing.url} target="_blank" rel="noreferrer">
+            Ver anúncio
+          </a>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={loadingHistoryId === listing.id}
+            onClick={() => void showPriceHistory(listing.id)}
+          >
+            {loadingHistoryId === listing.id
+              ? 'Carregando histórico…'
+              : expandedHistoryId === listing.id
+                ? 'Ocultar histórico'
+                : 'Ver histórico de preço'}
+          </button>
+          <button
+            type="button"
+            className="button"
+            disabled={reviewingListingId === listing.id}
+            onClick={() => void reviewListing(listing.id, 'accepted')}
+          >
+            Aprovar triagem
+          </button>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={reviewingListingId === listing.id}
+            onClick={() => void reviewListing(listing.id, 'rejected')}
+          >
+            Rejeitar triagem
+          </button>
+        </div>
+      </article>
+  );
+
   return (
     <article className="panel detail">
       <div className="eyebrow">Detalhe persistido</div>
@@ -1230,118 +1507,13 @@ function ProjectDetail({
           </article>
         ))}
       </div>
-      <div className="results-head">
-        <div className="eyebrow">Anúncios coletados</div>
-        <strong>{loadingListings ? 'Carregando…' : `${listings.length} resultado(s)`}</strong>
-      </div>
       {listingError && <div className="notice">{listingError}</div>}
       {triageError && <div className="notice">{triageError}</div>}
-      {!loadingListings && !listingError && listings.length === 0 && (
-        <p className="muted">Nenhum anúncio foi associado a este projeto ainda.</p>
-      )}
-      <div className="listing-list">
-        {listings.map((listing) => (
-          <article className="listing-card" key={listing.id}>
-            <div>
-              <div className="meta">eBay · {listing.condition}</div>
-              <h3>{listing.title}</h3>
-              <LandedCostSummary listing={listing} />
-              <ReferenceDiscountSummary listing={listing} />
-              {listing.location ? <p className="muted">{listing.location}</p> : null}
-              {valuations[listing.id] && listing.landedCost?.status === 'known' && (
-                <p className="valuation">
-                  Mercado estimado: {listing.currency}{' '}
-                  {(valuations[listing.id].estimatedMarketPriceMinor / 100).toFixed(2)} · Compra
-                  máxima: {listing.currency}{' '}
-                  {(valuations[listing.id].maxPurchasePriceMinor / 100).toFixed(2)} · Deal{' '}
-                  {Math.round(valuations[listing.id].scores.dealScore)}
-                </p>
-              )}
-              {triageDecisions.find((decision) => decision.listingId === listing.id) && (
-                <>
-                  <p className="muted">
-                    Triagem:{' '}
-                    {
-                      triageDecisions.find((decision) => decision.listingId === listing.id)!
-                        .investigation.state
-                    }
-                    {triageReviews[listing.id]
-                      ? ` · revisão ${triageReviews[listing.id].status}`
-                      : ''}
-                  </p>
-                  <p className="muted">
-                    Identidade:{' '}
-                    {[
-                      triageDecisions.find((decision) => decision.listingId === listing.id)!
-                        .identity.attributes.brand,
-                      triageDecisions.find((decision) => decision.listingId === listing.id)!
-                        .identity.attributes.model,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ') || 'não identificada'}{' '}
-                    ·{' '}
-                    {
-                      triageDecisions.find((decision) => decision.listingId === listing.id)!
-                        .identity.media.imageCount
-                    }{' '}
-                    imagem(ns)
-                  </p>
-                </>
-              )}
-              {expandedHistoryId === listing.id && priceHistories[listing.id] && (
-                <div className="history">
-                  <strong>Histórico de preço</strong>
-                  {priceHistories[listing.id].length === 0 ? (
-                    <p className="muted">Nenhuma observação registrada.</p>
-                  ) : (
-                    <ul>
-                      {priceHistories[listing.id].map((observation) => (
-                        <li key={observation.id}>
-                          {listing.currency} {observation.price.toFixed(2)} · {observation.status} ·{' '}
-                          {observation.collectedAt.toLocaleString('pt-BR')}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="actions">
-              <a className="button secondary" href={listing.url} target="_blank" rel="noreferrer">
-                Ver anúncio
-              </a>
-              <button
-                type="button"
-                className="button secondary"
-                disabled={loadingHistoryId === listing.id}
-                onClick={() => void showPriceHistory(listing.id)}
-              >
-                {loadingHistoryId === listing.id
-                  ? 'Carregando histórico…'
-                  : expandedHistoryId === listing.id
-                    ? 'Ocultar histórico'
-                    : 'Ver histórico de preço'}
-              </button>
-              <button
-                type="button"
-                className="button"
-                disabled={reviewingListingId === listing.id}
-                onClick={() => void reviewListing(listing.id, 'accepted')}
-              >
-                Aprovar triagem
-              </button>
-              <button
-                type="button"
-                className="button secondary"
-                disabled={reviewingListingId === listing.id}
-                onClick={() => void reviewListing(listing.id, 'rejected')}
-              >
-                Rejeitar triagem
-              </button>
-            </div>
-          </article>
-        ))}
-      </div>
+      <ListingFeed
+        projectId={project.id}
+        request={request}
+        renderListingCard={renderListingCard}
+      />
     </article>
   );
 }

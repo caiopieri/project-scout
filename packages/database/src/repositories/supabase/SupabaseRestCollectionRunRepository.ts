@@ -81,6 +81,19 @@ export class SupabaseRestCollectionRunRepository implements CollectionRunReposit
     return rows[0] ? mapRun(rows[0]) : null;
   }
 
+  /** Most recent run per source for a project, newest first. */
+  async findLatestRunsByProjectId(projectId: string) {
+    const rows = await this.request<CollectionRunRow[]>(
+      `collection_runs?project_id=eq.${encodeURIComponent(projectId)}&order=started_at.desc&limit=50`,
+    );
+    const latest = new Map<string, ReturnType<typeof mapRun>>();
+    for (const row of rows) {
+      const run = mapRun(row);
+      if (!latest.has(run.sourceId)) latest.set(run.sourceId, run);
+    }
+    return [...latest.values()];
+  }
+
   async findByRunId(id: string) {
     const rows = await this.request<CollectionRunRow[]>(
       `collection_runs?id=eq.${encodeURIComponent(id)}&limit=1`,

@@ -49,7 +49,12 @@ import {
 } from '@scout/search-intelligence';
 import { UnavailableXianyuConnector } from '@scout/xianyu-connector';
 import { CollectionOpportunityValuationProcessor } from '@scout/valuation';
-import { calculateMarketMetrics, calculateReferenceDiscount, REFERENCE_POLICY_V1 } from '@scout/domain';
+import {
+  calculateMarketMetrics,
+  calculateReferenceDiscount,
+  REFERENCE_POLICY_V1,
+  sliceListingFeed,
+} from '@scout/domain';
 import {
   authenticatedUserSchema,
   crossSourceIdentityCandidateReviewRequestSchema,
@@ -59,6 +64,8 @@ import {
   projectIdSchema,
   idempotencyKeySchema,
   listingTriageReviewRequestSchema,
+  listingFeedPageSchema,
+  listingFeedQuerySchema,
   marketMetricsInputSchema,
   marketMetricsTransportSchema,
   priceHistoryTransportSchema,
@@ -361,6 +368,28 @@ async function parseBody(request: Request): Promise<unknown> {
   }
 }
 
+async function listingsWithReferenceDiscount(
+  listingRepository: SupabaseRestListingRepository,
+  projectId: string,
+  asOf: Date,
+) {
+  const listings = await listingRepository.findByProjectId(projectId);
+  const observations = await listingRepository.getTaggedMarketObservations(
+    listings,
+    REFERENCE_POLICY_V1.windowDays,
+    asOf,
+  );
+  return listings.map((listing) => ({
+    ...listing,
+    referenceDiscount: calculateReferenceDiscount(
+      { id: listing.id, landedCost: listing.landedCost, segment: listingReferenceSegment(listing) },
+      observations,
+      REFERENCE_POLICY_V1,
+      asOf,
+    ),
+  }));
+}
+
 async function handleApi(request: Request, env: Env, url: URL): Promise<Response> {
   const { user, accessToken } = await authenticate(request, env);
   const repository = new SupabaseRestResearchProjectRepository({
@@ -434,23 +463,47 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     const projectId = projectIdSchema.parse(listingsMatch[1]);
     const project = await repository.findById(projectId, user.id);
     if (!project) throw new HttpError(404, 'Project not found.');
-    const asOf = new Date();
-    const listings = await listingRepository.findByProjectId(projectId);
-    const observations = await listingRepository.getTaggedMarketObservations(
-      listings,
-      REFERENCE_POLICY_V1.windowDays,
-      asOf,
-    );
     return json(
-      listings.map((listing) => ({
-        ...listing,
-        referenceDiscount: calculateReferenceDiscount(
-          { id: listing.id, landedCost: listing.landedCost, segment: listingReferenceSegment(listing) },
-          observations,
-          REFERENCE_POLICY_V1,
-          asOf,
-        ),
-      })),
+      await listingsWithReferenceDiscount(listingRepository, projectId, new Date()),
+      200,
+      env.WEB_ORIGIN,
+    );
+  }
+  const feedMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/feed$/);
+  if (feedMatch) {
+    if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
+    const projectId = projectIdSchema.parse(feedMatch[1]);
+    const project = await repository.findById(projectId, user.id);
+    if (!project) throw new HttpError(404, 'Project not found.');
+    const query = listingFeedQuerySchema.parse(Object.fromEntries(url.searchParams));
+    const snapshot = query.snapshot ?? new Date();
+    const [listings, runs] = await Promise.all([
+      listingsWithReferenceDiscount(listingRepository, projectId, snapshot),
+      collectionRepository.findLatestRunsByProjectId(projectId),
+    ]);
+    const slice = sliceListingFeed(listings, { ...query, snapshot });
+    return json(
+      listingFeedPageSchema.parse({
+        snapshot,
+        group: query.group,
+        sort: query.sort,
+        offset: query.offset,
+        limit: query.limit,
+        ...slice,
+        sources: runs.map((run) => ({
+          sourceId: run.sourceId,
+          runId: run.id,
+          state:
+            run.status === 'failed'
+              ? 'failed'
+              : run.status === 'completed'
+                ? run.truncated
+                  ? 'truncated'
+                  : 'completed'
+                : 'collecting',
+          reason: run.status === 'failed' ? (run.errorCode ?? run.error ?? 'unknown') : null,
+        })),
+      }),
       200,
       env.WEB_ORIGIN,
     );

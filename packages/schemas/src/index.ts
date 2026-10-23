@@ -437,6 +437,34 @@ export const referenceDiscountSchema = z.discriminatedUnion('status', [
 ]);
 export type ReferenceDiscount = z.infer<typeof referenceDiscountSchema>;
 
+// Listing feed: two declared groups. Unbacked items are unknown, never "worst", so they are
+// never ordered by discount nor mixed with rankable items.
+export const listingFeedGroupSchema = z.enum(['rankable', 'unbacked']);
+export type ListingFeedGroup = z.infer<typeof listingFeedGroupSchema>;
+export const listingFeedSortSchema = z.enum(['discount', 'totalCost', 'price', 'newest']);
+export type ListingFeedSort = z.infer<typeof listingFeedSortSchema>;
+
+export const listingFeedQuerySchema = z
+  .object({
+    group: listingFeedGroupSchema.default('rankable'),
+    sort: listingFeedSortSchema.default('discount'),
+    snapshot: z.coerce.date().optional(),
+    offset: z.coerce.number().int().nonnegative().default(0),
+    limit: z.coerce.number().int().min(1).max(100).default(25),
+  })
+  .strict();
+export type ListingFeedQuery = z.infer<typeof listingFeedQuerySchema>;
+
+export const listingFeedSourceStateSchema = z
+  .object({
+    sourceId: z.string().uuid(),
+    runId: z.string().uuid(),
+    state: z.enum(['collecting', 'completed', 'failed', 'truncated']),
+    reason: z.string().nullable(),
+  })
+  .strict();
+export type ListingFeedSourceState = z.infer<typeof listingFeedSourceStateSchema>;
+
 // Listing Schema
 export const listingSchema = z.object({
   id: z.string().uuid(),
@@ -499,6 +527,27 @@ export const listingTransportSchema = listingSchema
     }
   });
 export type ListingTransport = z.infer<typeof listingTransportSchema>;
+
+export const listingFeedPageSchema = z
+  .object({
+    snapshot: z.coerce.date(),
+    group: listingFeedGroupSchema,
+    sort: listingFeedSortSchema,
+    offset: z.number().int().nonnegative(),
+    limit: z.number().int().positive(),
+    nextOffset: z.number().int().nonnegative().nullable(),
+    totals: z.object({ rankable: z.number().int().nonnegative(), unbacked: z.number().int().nonnegative() }).strict(),
+    newSinceSnapshot: z.number().int().nonnegative(),
+    sources: z.array(listingFeedSourceStateSchema),
+    items: z.array(listingTransportSchema),
+  })
+  .strict()
+  .superRefine((page, context) => {
+    const expected = page.group === 'rankable' ? 'known' : 'NAO_RANQUEAVEL';
+    if (page.items.some((item) => item.referenceDiscount?.status !== expected))
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['items'], message: `Every ${page.group} item must be ${expected}.` });
+  });
+export type ListingFeedPage = z.infer<typeof listingFeedPageSchema>;
 
 // Listing Snapshot Schema
 export const listingSnapshotSchema = z.object({
