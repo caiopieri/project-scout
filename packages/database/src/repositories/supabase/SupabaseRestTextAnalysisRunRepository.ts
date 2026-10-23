@@ -83,14 +83,21 @@ export class SupabaseRestTextAnalysisRunRepository implements TextAnalysisRunRep
         prompt_version: string;
         error_code: string | null;
         completed_at: string | null;
-        output_metadata: { producedBy?: { provider: string; model: string; promptVersion: string } } | null;
+        output_metadata: {
+          producedBy?: { provider: string; model: string; promptVersion: string };
+        } | null;
       }>
     >(
       `analysis_runs?listing_id=eq.${encodeURIComponent(listingId)}&analysis_type=eq.text&select=id,status,provider,model_name,prompt_version,error_code,completed_at,output_metadata&order=created_at.desc&limit=1`,
     );
     const run = runs[0];
     if (!run)
-      return listingTextAnalysisTransportSchema.parse({ listingId, run: null, evidences: [], defects: [] });
+      return listingTextAnalysisTransportSchema.parse({
+        listingId,
+        run: null,
+        evidences: [],
+        defects: [],
+      });
     const [evidences, defects] = await Promise.all([
       this.get<Array<Record<string, unknown>>>(
         `evidence?analysis_run_id=eq.${run.id}&select=id,evidence_key,component,evidence_type,assessment_kind,source_type,source_reference,claim,status,confidence,explanation,limitations,severity,model_name&order=created_at.asc`,
@@ -141,6 +148,65 @@ export class SupabaseRestTextAnalysisRunRepository implements TextAnalysisRunRep
           .filter((key): key is string => Boolean(key)),
       })),
     });
+  }
+
+  /** Latest text analysis per listing (status, defects, contradictions), batched by 50 ids. */
+  async findLatestSummariesByListingIds(listingIds: string[]) {
+    const summaries = new Map<
+      string,
+      {
+        status: 'pending' | 'running' | 'completed' | 'failed';
+        defects: Array<{
+          defectType: string;
+          severity: 'low' | 'medium' | 'high' | 'critical';
+          status: string;
+        }>;
+        contradictions: string[];
+      }
+    >();
+    for (let offset = 0; offset < listingIds.length; offset += 50) {
+      const ids = listingIds.slice(offset, offset + 50);
+      const runs = await this.get<
+        Array<{
+          id: string;
+          listing_id: string;
+          status: 'pending' | 'running' | 'completed' | 'failed';
+          output_metadata: { contradictions?: string[] } | null;
+        }>
+      >(
+        `analysis_runs?listing_id=in.(${ids.join(',')})&analysis_type=eq.text&select=id,listing_id,status,output_metadata&order=created_at.desc`,
+      );
+      const latest = new Map<string, (typeof runs)[number]>();
+      for (const run of runs) if (!latest.has(run.listing_id)) latest.set(run.listing_id, run);
+      const completedIds = [...latest.values()]
+        .filter((run) => run.status === 'completed')
+        .map((run) => run.id);
+      const defects = completedIds.length
+        ? await this.get<
+            Array<{
+              analysis_run_id: string;
+              defect_type: string;
+              severity: 'low' | 'medium' | 'high' | 'critical';
+              status: string;
+            }>
+          >(
+            `defects?analysis_run_id=in.(${completedIds.join(',')})&select=analysis_run_id,defect_type,severity,status`,
+          )
+        : [];
+      for (const [listingId, run] of latest)
+        summaries.set(listingId, {
+          status: run.status,
+          defects: defects
+            .filter((defect) => defect.analysis_run_id === run.id)
+            .map((defect) => ({
+              defectType: defect.defect_type,
+              severity: defect.severity,
+              status: defect.status,
+            })),
+          contradictions: run.output_metadata?.contradictions ?? [],
+        });
+    }
+    return summaries;
   }
 
   private async get<T>(path: string): Promise<T> {

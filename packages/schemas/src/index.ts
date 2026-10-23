@@ -437,11 +437,41 @@ export const referenceDiscountSchema = z.discriminatedUnion('status', [
 ]);
 export type ReferenceDiscount = z.infer<typeof referenceDiscountSchema>;
 
+// Explainable listing score. Every point is an itemized factor; unknown legs make the score
+// INCOMPLETO instead of being filled with zero. Silence is never a positive factor.
+export const explainableScoreFactorSchema = z
+  .object({
+    kind: z.enum(['positive', 'negative', 'absent', 'contradictory']),
+    code: z.string().regex(/^[A-Z][A-Z0-9_]*$/),
+    label: z.string().min(1),
+    points: z.number().int().nullable(),
+  })
+  .strict();
+export type ExplainableScoreFactor = z.infer<typeof explainableScoreFactorSchema>;
+
+export const explainableScoreSchema = z
+  .object({
+    policyVersion: z.literal('listing-score.v1'),
+    status: z.enum(['known', 'INCOMPLETO']),
+    value: z.number().int().min(0).max(100).nullable(),
+    factors: z.array(explainableScoreFactorSchema),
+  })
+  .strict()
+  .superRefine((score, context) => {
+    if ((score.status === 'known') !== (score.value !== null))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['value'],
+        message: 'Only a known score carries a value.',
+      });
+  });
+export type ExplainableScore = z.infer<typeof explainableScoreSchema>;
+
 // Listing feed: two declared groups. Unbacked items are unknown, never "worst", so they are
 // never ordered by discount nor mixed with rankable items.
 export const listingFeedGroupSchema = z.enum(['rankable', 'unbacked']);
 export type ListingFeedGroup = z.infer<typeof listingFeedGroupSchema>;
-export const listingFeedSortSchema = z.enum(['discount', 'totalCost', 'price', 'newest']);
+export const listingFeedSortSchema = z.enum(['score', 'discount', 'totalCost', 'price', 'newest']);
 export type ListingFeedSort = z.infer<typeof listingFeedSortSchema>;
 
 export const listingFeedQuerySchema = z
@@ -501,6 +531,7 @@ export const listingTransportSchema = listingSchema
     lastUpdatedAt: z.coerce.date(),
     landedCost: landedCostSchema.optional(),
     referenceDiscount: referenceDiscountSchema.optional(),
+    score: explainableScoreSchema.optional(),
     rawDataMetadata: listingRawDataMetadataSchema.default({}),
   })
   .superRefine((listing, context) => {
@@ -536,7 +567,12 @@ export const listingFeedPageSchema = z
     offset: z.number().int().nonnegative(),
     limit: z.number().int().positive(),
     nextOffset: z.number().int().nonnegative().nullable(),
-    totals: z.object({ rankable: z.number().int().nonnegative(), unbacked: z.number().int().nonnegative() }).strict(),
+    totals: z
+      .object({
+        rankable: z.number().int().nonnegative(),
+        unbacked: z.number().int().nonnegative(),
+      })
+      .strict(),
     newSinceSnapshot: z.number().int().nonnegative(),
     sources: z.array(listingFeedSourceStateSchema),
     items: z.array(listingTransportSchema),
@@ -545,7 +581,11 @@ export const listingFeedPageSchema = z
   .superRefine((page, context) => {
     const expected = page.group === 'rankable' ? 'known' : 'NAO_RANQUEAVEL';
     if (page.items.some((item) => item.referenceDiscount?.status !== expected))
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ['items'], message: `Every ${page.group} item must be ${expected}.` });
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['items'],
+        message: `Every ${page.group} item must be ${expected}.`,
+      });
   });
 export type ListingFeedPage = z.infer<typeof listingFeedPageSchema>;
 
@@ -631,11 +671,23 @@ export const marketMetricSegmentSchema = z
   .strict()
   .superRefine((segment, context) => {
     if (segment.nTrimmed + segment.nDiscarded !== segment.nRaw)
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ['nTrimmed'], message: 'Invalid counts.' });
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['nTrimmed'],
+        message: 'Invalid counts.',
+      });
     if (segment.status === 'known' && segment.medianMinor === null)
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ['medianMinor'], message: 'Known metrics need a median.' });
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['medianMinor'],
+        message: 'Known metrics need a median.',
+      });
     if (segment.status === 'AMOSTRA_INSUFICIENTE' && segment.medianMinor !== null)
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ['medianMinor'], message: 'Insufficient samples cannot carry a median.' });
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['medianMinor'],
+        message: 'Insufficient samples cannot carry a median.',
+      });
   });
 export type MarketMetricSegment = z.infer<typeof marketMetricSegmentSchema>;
 

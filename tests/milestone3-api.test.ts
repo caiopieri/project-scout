@@ -222,6 +222,7 @@ describe('Milestone 3 Worker API', () => {
         if (url.includes('/rest/v1/research_project_listings'))
           return Response.json(rows.map(({ id }) => ({ listing_id: id })));
         if (url.includes('/rest/v1/listings')) return Response.json(rows);
+        if (url.includes('/rest/v1/analysis_runs')) return Response.json([]);
         throw new Error(`Unexpected fetch: ${url}`);
       }),
     );

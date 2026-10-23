@@ -149,6 +149,8 @@ export { calculateMarketMetrics } from './market-metrics';
 export { calculateReferenceDiscount, REFERENCE_POLICY_V1 } from './reference-discount';
 export type { ReferenceDiscountListing, TaggedMarketObservation } from './reference-discount';
 export { sliceListingFeed } from './listing-feed';
+export { calculateListingScore, LISTING_SCORE_POLICY_VERSION } from './listing-score';
+export type { ListingScoreInput, ListingScoreTextAnalysis } from './listing-score';
 export type { ListingFeedSlice } from './listing-feed';
 export type { ReferenceDiscount, ReferencePolicy } from '@scout/schemas';
 export type { UsToUsLandedCostInput } from '@scout/schemas';

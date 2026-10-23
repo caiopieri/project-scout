@@ -53,6 +53,7 @@ import { UnavailableXianyuConnector } from '@scout/xianyu-connector';
 import { CollectionOpportunityValuationProcessor } from '@scout/valuation';
 import {
   calculateMarketMetrics,
+  calculateListingScore,
   calculateReferenceDiscount,
   REFERENCE_POLICY_V1,
   sliceListingFeed,
@@ -416,26 +417,39 @@ async function parseBody(request: Request): Promise<unknown> {
   }
 }
 
-async function listingsWithReferenceDiscount(
+async function enrichedListings(
   listingRepository: SupabaseRestListingRepository,
+  analysisRepository: SupabaseRestTextAnalysisRunRepository,
   projectId: string,
   asOf: Date,
 ) {
   const listings = await listingRepository.findByProjectId(projectId);
-  const observations = await listingRepository.getTaggedMarketObservations(
-    listings,
-    REFERENCE_POLICY_V1.windowDays,
-    asOf,
-  );
-  return listings.map((listing) => ({
-    ...listing,
-    referenceDiscount: calculateReferenceDiscount(
+  const [observations, analyses] = await Promise.all([
+    listingRepository.getTaggedMarketObservations(listings, REFERENCE_POLICY_V1.windowDays, asOf),
+    analysisRepository.findLatestSummariesByListingIds(listings.map(({ id }) => id)),
+  ]);
+  return listings.map((listing) => {
+    const referenceDiscount = calculateReferenceDiscount(
       { id: listing.id, landedCost: listing.landedCost, segment: listingReferenceSegment(listing) },
       observations,
       REFERENCE_POLICY_V1,
       asOf,
-    ),
-  }));
+    );
+    return {
+      ...listing,
+      referenceDiscount,
+      score: calculateListingScore({
+        title: listing.title,
+        description: listing.description,
+        condition: listing.condition,
+        brand: listing.inferredProduct?.brand,
+        referenceDiscount,
+        analysis: analyses.get(listing.id) ?? null,
+        lastObservedAt: listing.lastUpdatedAt,
+        asOf,
+      }),
+    };
+  });
 }
 
 async function handleApi(request: Request, env: Env, url: URL): Promise<Response> {
@@ -466,6 +480,11 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     accessToken,
   });
   const triageRepository = new SupabaseRestTriageDecisionRepository({
+    baseUrl: env.SUPABASE_URL,
+    anonKey: env.SUPABASE_ANON_KEY,
+    accessToken,
+  });
+  const analysisReadRepository = new SupabaseRestTextAnalysisRunRepository({
     baseUrl: env.SUPABASE_URL,
     anonKey: env.SUPABASE_ANON_KEY,
     accessToken,
@@ -512,7 +531,7 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     const project = await repository.findById(projectId, user.id);
     if (!project) throw new HttpError(404, 'Project not found.');
     return json(
-      await listingsWithReferenceDiscount(listingRepository, projectId, new Date()),
+      await enrichedListings(listingRepository, analysisReadRepository, projectId, new Date()),
       200,
       env.WEB_ORIGIN,
     );
@@ -526,7 +545,7 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     const query = listingFeedQuerySchema.parse(Object.fromEntries(url.searchParams));
     const snapshot = query.snapshot ?? new Date();
     const [listings, runs] = await Promise.all([
-      listingsWithReferenceDiscount(listingRepository, projectId, snapshot),
+      enrichedListings(listingRepository, analysisReadRepository, projectId, snapshot),
       collectionRepository.findLatestRunsByProjectId(projectId),
     ]);
     const slice = sliceListingFeed(listings, { ...query, snapshot });
@@ -597,15 +616,7 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     if (!project) throw new HttpError(404, 'Project not found.');
     if (!(await listingRepository.isListingInProject(listingId, projectId)))
       throw new HttpError(404, 'Listing not found in project.');
-    return json(
-      await new SupabaseRestTextAnalysisRunRepository({
-        baseUrl: env.SUPABASE_URL,
-        anonKey: env.SUPABASE_ANON_KEY,
-        accessToken,
-      }).findLatestByListingId(listingId),
-      200,
-      env.WEB_ORIGIN,
-    );
+    return json(await analysisReadRepository.findLatestByListingId(listingId), 200, env.WEB_ORIGIN);
   }
   const marketMetricsMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/market-metrics$/);
   if (marketMetricsMatch) {

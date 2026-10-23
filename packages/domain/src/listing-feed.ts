@@ -28,6 +28,17 @@ const rankableComparators: Record<
     (left.landedCost?.components.itemPrice.amountMinor ?? 0) -
       (right.landedCost?.components.itemPrice.amountMinor ?? 0) || byId(left, right),
   newest: newestFirst,
+  // Complete scores first by value; INCOMPLETO scores are not ranked against them and keep the
+  // reference-distance order after them (the UI labels the boundary).
+  score: (left, right) => {
+    const leftValue = left.score?.status === 'known' ? left.score.value : null;
+    const rightValue = right.score?.status === 'known' ? right.score.value : null;
+    if (leftValue !== null && rightValue !== null)
+      return rightValue - leftValue || byId(left, right);
+    if (leftValue !== null) return -1;
+    if (rightValue !== null) return 1;
+    return rankableComparators.discount(left, right);
+  },
 };
 
 /**

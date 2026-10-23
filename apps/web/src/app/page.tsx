@@ -91,8 +91,11 @@ function ReferenceDiscountSummary({ listing }: { listing: ListingTransport }) {
   if (discount.status === 'NAO_RANQUEAVEL') {
     return (
       <p className="muted">
-        Não ranqueável · {discount.reasons.map((reason) => refusalLabels[reason] ?? reason).join(' + ')}
-        {discount.sample ? ` · n ${discount.sample.nRaw}/${discount.policy.minimumObservations}` : ''}
+        Não ranqueável ·{' '}
+        {discount.reasons.map((reason) => refusalLabels[reason] ?? reason).join(' + ')}
+        {discount.sample
+          ? ` · n ${discount.sample.nRaw}/${discount.policy.minimumObservations}`
+          : ''}
       </p>
     );
   }
@@ -100,8 +103,9 @@ function ReferenceDiscountSummary({ listing }: { listing: ListingTransport }) {
   return (
     <div className="muted">
       <p>
-        Distância da referência: {formatMinorMoney(discount.segment.currency, discount.discountMinor)} ({percent}%)
-        {' '}· custo {formatMinorMoney(discount.segment.currency, discount.landedCostMinor)} vs mediana{' '}
+        Distância da referência:{' '}
+        {formatMinorMoney(discount.segment.currency, discount.discountMinor)} ({percent}%) · custo{' '}
+        {formatMinorMoney(discount.segment.currency, discount.landedCostMinor)} vs mediana{' '}
         {formatMinorMoney(discount.segment.currency, discount.referenceMedianMinor)}
       </p>
       <p>
@@ -119,14 +123,56 @@ function ReferenceDiscountSummary({ listing }: { listing: ListingTransport }) {
   );
 }
 
+const factorSymbols: Record<string, string> = {
+  positive: '+',
+  negative: '−',
+  absent: '?',
+  contradictory: '≠',
+};
+
+function ScoreSummary({ listing }: { listing: ListingTransport }) {
+  const score = listing.score;
+  if (!score) return null;
+  return (
+    <details className="muted">
+      <summary>
+        {score.status === 'known' ? `Score ${score.value}` : 'Score incompleto'} ·{' '}
+        {score.policyVersion} · abrir a conta
+      </summary>
+      <p>50 pontos de base. Não é margem nem recomendação de compra.</p>
+      <ul>
+        {score.factors.map((factor, index) => (
+          <li key={`${factor.code}-${index}`}>
+            {factorSymbols[factor.kind]} {factor.label}
+            {factor.points !== null
+              ? ` (${factor.points > 0 ? '+' : ''}${factor.points})`
+              : ' (sem pontos: desconhecido)'}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 function MarketMetricsSummary({ metrics }: { metrics: MarketMetricsTransport | null }) {
   if (!metrics) return null;
   return (
     <section>
-      <div className="results-head"><div className="eyebrow">Preço pedido · mediana limpa · {metrics.windowDays} dias</div></div>
+      <div className="results-head">
+        <div className="eyebrow">Preço pedido · mediana limpa · {metrics.windowDays} dias</div>
+      </div>
       {metrics.segments.map((segment) => (
-        <p className="muted" key={`${segment.product.brand}-${segment.product.model}-${segment.product.variant ?? ''}-${segment.condition}-${segment.currency}`}>
-          {segment.product.brand} {segment.product.model}{segment.product.variant ? ` ${segment.product.variant}` : ''} · {segment.condition} · {segment.status === 'known' ? `Mediana: ${formatMinorMoney(segment.currency, segment.medianMinor)}` : 'Amostra insuficiente'} · n {segment.nRaw}/{metrics.minimumObservations} → {segment.nTrimmed} ({segment.nDiscarded} descartado(s))
+        <p
+          className="muted"
+          key={`${segment.product.brand}-${segment.product.model}-${segment.product.variant ?? ''}-${segment.condition}-${segment.currency}`}
+        >
+          {segment.product.brand} {segment.product.model}
+          {segment.product.variant ? ` ${segment.product.variant}` : ''} · {segment.condition} ·{' '}
+          {segment.status === 'known'
+            ? `Mediana: ${formatMinorMoney(segment.currency, segment.medianMinor)}`
+            : 'Amostra insuficiente'}{' '}
+          · n {segment.nRaw}/{metrics.minimumObservations} → {segment.nTrimmed} (
+          {segment.nDiscarded} descartado(s))
         </p>
       ))}
     </section>
@@ -134,6 +180,7 @@ function MarketMetricsSummary({ metrics }: { metrics: MarketMetricsTransport | n
 }
 
 const feedSortLabels: Record<ListingFeedSort, string> = {
+  score: 'Score explicável',
   discount: 'Distância da referência',
   totalCost: 'Custo total',
   price: 'Preço',
@@ -172,9 +219,16 @@ function ListingFeed({
 
   const fetchPage = useCallback(
     async (group: ListingFeedGroup, offset: number, at: string | null, limit = 25) => {
-      const params = new URLSearchParams({ group, sort, offset: String(offset), limit: String(limit) });
+      const params = new URLSearchParams({
+        group,
+        sort,
+        offset: String(offset),
+        limit: String(limit),
+      });
       if (at) params.set('snapshot', at);
-      return listingFeedPageSchema.parse(await request(`/api/projects/${projectId}/feed?${params}`));
+      return listingFeedPageSchema.parse(
+        await request(`/api/projects/${projectId}/feed?${params}`),
+      );
     },
     [projectId, request, sort],
   );
@@ -198,7 +252,8 @@ function ListingFeed({
         setNewSinceSnapshot(0);
         setSources(rankable.sources);
       } catch (caught) {
-        if (!cancelled) setError(caught instanceof Error ? caught.message : 'Falha ao carregar a lista.');
+        if (!cancelled)
+          setError(caught instanceof Error ? caught.message : 'Falha ao carregar a lista.');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -245,7 +300,9 @@ function ListingFeed({
       <div className="results-head">
         <div className="eyebrow">Anúncios coletados</div>
         <strong>
-          {loading ? 'Carregando primeira página…' : `${totals.rankable} ranqueável(is) · ${totals.unbacked} sem lastro`}
+          {loading
+            ? 'Carregando primeira página…'
+            : `${totals.rankable} ranqueável(is) · ${totals.unbacked} sem lastro`}
         </strong>
       </div>
       <label className="muted">
@@ -259,30 +316,49 @@ function ListingFeed({
         </select>
       </label>
       {newSinceSnapshot > 0 && (
-        <button type="button" className="button secondary" onClick={() => setReloadKey((key) => key + 1)}>
+        <button
+          type="button"
+          className="button secondary"
+          onClick={() => setReloadKey((key) => key + 1)}
+        >
           +{newSinceSnapshot} novo(s) · atualizar
         </button>
       )}
-      {collecting && <div className="notice">Coletando ao vivo — novos itens não reordenam esta lista.</div>}
+      {collecting && (
+        <div className="notice">Coletando ao vivo — novos itens não reordenam esta lista.</div>
+      )}
       {failed.length > 0 && (
         <div className="notice">
-          Resultado parcial: {failed.length} fonte(s) falharam ({failed.map((source) => source.reason).join(', ')}).
+          Resultado parcial: {failed.length} fonte(s) falharam (
+          {failed.map((source) => source.reason).join(', ')}).
         </div>
       )}
       {truncated.length > 0 && (
-        <div className="notice">Coleta truncada pelo orçamento de chamadas em {truncated.length} fonte(s).</div>
+        <div className="notice">
+          Coleta truncada pelo orçamento de chamadas em {truncated.length} fonte(s).
+        </div>
       )}
       {error && <div className="notice">{error}</div>}
       {empty && <p className="muted">Nenhum anúncio foi associado a este projeto ainda.</p>}
       {!loading && totals.rankable > 0 && (
         <>
           <p className="muted">
-            Ranqueáveis: distância do custo até a mediana de preço pedido do segmento. Não é margem; desconto
-            grande costuma ser defeito que a mediana não captura.
+            Ranqueáveis: distância do custo até a mediana de preço pedido do segmento. Não é margem;
+            desconto grande costuma ser defeito que a mediana não captura.
           </p>
+          {sort === 'score' && (
+            <p className="muted">
+              Score completo primeiro; itens com score incompleto (texto não analisado) vêm depois,
+              na ordem da distância da referência, sem serem comparados ao score.
+            </p>
+          )}
           <div className="listing-list">{groups.rankable.items.map(renderListingCard)}</div>
           {groups.rankable.nextOffset !== null && (
-            <button type="button" className="button secondary" onClick={() => void loadMore('rankable')}>
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => void loadMore('rankable')}
+            >
               Carregar mais ranqueáveis
             </button>
           )}
@@ -297,7 +373,11 @@ function ListingFeed({
           <p className="muted">{refusalGroupLabel}</p>
           <div className="listing-list">{groups.unbacked.items.map(renderListingCard)}</div>
           {groups.unbacked.nextOffset !== null && (
-            <button type="button" className="button secondary" onClick={() => void loadMore('unbacked')}>
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => void loadMore('unbacked')}
+            >
               Carregar mais sem lastro
             </button>
           )}
@@ -310,7 +390,8 @@ function ListingFeed({
 
 function TextAnalysisSummary({ analysis }: { analysis?: ListingTextAnalysisTransport }) {
   if (!analysis) return <p className="muted">Carregando análise…</p>;
-  if (!analysis.run) return <p className="muted">Nenhuma análise de texto para este anúncio ainda.</p>;
+  if (!analysis.run)
+    return <p className="muted">Nenhuma análise de texto para este anúncio ainda.</p>;
   if (analysis.run.status !== 'completed')
     return (
       <p className="muted">
@@ -327,13 +408,16 @@ function TextAnalysisSummary({ analysis }: { analysis?: ListingTextAnalysisTrans
           : `${analysis.run.provider} · ${analysis.run.promptVersion}`}
       </p>
       {analysis.defects.length === 0 ? (
-        <p className="muted">Nenhum defeito declarado ou inferido no texto. Ausência no texto não prova funcionamento.</p>
+        <p className="muted">
+          Nenhum defeito declarado ou inferido no texto. Ausência no texto não prova funcionamento.
+        </p>
       ) : (
         <ul>
           {analysis.defects.map((defect) => (
             <li key={defect.key}>
-              {defect.component}: {defect.defectType} · {defect.status} · severidade {defect.severity} ·
-              confiança {Math.round(defect.confidence * 100)}% · evidência {defect.evidenceKeys.join(', ')}
+              {defect.component}: {defect.defectType} · {defect.status} · severidade{' '}
+              {defect.severity} · confiança {Math.round(defect.confidence * 100)}% · evidência{' '}
+              {defect.evidenceKeys.join(', ')}
             </li>
           ))}
         </ul>
@@ -341,8 +425,8 @@ function TextAnalysisSummary({ analysis }: { analysis?: ListingTextAnalysisTrans
       <ul>
         {analysis.evidences.map((evidence) => (
           <li key={evidence.key} className="muted">
-            [{evidence.key}] {evidence.claim} · {evidence.assessmentKind} · origem {evidence.sourceReference} ·{' '}
-            {evidence.model ?? 'modelo desconhecido'}
+            [{evidence.key}] {evidence.claim} · {evidence.assessmentKind} · origem{' '}
+            {evidence.sourceReference} · {evidence.model ?? 'modelo desconhecido'}
           </li>
         ))}
       </ul>
@@ -1152,7 +1236,9 @@ function ProjectDetail({
   const [priceHistories, setPriceHistories] = useState<Record<string, PriceHistoryTransport[]>>({});
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
   const [loadingHistoryId, setLoadingHistoryId] = useState<string | null>(null);
-  const [textAnalyses, setTextAnalyses] = useState<Record<string, ListingTextAnalysisTransport>>({});
+  const [textAnalyses, setTextAnalyses] = useState<Record<string, ListingTextAnalysisTransport>>(
+    {},
+  );
   const [expandedAnalysisId, setExpandedAnalysisId] = useState<string | null>(null);
   const [analysisNotice, setAnalysisNotice] = useState<string | null>(null);
 
@@ -1206,9 +1292,15 @@ function ProjectDetail({
   useEffect(() => {
     let cancelled = false;
     void request(`/api/projects/${project.id}/market-metrics`)
-      .then((raw) => { if (!cancelled) setMarketMetrics(marketMetricsTransportSchema.parse(raw)); })
-      .catch(() => { if (!cancelled) setMarketMetrics(null); });
-    return () => { cancelled = true; };
+      .then((raw) => {
+        if (!cancelled) setMarketMetrics(marketMetricsTransportSchema.parse(raw));
+      })
+      .catch(() => {
+        if (!cancelled) setMarketMetrics(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [project.id, request]);
 
   useEffect(() => {
@@ -1376,115 +1468,113 @@ function ProjectDetail({
   }, [listings, project.id, request]);
 
   const renderListingCard = (listing: ListingTransport) => (
-      <article className="listing-card" key={listing.id}>
-        <div>
-          <div className="meta">eBay · {listing.condition}</div>
-          <h3>{listing.title}</h3>
-          <LandedCostSummary listing={listing} />
-          <ReferenceDiscountSummary listing={listing} />
-          {listing.location ? <p className="muted">{listing.location}</p> : null}
-          {valuations[listing.id] && listing.landedCost?.status === 'known' && (
-            <p className="valuation">
-              Mercado estimado: {listing.currency}{' '}
-              {(valuations[listing.id].estimatedMarketPriceMinor / 100).toFixed(2)} · Compra
-              máxima: {listing.currency}{' '}
-              {(valuations[listing.id].maxPurchasePriceMinor / 100).toFixed(2)} · Deal{' '}
-              {Math.round(valuations[listing.id].scores.dealScore)}
+    <article className="listing-card" key={listing.id}>
+      <div>
+        <div className="meta">eBay · {listing.condition}</div>
+        <h3>{listing.title}</h3>
+        <LandedCostSummary listing={listing} />
+        <ReferenceDiscountSummary listing={listing} />
+        <ScoreSummary listing={listing} />
+        {listing.location ? <p className="muted">{listing.location}</p> : null}
+        {valuations[listing.id] && listing.landedCost?.status === 'known' && (
+          <p className="valuation">
+            Mercado estimado: {listing.currency}{' '}
+            {(valuations[listing.id].estimatedMarketPriceMinor / 100).toFixed(2)} · Compra máxima:{' '}
+            {listing.currency} {(valuations[listing.id].maxPurchasePriceMinor / 100).toFixed(2)} ·
+            Deal {Math.round(valuations[listing.id].scores.dealScore)}
+          </p>
+        )}
+        {triageDecisions.find((decision) => decision.listingId === listing.id) && (
+          <>
+            <p className="muted">
+              Triagem:{' '}
+              {
+                triageDecisions.find((decision) => decision.listingId === listing.id)!.investigation
+                  .state
+              }
+              {triageReviews[listing.id] ? ` · revisão ${triageReviews[listing.id].status}` : ''}
             </p>
-          )}
-          {triageDecisions.find((decision) => decision.listingId === listing.id) && (
-            <>
-              <p className="muted">
-                Triagem:{' '}
-                {
-                  triageDecisions.find((decision) => decision.listingId === listing.id)!
-                    .investigation.state
-                }
-                {triageReviews[listing.id]
-                  ? ` · revisão ${triageReviews[listing.id].status}`
-                  : ''}
-              </p>
-              <p className="muted">
-                Identidade:{' '}
-                {[
-                  triageDecisions.find((decision) => decision.listingId === listing.id)!
-                    .identity.attributes.brand,
-                  triageDecisions.find((decision) => decision.listingId === listing.id)!
-                    .identity.attributes.model,
-                ]
-                  .filter(Boolean)
-                  .join(' · ') || 'não identificada'}{' '}
-                ·{' '}
-                {
-                  triageDecisions.find((decision) => decision.listingId === listing.id)!
-                    .identity.media.imageCount
-                }{' '}
-                imagem(ns)
-              </p>
-            </>
-          )}
-          {expandedAnalysisId === listing.id && (
-            <TextAnalysisSummary analysis={textAnalyses[listing.id]} />
-          )}
-          {expandedHistoryId === listing.id && priceHistories[listing.id] && (
-            <div className="history">
-              <strong>Histórico de preço</strong>
-              {priceHistories[listing.id].length === 0 ? (
-                <p className="muted">Nenhuma observação registrada.</p>
-              ) : (
-                <ul>
-                  {priceHistories[listing.id].map((observation) => (
-                    <li key={observation.id}>
-                      {listing.currency} {observation.price.toFixed(2)} · {observation.status} ·{' '}
-                      {observation.collectedAt.toLocaleString('pt-BR')}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-        </div>
-        <div className="actions">
-          <a className="button secondary" href={listing.url} target="_blank" rel="noreferrer">
-            Ver anúncio
-          </a>
-          <button
-            type="button"
-            className="button secondary"
-            onClick={() => void toggleTextAnalysis(listing.id)}
-          >
-            {expandedAnalysisId === listing.id ? 'Ocultar análise de texto' : 'Ver análise de texto'}
-          </button>
-          <button
-            type="button"
-            className="button secondary"
-            disabled={loadingHistoryId === listing.id}
-            onClick={() => void showPriceHistory(listing.id)}
-          >
-            {loadingHistoryId === listing.id
-              ? 'Carregando histórico…'
-              : expandedHistoryId === listing.id
-                ? 'Ocultar histórico'
-                : 'Ver histórico de preço'}
-          </button>
-          <button
-            type="button"
-            className="button"
-            disabled={reviewingListingId === listing.id}
-            onClick={() => void reviewListing(listing.id, 'accepted')}
-          >
-            Aprovar triagem
-          </button>
-          <button
-            type="button"
-            className="button secondary"
-            disabled={reviewingListingId === listing.id}
-            onClick={() => void reviewListing(listing.id, 'rejected')}
-          >
-            Rejeitar triagem
-          </button>
-        </div>
-      </article>
+            <p className="muted">
+              Identidade:{' '}
+              {[
+                triageDecisions.find((decision) => decision.listingId === listing.id)!.identity
+                  .attributes.brand,
+                triageDecisions.find((decision) => decision.listingId === listing.id)!.identity
+                  .attributes.model,
+              ]
+                .filter(Boolean)
+                .join(' · ') || 'não identificada'}{' '}
+              ·{' '}
+              {
+                triageDecisions.find((decision) => decision.listingId === listing.id)!.identity
+                  .media.imageCount
+              }{' '}
+              imagem(ns)
+            </p>
+          </>
+        )}
+        {expandedAnalysisId === listing.id && (
+          <TextAnalysisSummary analysis={textAnalyses[listing.id]} />
+        )}
+        {expandedHistoryId === listing.id && priceHistories[listing.id] && (
+          <div className="history">
+            <strong>Histórico de preço</strong>
+            {priceHistories[listing.id].length === 0 ? (
+              <p className="muted">Nenhuma observação registrada.</p>
+            ) : (
+              <ul>
+                {priceHistories[listing.id].map((observation) => (
+                  <li key={observation.id}>
+                    {listing.currency} {observation.price.toFixed(2)} · {observation.status} ·{' '}
+                    {observation.collectedAt.toLocaleString('pt-BR')}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="actions">
+        <a className="button secondary" href={listing.url} target="_blank" rel="noreferrer">
+          Ver anúncio
+        </a>
+        <button
+          type="button"
+          className="button secondary"
+          onClick={() => void toggleTextAnalysis(listing.id)}
+        >
+          {expandedAnalysisId === listing.id ? 'Ocultar análise de texto' : 'Ver análise de texto'}
+        </button>
+        <button
+          type="button"
+          className="button secondary"
+          disabled={loadingHistoryId === listing.id}
+          onClick={() => void showPriceHistory(listing.id)}
+        >
+          {loadingHistoryId === listing.id
+            ? 'Carregando histórico…'
+            : expandedHistoryId === listing.id
+              ? 'Ocultar histórico'
+              : 'Ver histórico de preço'}
+        </button>
+        <button
+          type="button"
+          className="button"
+          disabled={reviewingListingId === listing.id}
+          onClick={() => void reviewListing(listing.id, 'accepted')}
+        >
+          Aprovar triagem
+        </button>
+        <button
+          type="button"
+          className="button secondary"
+          disabled={reviewingListingId === listing.id}
+          onClick={() => void reviewListing(listing.id, 'rejected')}
+        >
+          Rejeitar triagem
+        </button>
+      </div>
+    </article>
   );
 
   return (
@@ -1604,11 +1694,7 @@ function ProjectDetail({
         </button>
       </div>
       {analysisNotice && <div className="notice">{analysisNotice}</div>}
-      <ListingFeed
-        projectId={project.id}
-        request={request}
-        renderListingCard={renderListingCard}
-      />
+      <ListingFeed projectId={project.id} request={request} renderListingCard={renderListingCard} />
     </article>
   );
 }
