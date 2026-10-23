@@ -73,3 +73,12 @@ textarea { min-height: 112px; resize: vertical; line-height: 1.5; }
   .masthead { align-items: start; gap: 18px; }
   .funnel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+.feed-item { border-left: 3px solid transparent; }
+.feed-item.focused { border-left-color: var(--signal); background: #fff8e8; }
+.feed-item .listing-card { border-left: 0; }
+.badge { display: inline-block; font: 700 10px/1 ui-monospace, monospace; text-transform: uppercase; letter-spacing: .08em; border: 1px solid var(--ink); padding: 3px 6px; margin-right: 6px; }
+.lens { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0; font-size: 13px; }
+.lens input[type="number"], .lens input[type="text"] { width: 110px; }
+.drawer-backdrop { position: fixed; inset: 0; background: rgba(23,33,29,.35); z-index: 20; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(640px, 100vw); overflow-y: auto; background: var(--panel); border-left: 1px solid var(--ink); padding: 24px; z-index: 21; }
+.keyhint { font: 11px/1.4 ui-monospace, monospace; color: var(--muted); }

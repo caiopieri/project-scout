@@ -139,7 +139,11 @@ export const listingReferenceSegment = (
   const model = listing.inferredProduct?.model?.trim();
   const variant = listing.inferredProduct?.variant?.trim();
   const condition = listing.condition.trim();
-  if (!brand || !model || [brand, model, condition].some((value) => UNKNOWN_VALUES.includes(value.toLowerCase())))
+  if (
+    !brand ||
+    !model ||
+    [brand, model, condition].some((value) => UNKNOWN_VALUES.includes(value.toLowerCase()))
+  )
     return null;
   return {
     product: { brand, model, ...(variant ? { variant } : {}) },
@@ -181,6 +185,31 @@ export class SupabaseRestListingRepository {
       const listing = byId.get(id);
       return listing ? [listing] : [];
     });
+  }
+
+  /** Every listing in any of the user's non-deleted projects, deduplicated (the inventory). */
+  async findInventoryByUserId(userId: string): Promise<ListingTransport[]> {
+    const projects = await this.request<Array<{ id: string }>>(
+      `research_projects?user_id=eq.${encodeURIComponent(userId)}&deleted_at=is.null&select=id`,
+    );
+    const ids = new Set<string>();
+    for (let offset = 0; offset < projects.length; offset += LISTING_ID_BATCH_SIZE) {
+      const batch = projects.slice(offset, offset + LISTING_ID_BATCH_SIZE).map(({ id }) => id);
+      const links = await this.request<Array<{ listing_id: string }>>(
+        `research_project_listings?project_id=in.(${batch.join(',')})&select=listing_id`,
+      );
+      for (const { listing_id } of links) ids.add(listing_id);
+    }
+    const listingIds = [...ids];
+    const rows: ListingRow[] = [];
+    for (let offset = 0; offset < listingIds.length; offset += LISTING_ID_BATCH_SIZE) {
+      rows.push(
+        ...(await this.request<ListingRow[]>(
+          `listings?id=in.(${listingIds.slice(offset, offset + LISTING_ID_BATCH_SIZE).join(',')})&select=${listingSelect}`,
+        )),
+      );
+    }
+    return rows.map(mapListing);
   }
 
   async isListingInProject(listingId: string, projectId: string): Promise<boolean> {

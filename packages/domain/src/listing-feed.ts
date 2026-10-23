@@ -1,11 +1,43 @@
-import type { ListingFeedGroup, ListingFeedSort, ListingTransport } from '@scout/schemas';
+import type {
+  ListingFeedGroup,
+  ListingFeedQuery,
+  ListingFeedSort,
+  ListingTransport,
+} from '@scout/schemas';
 
 export interface ListingFeedSlice {
   items: ListingTransport[];
   nextOffset: number | null;
   totals: { rankable: number; unbacked: number };
   newSinceSnapshot: number;
+  filteredOut: number;
 }
+
+export type ListingLens = Pick<
+  ListingFeedQuery,
+  'favorite' | 'label' | 'hideDiscarded' | 'condition' | 'minScore' | 'maxTotalCostMinor'
+>;
+
+/** A lens narrows the view only; an unknown score or cost never passes a numeric lens. */
+const passesLens = (listing: ListingTransport, lens: ListingLens) => {
+  const action = listing.userAction;
+  if (lens.favorite === 'true' && !action?.favorite) return false;
+  if (lens.label === 'none' && action?.label) return false;
+  if (lens.label && lens.label !== 'none' && action?.label !== lens.label) return false;
+  if (lens.hideDiscarded !== 'false' && lens.label !== 'discarded' && action?.label === 'discarded')
+    return false;
+  if (lens.condition && listing.condition.toLowerCase() !== lens.condition.toLowerCase())
+    return false;
+  if (lens.minScore !== undefined) {
+    if (listing.score?.status !== 'known' || (listing.score.value ?? 0) < lens.minScore)
+      return false;
+  }
+  if (lens.maxTotalCostMinor !== undefined) {
+    const total = listing.landedCost?.status === 'known' ? listing.landedCost.totalMinor : null;
+    if (total === null || total === undefined || total > lens.maxTotalCostMinor) return false;
+  }
+  return true;
+};
 
 const byId = (left: ListingTransport, right: ListingTransport) => left.id.localeCompare(right.id);
 const newestFirst = (left: ListingTransport, right: ListingTransport) =>
@@ -54,10 +86,14 @@ export const sliceListingFeed = (
     snapshot: Date;
     offset: number;
     limit: number;
+    lens?: ListingLens;
   },
 ): ListingFeedSlice => {
-  const visible = listings.filter(
+  const inSnapshot = listings.filter(
     (listing) => listing.firstCollectedAt.getTime() <= options.snapshot.getTime(),
+  );
+  const visible = inSnapshot.filter((listing) =>
+    passesLens(listing, options.lens ?? { hideDiscarded: 'true' }),
   );
   const rankable = visible.filter((listing) => listing.referenceDiscount?.status === 'known');
   const unbacked = visible.filter((listing) => listing.referenceDiscount?.status !== 'known');
@@ -70,6 +106,7 @@ export const sliceListingFeed = (
     items: group.slice(options.offset, end),
     nextOffset: end < group.length ? end : null,
     totals: { rankable: rankable.length, unbacked: unbacked.length },
-    newSinceSnapshot: listings.length - visible.length,
+    newSinceSnapshot: listings.length - inSnapshot.length,
+    filteredOut: inSnapshot.length - visible.length,
   };
 };

@@ -16,7 +16,8 @@
     "./valuation": "./src/repositories/supabase/SupabaseRestOpportunityValuationRepository.ts",
     "./repair-proposals": "./src/repositories/pg/PgRepairProposalRepository.ts",
     "./triage": "./src/repositories/supabase/SupabaseRestTriageDecisionRepository.ts",
-    "./search-intelligence": "./src/repositories/supabase/SupabaseRestSearchQueryFamilyRepository.ts"
+    "./search-intelligence": "./src/repositories/supabase/SupabaseRestSearchQueryFamilyRepository.ts",
+    "./user-actions": "./src/repositories/supabase/SupabaseRestUserListingActionRepository.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

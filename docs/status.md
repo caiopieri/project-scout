@@ -62,7 +62,7 @@
 | Agente conversacional                      | ❌     | Contrato definido em `agente.md`; nada construído                                                                                                                                                                             |
 | Leilões (edital, custo real, lances)       | ❌     | Removido em `1291a6e`; volta na S11                                                                                                                                                                                           |
 | Fornecedores / cadeia de suprimento        | ❌     | Nunca iniciado                                                                                                                                                                                                                |
-| Favoritar (coração)                        | ❌     | `user_listing_actions` existe desde o M1, sem endpoint nem tela                                                                                                                                                               |
+| Favoritar (coração), etiquetas e inventário | 🟡     | Coração/etiqueta/decisão por (usuário, anúncio) com RLS, triagem por teclado, lente no feed, inventário global e dossiê em gaveta; provado em integração local pela tela |
 
 ## Plataforma
 

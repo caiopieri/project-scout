@@ -28,6 +28,7 @@ import {
   listingFeedPageSchema,
   listingFeedSortSchema,
   listingTextAnalysisTransportSchema,
+  listingUserActionSchema,
   textAnalysisScheduleResultSchema,
   listingTransportSchema,
   listingTriageDecisionTransportSchema,
@@ -195,6 +196,123 @@ interface FeedGroupState {
   nextOffset: number | null;
 }
 
+interface FeedLens {
+  favorite: boolean;
+  label: '' | 'none' | 'discarded' | 'shortlisted' | 'monitored';
+  hideDiscarded: boolean;
+  condition: string;
+  minScore: string;
+}
+
+const emptyLens: FeedLens = {
+  favorite: false,
+  label: '',
+  hideDiscarded: true,
+  condition: '',
+  minScore: '',
+};
+
+const labelNames: Record<string, string> = {
+  discarded: 'descartado',
+  shortlisted: 'shortlist',
+  monitored: 'monitorar',
+};
+
+const sellerQuestions: Record<string, string> = {
+  ICLOUD_NAO_MENCIONADO:
+    'O aparelho está sem iCloud / bloqueio de ativação? Pode enviar foto da tela de ajustes?',
+  BATERIA_NAO_MENCIONADA: 'Qual a saúde da bateria (Ajustes › Bateria) e ela segura carga?',
+  ANALISE_DE_TEXTO_AUSENTE:
+    'Pode descrever o estado de funcionamento e qualquer defeito conhecido?',
+};
+
+function Dossier({
+  projectId,
+  listing,
+  request,
+  onClose,
+}: {
+  projectId: string;
+  listing: ListingTransport;
+  request: (path: string, init?: RequestInit) => Promise<unknown>;
+  onClose: () => void;
+}) {
+  const [analysis, setAnalysis] = useState<ListingTextAnalysisTransport | undefined>(undefined);
+  const [history, setHistory] = useState<PriceHistoryTransport[] | null>(null);
+  useEffect(() => {
+    void request(`/api/projects/${projectId}/listings/${listing.id}/analysis`)
+      .then((raw) => setAnalysis(listingTextAnalysisTransportSchema.parse(raw)))
+      .catch(() => setAnalysis(undefined));
+    void request(`/api/projects/${projectId}/listings/${listing.id}/price-history`)
+      .then((raw) => setHistory(priceHistoryTransportSchema.array().parse(raw)))
+      .catch(() => setHistory([]));
+  }, [projectId, listing.id, request]);
+  const unknownFactors = (listing.score?.factors ?? []).filter(
+    (factor) => factor.kind === 'absent',
+  );
+  const questions = [
+    ...unknownFactors.map((factor) => sellerQuestions[factor.code]).filter(Boolean),
+    ...(analysis?.evidences ?? [])
+      .filter((evidence) => evidence.status === 'unknown')
+      .map((evidence) => `Pode confirmar: ${evidence.claim}?`),
+  ];
+  return (
+    <>
+      <div className="drawer-backdrop" onClick={onClose} />
+      <aside className="drawer" role="dialog" aria-label="Dossiê">
+        <div className="actions">
+          <div className="eyebrow">Dossiê</div>
+          <button type="button" className="button secondary" onClick={onClose}>
+            Fechar (Esc)
+          </button>
+        </div>
+        <h3>{listing.title}</h3>
+        <p className="meta">
+          {listing.condition} · {listing.currency} ·{' '}
+          <a href={listing.url} target="_blank" rel="noreferrer">
+            anúncio na fonte
+          </a>
+        </p>
+        <div className="section-title">Custo total, linha a linha</div>
+        <LandedCostSummary listing={listing} />
+        <div className="section-title">Distância da referência</div>
+        <ReferenceDiscountSummary listing={listing} />
+        <div className="section-title">Score</div>
+        <ScoreSummary listing={listing} />
+        <div className="section-title">Evidências graduadas (texto)</div>
+        <TextAnalysisSummary analysis={analysis} />
+        <div className="section-title">Perguntas ao vendedor</div>
+        {questions.length ? (
+          <ul>
+            {questions.map((question) => (
+              <li key={question}>{question}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="muted">Nada desconhecido de alto impacto para perguntar.</p>
+        )}
+        <div className="section-title">Histórico de preço do anúncio</div>
+        {history === null ? (
+          <p className="muted">Carregando…</p>
+        ) : history.length === 0 ? (
+          <p className="muted">Nenhuma observação registrada.</p>
+        ) : (
+          <ul>
+            {history.map((observation) => (
+              <li key={observation.id}>
+                {listing.currency} {observation.price.toFixed(2)} ·{' '}
+                {observation.collectedAt.toLocaleString('pt-BR')}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="section-title">Outros níveis da cadeia</div>
+        <p className="muted">Ainda não existe: fornecedores e cadeia chegam na S12.</p>
+      </aside>
+    </>
+  );
+}
+
 function ListingFeed({
   projectId,
   request,
@@ -216,6 +334,10 @@ function ListingFeed({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [lens, setLens] = useState<FeedLens>(emptyLens);
+  const [filteredOut, setFilteredOut] = useState(0);
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const [dossier, setDossier] = useState<ListingTransport | null>(null);
 
   const fetchPage = useCallback(
     async (group: ListingFeedGroup, offset: number, at: string | null, limit = 25) => {
@@ -224,14 +346,114 @@ function ListingFeed({
         sort,
         offset: String(offset),
         limit: String(limit),
+        hideDiscarded: lens.hideDiscarded ? 'true' : 'false',
       });
       if (at) params.set('snapshot', at);
+      if (lens.favorite) params.set('favorite', 'true');
+      if (lens.label) params.set('label', lens.label);
+      if (lens.condition.trim()) params.set('condition', lens.condition.trim());
+      if (lens.minScore.trim()) params.set('minScore', lens.minScore.trim());
       return listingFeedPageSchema.parse(
         await request(`/api/projects/${projectId}/feed?${params}`),
       );
     },
-    [projectId, request, sort],
+    [projectId, request, sort, lens],
   );
+
+  const items = useMemo(() => [...groups.rankable.items, ...groups.unbacked.items], [groups]);
+
+  const applyAction = useCallback(
+    async (listing: ListingTransport, update: Record<string, unknown>) => {
+      try {
+        const action = listingUserActionSchema.parse(
+          await request(`/api/listings/${listing.id}/actions`, {
+            method: 'PUT',
+            body: JSON.stringify(update),
+          }),
+        );
+        const patch = (state: FeedGroupState): FeedGroupState => ({
+          ...state,
+          items: state.items.map((item) =>
+            item.id === listing.id ? { ...item, userAction: action } : item,
+          ),
+        });
+        setGroups((current) => ({
+          rankable: patch(current.rankable),
+          unbacked: patch(current.unbacked),
+        }));
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : 'Falha ao salvar a ação.');
+      }
+    },
+    [request],
+  );
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)) return;
+      if (dossier) {
+        if (event.key === 'Escape') setDossier(null);
+        return;
+      }
+      const current = items[focusedIndex];
+      const key = event.key.toLowerCase();
+      if (key === 'j') setFocusedIndex((index) => Math.min(items.length - 1, index + 1));
+      else if (key === 'k') setFocusedIndex((index) => Math.max(0, index - 1));
+      else if (!current) return;
+      else if (key === 'x')
+        void applyAction(current, {
+          label: current.userAction?.label === 'discarded' ? null : 'discarded',
+        });
+      else if (key === 's')
+        void applyAction(current, {
+          label: current.userAction?.label === 'shortlisted' ? null : 'shortlisted',
+        });
+      else if (key === 'm')
+        void applyAction(current, {
+          label: current.userAction?.label === 'monitored' ? null : 'monitored',
+        });
+      else if (key === 'h') void applyAction(current, { favorite: !current.userAction?.favorite });
+      else if (event.key === 'Enter') setDossier(current);
+      else return;
+      event.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [items, focusedIndex, dossier, applyAction]);
+
+  useEffect(() => {
+    document.querySelector('.feed-item.focused')?.scrollIntoView({ block: 'nearest' });
+  }, [focusedIndex]);
+
+  const renderFeedItem = (listing: ListingTransport) => {
+    const index = items.findIndex((item) => item.id === listing.id);
+    return (
+      <div
+        key={listing.id}
+        className={`feed-item${index === focusedIndex ? ' focused' : ''}`}
+        onClick={() => setFocusedIndex(index)}
+      >
+        <div className="actions">
+          {listing.userAction?.favorite && <span className="badge">♥ coração</span>}
+          {listing.userAction?.label && (
+            <span className="badge">{labelNames[listing.userAction.label]}</span>
+          )}
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => void applyAction(listing, { favorite: !listing.userAction?.favorite })}
+          >
+            {listing.userAction?.favorite ? 'Tirar coração' : '♥ Coração'}
+          </button>
+          <button type="button" className="button secondary" onClick={() => setDossier(listing)}>
+            Abrir dossiê
+          </button>
+        </div>
+        {renderListingCard(listing)}
+      </div>
+    );
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -251,6 +473,8 @@ function ListingFeed({
         setTotals(rankable.totals);
         setNewSinceSnapshot(0);
         setSources(rankable.sources);
+        setFilteredOut(rankable.filteredOut);
+        setFocusedIndex(0);
       } catch (caught) {
         if (!cancelled)
           setError(caught instanceof Error ? caught.message : 'Falha ao carregar a lista.');
@@ -293,7 +517,9 @@ function ListingFeed({
   const collecting = sources.some((source) => source.state === 'collecting');
   const failed = sources.filter((source) => source.state === 'failed');
   const truncated = sources.filter((source) => source.state === 'truncated');
-  const empty = !loading && !error && totals.rankable + totals.unbacked === 0;
+  const empty = !loading && !error && totals.rankable + totals.unbacked === 0 && filteredOut === 0;
+  const emptyByLens =
+    !loading && !error && totals.rankable + totals.unbacked === 0 && filteredOut > 0;
 
   return (
     <section>
@@ -339,7 +565,71 @@ function ListingFeed({
         </div>
       )}
       {error && <div className="notice">{error}</div>}
+      <div className="lens">
+        <label>
+          <input
+            type="checkbox"
+            checked={lens.favorite}
+            onChange={(event) => setLens({ ...lens, favorite: event.target.checked })}
+          />{' '}
+          só coração
+        </label>
+        <label>
+          Etiqueta{' '}
+          <select
+            value={lens.label}
+            onChange={(event) =>
+              setLens({ ...lens, label: event.target.value as FeedLens['label'] })
+            }
+          >
+            <option value="">qualquer</option>
+            <option value="none">sem etiqueta</option>
+            <option value="shortlisted">shortlist</option>
+            <option value="monitored">monitorar</option>
+            <option value="discarded">descartados</option>
+          </select>
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={lens.hideDiscarded}
+            onChange={(event) => setLens({ ...lens, hideDiscarded: event.target.checked })}
+          />{' '}
+          esconder descartados
+        </label>
+        <label>
+          Condição{' '}
+          <input
+            type="text"
+            value={lens.condition}
+            onChange={(event) => setLens({ ...lens, condition: event.target.value })}
+          />
+        </label>
+        <label>
+          Score mínimo{' '}
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={lens.minScore}
+            onChange={(event) => setLens({ ...lens, minScore: event.target.value })}
+          />
+        </label>
+        {filteredOut > 0 && <span className="muted">{filteredOut} fora da lente</span>}
+      </div>
+      <p className="keyhint">
+        Teclado: J/K navegar · X descartar · S shortlist · M monitorar · H coração · Enter dossiê ·
+        Esc fecha
+      </p>
       {empty && <p className="muted">Nenhum anúncio foi associado a este projeto ainda.</p>}
+      {emptyByLens && (
+        <div className="notice">
+          Nenhum item passa pela lente atual ({filteredOut} escondido(s)).{' '}
+          <button type="button" className="button secondary" onClick={() => setLens(emptyLens)}>
+            Afrouxar filtros
+          </button>
+        </div>
+      )}
       {!loading && totals.rankable > 0 && (
         <>
           <p className="muted">
@@ -352,7 +642,7 @@ function ListingFeed({
               na ordem da distância da referência, sem serem comparados ao score.
             </p>
           )}
-          <div className="listing-list">{groups.rankable.items.map(renderListingCard)}</div>
+          <div className="listing-list">{groups.rankable.items.map(renderFeedItem)}</div>
           {groups.rankable.nextOffset !== null && (
             <button
               type="button"
@@ -371,7 +661,7 @@ function ListingFeed({
             <strong>{totals.unbacked}</strong>
           </div>
           <p className="muted">{refusalGroupLabel}</p>
-          <div className="listing-list">{groups.unbacked.items.map(renderListingCard)}</div>
+          <div className="listing-list">{groups.unbacked.items.map(renderFeedItem)}</div>
           {groups.unbacked.nextOffset !== null && (
             <button
               type="button"
@@ -384,6 +674,14 @@ function ListingFeed({
         </>
       )}
       {snapshot && <p className="meta">Snapshot {new Date(snapshot).toLocaleString('pt-BR')}</p>}
+      {dossier && (
+        <Dossier
+          projectId={projectId}
+          listing={dossier}
+          request={request}
+          onClose={() => setDossier(null)}
+        />
+      )}
     </section>
   );
 }
@@ -431,6 +729,110 @@ function TextAnalysisSummary({ analysis }: { analysis?: ListingTextAnalysisTrans
         ))}
       </ul>
     </div>
+  );
+}
+
+function InventoryPanel({
+  request,
+}: {
+  request: (path: string, init?: RequestInit) => Promise<unknown>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [favorite, setFavorite] = useState(false);
+  const [label, setLabel] = useState('');
+  const [sinceDays, setSinceDays] = useState('');
+  const [result, setResult] = useState<{
+    total: number;
+    matched: number;
+    items: ListingTransport[];
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const params = new URLSearchParams();
+    if (favorite) params.set('favorite', 'true');
+    if (label) params.set('label', label);
+    if (sinceDays.trim()) params.set('sinceDays', sinceDays.trim());
+    void request(`/api/inventory?${params}`)
+      .then((raw) => {
+        const body = raw as { total: number; matched: number; items: unknown[] };
+        setResult({
+          total: body.total,
+          matched: body.matched,
+          items: listingTransportSchema.array().parse(body.items),
+        });
+        setError(null);
+      })
+      .catch((caught) =>
+        setError(caught instanceof Error ? caught.message : 'Falha ao carregar o inventário.'),
+      );
+  }, [open, favorite, label, sinceDays, request]);
+  return (
+    <article className="panel detail">
+      <div className="actions">
+        <div className="eyebrow">Inventário · acervo inteiro, fora de qualquer pesquisa</div>
+        <button type="button" className="button secondary" onClick={() => setOpen(!open)}>
+          {open ? 'Fechar inventário' : 'Abrir inventário'}
+        </button>
+      </div>
+      {open && (
+        <>
+          <div className="lens">
+            <label>
+              <input
+                type="checkbox"
+                checked={favorite}
+                onChange={(event) => setFavorite(event.target.checked)}
+              />{' '}
+              só coração
+            </label>
+            <label>
+              Etiqueta{' '}
+              <select value={label} onChange={(event) => setLabel(event.target.value)}>
+                <option value="">qualquer</option>
+                <option value="shortlisted">shortlist</option>
+                <option value="monitored">monitorar</option>
+                <option value="discarded">descartados</option>
+              </select>
+            </label>
+            <label>
+              Últimos dias{' '}
+              <input
+                type="number"
+                min={1}
+                value={sinceDays}
+                onChange={(event) => setSinceDays(event.target.value)}
+              />
+            </label>
+            {result && (
+              <span className="muted">
+                {result.matched} de {result.total} no acervo
+              </span>
+            )}
+          </div>
+          {error && <div className="notice">{error}</div>}
+          <div className="listing-list">
+            {result?.items.map((listing) => (
+              <article className="listing-card" key={listing.id}>
+                <div>
+                  <div className="meta">
+                    {listing.condition} · {listing.status}
+                    {listing.userAction?.favorite ? ' · ♥' : ''}
+                    {listing.userAction?.label ? ` · ${labelNames[listing.userAction.label]}` : ''}
+                  </div>
+                  <h3>{listing.title}</h3>
+                  <LandedCostSummary listing={listing} />
+                  <ScoreSummary listing={listing} />
+                </div>
+                <a className="button secondary" href={listing.url} target="_blank" rel="noreferrer">
+                  Ver anúncio
+                </a>
+              </article>
+            ))}
+          </div>
+        </>
+      )}
+    </article>
   );
 }
 
@@ -576,6 +978,7 @@ export default function HomePage() {
             )}
           </div>
           {selected && <ProjectDetail project={selected} request={request} />}
+          <InventoryPanel request={request} />
         </section>
       </div>
     </main>

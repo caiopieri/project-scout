@@ -24,6 +24,7 @@ import { listingReferenceSegment, SupabaseRestListingRepository } from '@scout/d
 import { SupabaseRestObservationEventRepository } from '@scout/database/observation-events';
 import { SupabaseRestResearchProjectRepository } from '@scout/database/supabase';
 import { SupabaseRestTextAnalysisRunRepository } from '@scout/database/text-analysis';
+import { SupabaseRestUserListingActionRepository } from '@scout/database/user-actions';
 import { SupabaseRestOpportunityValuationRepository } from '@scout/database/valuation';
 import { SupabaseRestTriageDecisionRepository } from '@scout/database/triage';
 import { SupabaseRestSearchQueryFamilyRepository } from '@scout/database/search-intelligence';
@@ -67,7 +68,9 @@ import {
   projectIdSchema,
   idempotencyKeySchema,
   listingTriageReviewRequestSchema,
+  inventoryQuerySchema,
   listingFeedPageSchema,
+  listingUserActionUpdateSchema,
   textAnalysisScheduleResultSchema,
   listingFeedQuerySchema,
   marketMetricsInputSchema,
@@ -372,7 +375,7 @@ const json = (body: unknown, status = 200, origin = '*'): Response =>
       'Content-Type': 'application/json; charset=utf-8',
       'Access-Control-Allow-Origin': origin,
       'Access-Control-Allow-Headers': 'Authorization, Content-Type, Idempotency-Key',
-      'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
       Vary: 'Origin',
     },
   });
@@ -418,15 +421,28 @@ async function parseBody(request: Request): Promise<unknown> {
 }
 
 async function enrichedListings(
-  listingRepository: SupabaseRestListingRepository,
-  analysisRepository: SupabaseRestTextAnalysisRunRepository,
-  projectId: string,
+  repositories: {
+    listings: SupabaseRestListingRepository;
+    analyses: SupabaseRestTextAnalysisRunRepository;
+    actions: SupabaseRestUserListingActionRepository;
+  },
+  userId: string,
+  source: { projectId: string } | { inventory: true },
   asOf: Date,
 ) {
-  const listings = await listingRepository.findByProjectId(projectId);
-  const [observations, analyses] = await Promise.all([
-    listingRepository.getTaggedMarketObservations(listings, REFERENCE_POLICY_V1.windowDays, asOf),
-    analysisRepository.findLatestSummariesByListingIds(listings.map(({ id }) => id)),
+  const listings =
+    'projectId' in source
+      ? await repositories.listings.findByProjectId(source.projectId)
+      : await repositories.listings.findInventoryByUserId(userId);
+  const ids = listings.map(({ id }) => id);
+  const [observations, analyses, actions] = await Promise.all([
+    repositories.listings.getTaggedMarketObservations(
+      listings,
+      REFERENCE_POLICY_V1.windowDays,
+      asOf,
+    ),
+    repositories.analyses.findLatestSummariesByListingIds(ids),
+    repositories.actions.findByListingIds(userId, ids),
   ]);
   return listings.map((listing) => {
     const referenceDiscount = calculateReferenceDiscount(
@@ -438,6 +454,7 @@ async function enrichedListings(
     return {
       ...listing,
       referenceDiscount,
+      userAction: actions.get(listing.id) ?? null,
       score: calculateListingScore({
         title: listing.title,
         description: listing.description,
@@ -489,6 +506,59 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     anonKey: env.SUPABASE_ANON_KEY,
     accessToken,
   });
+  const enrichRepositories = {
+    listings: listingRepository,
+    analyses: analysisReadRepository,
+    actions: new SupabaseRestUserListingActionRepository({
+      baseUrl: env.SUPABASE_URL,
+      anonKey: env.SUPABASE_ANON_KEY,
+      accessToken,
+    }),
+  };
+  const actionMatch = url.pathname.match(/^\/api\/listings\/([^/]+)\/actions$/);
+  if (actionMatch) {
+    if (request.method !== 'PUT') throw new HttpError(405, 'Method not allowed.');
+    const listingId = projectIdSchema.parse(actionMatch[1]);
+    const update = listingUserActionUpdateSchema.parse(await parseBody(request));
+    try {
+      return json(
+        await enrichRepositories.actions.upsert(user.id, listingId, update),
+        200,
+        env.WEB_ORIGIN,
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('not allowed'))
+        throw new HttpError(404, 'Listing not found in your projects.');
+      throw error;
+    }
+  }
+  if (url.pathname === '/api/inventory') {
+    if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
+    const query = inventoryQuerySchema.parse(Object.fromEntries(url.searchParams));
+    const asOf = new Date();
+    const listings = await enrichedListings(enrichRepositories, user.id, { inventory: true }, asOf);
+    const since = query.sinceDays ? asOf.getTime() - query.sinceDays * 86_400_000 : null;
+    const items = listings
+      .filter((listing) => !query.favorite || listing.userAction?.favorite)
+      .filter((listing) => !query.label || listing.userAction?.label === query.label)
+      .filter((listing) => !query.status || listing.status === query.status)
+      .filter((listing) => !query.sourceId || listing.sourceId === query.sourceId)
+      .filter((listing) => since === null || listing.firstCollectedAt.getTime() >= since)
+      .filter((listing) => {
+        const price = listing.landedCost?.components.itemPrice.amountMinor ?? null;
+        if (query.minPriceMinor !== undefined && (price === null || price < query.minPriceMinor))
+          return false;
+        if (query.maxPriceMinor !== undefined && (price === null || price > query.maxPriceMinor))
+          return false;
+        return true;
+      })
+      .sort((left, right) => right.firstCollectedAt.getTime() - left.firstCollectedAt.getTime());
+    return json(
+      { total: listings.length, matched: items.length, items: items.slice(0, query.limit) },
+      200,
+      env.WEB_ORIGIN,
+    );
+  }
   if (url.pathname === '/api/intent/interpret' && request.method === 'POST') {
     const input = interpretIntentInputSchema.parse(await parseBody(request));
     return json(await new DeterministicIntentInterpreter().interpret(input), 200, env.WEB_ORIGIN);
@@ -531,7 +601,7 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     const project = await repository.findById(projectId, user.id);
     if (!project) throw new HttpError(404, 'Project not found.');
     return json(
-      await enrichedListings(listingRepository, analysisReadRepository, projectId, new Date()),
+      await enrichedListings(enrichRepositories, user.id, { projectId }, new Date()),
       200,
       env.WEB_ORIGIN,
     );
@@ -545,10 +615,10 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     const query = listingFeedQuerySchema.parse(Object.fromEntries(url.searchParams));
     const snapshot = query.snapshot ?? new Date();
     const [listings, runs] = await Promise.all([
-      enrichedListings(listingRepository, analysisReadRepository, projectId, snapshot),
+      enrichedListings(enrichRepositories, user.id, { projectId }, snapshot),
       collectionRepository.findLatestRunsByProjectId(projectId),
     ]);
-    const slice = sliceListingFeed(listings, { ...query, snapshot });
+    const slice = sliceListingFeed(listings, { ...query, snapshot, lens: query });
     return json(
       listingFeedPageSchema.parse({
         snapshot,
@@ -829,7 +899,7 @@ export default {
         headers: {
           'Access-Control-Allow-Origin': env.WEB_ORIGIN ?? '*',
           'Access-Control-Allow-Headers': 'Authorization, Content-Type, Idempotency-Key',
-          'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
         },
       });
     if (url.pathname === '/health')

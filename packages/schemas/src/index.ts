@@ -467,6 +467,45 @@ export const explainableScoreSchema = z
   });
 export type ExplainableScore = z.infer<typeof explainableScoreSchema>;
 
+// Per-user marks on a listing, global across searches: heart = "look later", label = keyboard
+// triage (never deletes), decision = what the user did.
+export const listingUserLabelSchema = z.enum(['discarded', 'shortlisted', 'monitored']);
+export type ListingUserLabel = z.infer<typeof listingUserLabelSchema>;
+export const listingUserActionSchema = z
+  .object({
+    favorite: z.boolean(),
+    label: listingUserLabelSchema.nullable(),
+    decision: z.enum(['pending', 'approved', 'rejected', 'purchased']),
+    notes: z.string().max(4000).nullable(),
+    updatedAt: z.coerce.date(),
+  })
+  .strict();
+export type ListingUserAction = z.infer<typeof listingUserActionSchema>;
+export const listingUserActionUpdateSchema = z
+  .object({
+    favorite: z.boolean().optional(),
+    label: listingUserLabelSchema.nullable().optional(),
+    decision: z.enum(['pending', 'approved', 'rejected', 'purchased']).optional(),
+    notes: z.string().max(4000).nullable().optional(),
+  })
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, 'At least one field is required.');
+export type ListingUserActionUpdate = z.infer<typeof listingUserActionUpdateSchema>;
+
+export const inventoryQuerySchema = z
+  .object({
+    favorite: z.enum(['true']).optional(),
+    label: listingUserLabelSchema.optional(),
+    status: z.enum(['active', 'completed', 'out_of_stock']).optional(),
+    sourceId: z.string().uuid().optional(),
+    sinceDays: z.coerce.number().int().positive().max(3650).optional(),
+    minPriceMinor: z.coerce.number().int().nonnegative().optional(),
+    maxPriceMinor: z.coerce.number().int().positive().optional(),
+    limit: z.coerce.number().int().min(1).max(500).default(200),
+  })
+  .strict();
+export type InventoryQuery = z.infer<typeof inventoryQuerySchema>;
+
 // Listing feed: two declared groups. Unbacked items are unknown, never "worst", so they are
 // never ordered by discount nor mixed with rankable items.
 export const listingFeedGroupSchema = z.enum(['rankable', 'unbacked']);
@@ -481,6 +520,13 @@ export const listingFeedQuerySchema = z
     snapshot: z.coerce.date().optional(),
     offset: z.coerce.number().int().nonnegative().default(0),
     limit: z.coerce.number().int().min(1).max(100).default(25),
+    // Lens filters: they narrow what is shown and never change what is stored.
+    favorite: z.enum(['true']).optional(),
+    label: z.union([listingUserLabelSchema, z.literal('none')]).optional(),
+    hideDiscarded: z.enum(['true', 'false']).default('true'),
+    condition: z.string().trim().min(1).max(100).optional(),
+    minScore: z.coerce.number().int().min(0).max(100).optional(),
+    maxTotalCostMinor: z.coerce.number().int().positive().optional(),
   })
   .strict();
 export type ListingFeedQuery = z.infer<typeof listingFeedQuerySchema>;
@@ -532,6 +578,7 @@ export const listingTransportSchema = listingSchema
     landedCost: landedCostSchema.optional(),
     referenceDiscount: referenceDiscountSchema.optional(),
     score: explainableScoreSchema.optional(),
+    userAction: listingUserActionSchema.nullable().optional(),
     rawDataMetadata: listingRawDataMetadataSchema.default({}),
   })
   .superRefine((listing, context) => {
@@ -574,6 +621,7 @@ export const listingFeedPageSchema = z
       })
       .strict(),
     newSinceSnapshot: z.number().int().nonnegative(),
+    filteredOut: z.number().int().nonnegative(),
     sources: z.array(listingFeedSourceStateSchema),
     items: z.array(listingTransportSchema),
   })

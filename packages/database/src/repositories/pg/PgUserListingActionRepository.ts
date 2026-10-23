@@ -10,7 +10,7 @@ export class PgUserListingActionRepository implements UserListingActionRepositor
     const res = await this.sql.query<UserListingAction>(
       `INSERT INTO user_listing_actions (user_id, listing_id, project_id, favorite, decision, notes)
        VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (user_id, listing_id, project_id) DO UPDATE
+       ON CONFLICT (user_id, listing_id) DO UPDATE
        SET favorite = EXCLUDED.favorite,
            decision = EXCLUDED.decision,
            notes = EXCLUDED.notes,
