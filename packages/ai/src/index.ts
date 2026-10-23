@@ -187,6 +187,7 @@ export * from './llm-text-analyzer';
 export * from './gemini-text-analysis';
 export * from './openai-compatible-text-analysis';
 export * from './agent';
+export * from './visual-analysis';
 export * from './processor';
 
 export const AI_PACKAGE_MARKER = '@scout/ai';

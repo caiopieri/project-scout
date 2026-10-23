@@ -548,6 +548,75 @@ export const agentChatResponseSchema = z
   .strict();
 export type AgentChatResponse = z.infer<typeof agentChatResponseSchema>;
 
+// S4 visual checkup. Findings always point to the image they came from and say whether the
+// description already mentions them; a finding absent from the description is the payoff.
+export const visualFindingSchema = z
+  .object({
+    imageIndex: z.number().int().min(0).max(2),
+    kind: z.enum([
+      'visible_damage',
+      'screen_on',
+      'screen_off',
+      'missing_part',
+      'generic_or_stock_photo',
+      'inconsistent_with_description',
+      'no_issue_visible',
+    ]),
+    component: z.string().trim().min(1).max(100),
+    description: z.string().trim().min(1).max(1000),
+    confidence: z.number().min(0).max(1),
+    mentionedInDescription: z.boolean(),
+  })
+  .strict();
+export type VisualFinding = z.infer<typeof visualFindingSchema>;
+
+export const visualAnalysisOutputSchema = z
+  .object({ findings: z.array(visualFindingSchema).max(20), summary: z.string().max(1000) })
+  .strict();
+export type VisualAnalysisOutput = z.infer<typeof visualAnalysisOutputSchema>;
+
+export const visualAnalysisTaskSchema = z
+  .object({ kind: z.literal('visual-analysis'), version: z.literal('1'), runId: z.string().uuid() })
+  .strict();
+export type VisualAnalysisTask = z.infer<typeof visualAnalysisTaskSchema>;
+
+export const listingVisualAnalysisTransportSchema = z
+  .object({
+    listingId: z.string().uuid(),
+    run: z
+      .object({
+        id: z.string().uuid(),
+        status: z.enum(['pending', 'running', 'completed', 'failed']),
+        provider: z.string(),
+        model: z.string(),
+        promptVersion: z.string(),
+        imageUrls: z.array(z.string()),
+        imageHashes: z.array(z.string()).nullable(),
+        summary: z.string().nullable(),
+        inputTokens: z.number().int().nullable(),
+        outputTokens: z.number().int().nullable(),
+        costMicroUsd: z.number().int().nullable(),
+        errorCode: z.string().nullable(),
+        completedAt: z.coerce.date().nullable(),
+      })
+      .strict()
+      .nullable(),
+    findings: z.array(visualFindingSchema),
+  })
+  .strict();
+export type ListingVisualAnalysisTransport = z.infer<typeof listingVisualAnalysisTransportSchema>;
+
+export const visualAnalysisScheduleResultSchema = z
+  .object({
+    budget: z.number().int().positive(),
+    finalists: z.number().int().nonnegative(),
+    queued: z.number().int().nonnegative(),
+    skippedWithoutImages: z.number().int().nonnegative(),
+    alreadyAnalyzed: z.number().int().nonnegative(),
+  })
+  .strict();
+export type VisualAnalysisScheduleResult = z.infer<typeof visualAnalysisScheduleResultSchema>;
+
 // Listing feed: two declared groups. Unbacked items are unknown, never "worst", so they are
 // never ordered by discount nor mixed with rankable items.
 export const listingFeedGroupSchema = z.enum(['rankable', 'unbacked']);

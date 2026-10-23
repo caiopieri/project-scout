@@ -2,7 +2,9 @@ import {
   DeterministicIntentInterpreter,
   DeterministicTextAnalyzer,
   FallbackTextAnalyzer,
+  GeminiVisualAnalyzer,
   ScoutAgent,
+  selectVisualCheckupImages,
   type AgentTool,
   GeminiTextAnalyzer,
   OpenAiCompatibleTextAnalyzer,
@@ -74,6 +76,8 @@ import {
   agentChatRequestSchema,
   agentChatResponseSchema,
   inventoryQuerySchema,
+  visualAnalysisScheduleResultSchema,
+  visualAnalysisTaskSchema,
   listingFeedPageSchema,
   listingUserActionUpdateSchema,
   textAnalysisScheduleResultSchema,
@@ -97,6 +101,8 @@ import { ebayAccountDeletionTaskSchema } from '@scout/schemas';
 import { handleManualEbayProbe, MANUAL_EBAY_PROBE_PATH } from './ManualEbayProbe';
 import { TextAnalysisQueueScheduler } from './TextAnalysisQueueScheduler';
 import { exportListings } from './ListingExport';
+import { VisualAnalysisProcessor } from './VisualAnalysisProcessor';
+import { SupabaseRestVisualAnalysisRepository } from '@scout/database/visual-analysis';
 import { DurableObjectEbayRateLimiter } from './EbayRateLimitDurableObject';
 export { EbayRateLimitDurableObject } from './EbayRateLimitDurableObject';
 
@@ -989,6 +995,102 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
       },
     });
   }
+  const visualScheduleMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/visual-analysis$/);
+  if (visualScheduleMatch) {
+    if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed.');
+    const projectId = projectIdSchema.parse(visualScheduleMatch[1]);
+    if (!(await repository.findById(projectId, user.id)))
+      throw new HttpError(404, 'Project not found.');
+    const budget = Number(env.VISUAL_ANALYSIS_BUDGET_PER_PROJECT);
+    if (!Number.isSafeInteger(budget) || budget < 1)
+      throw new HttpError(503, 'Visual analysis budget is not configured.');
+    if (!env.ANALYSIS_QUEUE) throw new HttpError(503, 'Analysis queue is not configured.');
+    const serviceRuns = new SupabaseRestVisualAnalysisRepository({
+      baseUrl: env.SUPABASE_URL,
+      anonKey: env.SUPABASE_SERVICE_ROLE_KEY,
+      accessToken: env.SUPABASE_SERVICE_ROLE_KEY,
+    });
+    const listings = await enrichedListings(enrichRepositories, user.id, { projectId }, new Date());
+    // Finalists: shortlisted first, then complete scores from best to worst. Unknown scores are
+    // not finalists; they are not "worse", they are not ranked.
+    const finalists = [
+      ...listings.filter((listing) => listing.userAction?.label === 'shortlisted'),
+      ...listings
+        .filter(
+          (listing) =>
+            listing.userAction?.label !== 'shortlisted' && listing.score?.status === 'known',
+        )
+        .sort((left, right) => (right.score?.value ?? 0) - (left.score?.value ?? 0)),
+    ].filter((listing) => listing.userAction?.label !== 'discarded');
+    const images = await serviceRuns.imagesByListingIds(finalists.map(({ id }) => id));
+    const analyzer = new GeminiVisualAnalyzer(
+      env.GEMINI_API_KEY ?? '',
+      env.GEMINI_VISION_MODEL ?? 'gemini-3.5-flash',
+    );
+    let queued = 0;
+    let alreadyAnalyzed = 0;
+    let skippedWithoutImages = 0;
+    let considered = 0;
+    for (const listing of finalists) {
+      if (considered >= budget) break;
+      const selected = selectVisualCheckupImages(images.get(listing.id) ?? [], listing.description);
+      if (!selected.length) {
+        skippedWithoutImages += 1;
+        continue;
+      }
+      considered += 1;
+      const { run, created } = await serviceRuns.requestRun({
+        listingId: listing.id,
+        projectId,
+        provider: analyzer.provider,
+        model: analyzer.model,
+        promptVersion: analyzer.promptVersion,
+        imageUrls: selected,
+      });
+      if (!created) {
+        alreadyAnalyzed += 1;
+        continue;
+      }
+      await env.ANALYSIS_QUEUE.send({
+        kind: 'visual-analysis',
+        version: '1',
+        runId: run.id,
+      } as never);
+      queued += 1;
+    }
+    return json(
+      visualAnalysisScheduleResultSchema.parse({
+        budget,
+        finalists: finalists.length,
+        queued,
+        skippedWithoutImages,
+        alreadyAnalyzed,
+      }),
+      202,
+      env.WEB_ORIGIN,
+    );
+  }
+  const listingVisualMatch = url.pathname.match(
+    /^\/api\/projects\/([^/]+)\/listings\/([^/]+)\/visual-analysis$/,
+  );
+  if (listingVisualMatch) {
+    if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
+    const projectId = projectIdSchema.parse(listingVisualMatch[1]);
+    const listingId = projectIdSchema.parse(listingVisualMatch[2]);
+    if (!(await repository.findById(projectId, user.id)))
+      throw new HttpError(404, 'Project not found.');
+    if (!(await listingRepository.isListingInProject(listingId, projectId)))
+      throw new HttpError(404, 'Listing not found in project.');
+    return json(
+      await new SupabaseRestVisualAnalysisRepository({
+        baseUrl: env.SUPABASE_URL,
+        anonKey: env.SUPABASE_ANON_KEY,
+        accessToken,
+      }).findLatestByListingId(listingId),
+      200,
+      env.WEB_ORIGIN,
+    );
+  }
   const analysisScheduleMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/analysis$/);
   if (analysisScheduleMatch) {
     if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed.');
@@ -1287,6 +1389,23 @@ export default {
         if (ebayAccountDeletionTaskSchema.safeParse(message.body).success) {
           await processEbayAccountDeletionTask(message.body, env);
           message.ack();
+          continue;
+        }
+        if (visualAnalysisTaskSchema.safeParse(message.body).success) {
+          const outcome = await new VisualAnalysisProcessor(
+            new SupabaseRestVisualAnalysisRepository(serviceConfig),
+            listingRepository,
+            new GeminiVisualAnalyzer(
+              env.GEMINI_API_KEY ?? '',
+              env.GEMINI_VISION_MODEL ?? 'gemini-3.5-flash',
+            ),
+            {
+              inputPerMTokUsd: env.GEMINI_PRICE_INPUT_PER_MTOK_USD,
+              outputPerMTokUsd: env.GEMINI_PRICE_OUTPUT_PER_MTOK_USD,
+            },
+          ).process(message.body);
+          if (outcome.action === 'retry') message.retry({ delaySeconds: 10 });
+          else message.ack();
           continue;
         }
         if (textAnalysisTaskSchema.safeParse(message.body).success) {

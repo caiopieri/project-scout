@@ -36,6 +36,9 @@ GEMINI_MODEL = "gemini-3.5-flash"
 # Used only when TEXT_ANALYZER_MODE = "llm": ordered provider chain and per-provider budget.
 TEXT_ANALYZER_PROVIDERS = "groq,gemini"
 LLM_MAX_REQUESTS_PER_PROVIDER = "5"
+# S4 visual checkup: finalists analyzed per request. Prices are optional; without them only
+# tokens are measured and the monetary cost stays unknown.
+VISUAL_ANALYSIS_BUDGET_PER_PROJECT = "5"
 
 # Cloudflare Queues Producers Bindings
 [[queues.producers]]

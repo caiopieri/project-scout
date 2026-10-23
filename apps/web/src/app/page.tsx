@@ -11,6 +11,7 @@ import type {
   ListingFeedPage,
   ListingFeedSort,
   ListingTextAnalysisTransport,
+  ListingVisualAnalysisTransport,
   ListingTransport,
   ListingTriageDecisionTransport,
   ListingTriageReviewTransport,
@@ -30,6 +31,8 @@ import {
   listingFeedPageSchema,
   listingFeedSortSchema,
   listingTextAnalysisTransportSchema,
+  listingVisualAnalysisTransportSchema,
+  visualAnalysisScheduleResultSchema,
   listingUserActionSchema,
   textAnalysisScheduleResultSchema,
   listingTransportSchema,
@@ -245,7 +248,11 @@ function Dossier({
 }) {
   const [analysis, setAnalysis] = useState<ListingTextAnalysisTransport | undefined>(undefined);
   const [history, setHistory] = useState<PriceHistoryTransport[] | null>(null);
+  const [visual, setVisual] = useState<ListingVisualAnalysisTransport | undefined>(undefined);
   useEffect(() => {
+    void request(`/api/projects/${projectId}/listings/${listing.id}/visual-analysis`)
+      .then((raw) => setVisual(listingVisualAnalysisTransportSchema.parse(raw)))
+      .catch(() => setVisual(undefined));
     void request(`/api/projects/${projectId}/listings/${listing.id}/analysis`)
       .then((raw) => setAnalysis(listingTextAnalysisTransportSchema.parse(raw)))
       .catch(() => setAnalysis(undefined));
@@ -287,6 +294,8 @@ function Dossier({
         <ScoreSummary listing={listing} />
         <div className="section-title">Evidências graduadas (texto)</div>
         <TextAnalysisSummary analysis={analysis} />
+        <div className="section-title">Checkup visual</div>
+        <VisualCheckup analysis={visual} />
         <div className="section-title">Perguntas ao vendedor</div>
         {questions.length ? (
           <ul>
@@ -1109,6 +1118,64 @@ function AgentPanel({
         </>
       )}
     </article>
+  );
+}
+
+const visualKindLabels: Record<string, string> = {
+  visible_damage: 'dano visível',
+  screen_on: 'tela ligada',
+  screen_off: 'tela desligada',
+  missing_part: 'peça faltando',
+  generic_or_stock_photo: 'foto genérica',
+  inconsistent_with_description: 'incoerente com a descrição',
+  no_issue_visible: 'nada visível',
+};
+
+function VisualCheckup({ analysis }: { analysis?: ListingVisualAnalysisTransport }) {
+  if (!analysis) return <p className="muted">Carregando checkup visual…</p>;
+  if (!analysis.run)
+    return (
+      <p className="muted">Sem checkup visual: o anúncio não foi finalista ou não tem fotos.</p>
+    );
+  const run = analysis.run;
+  return (
+    <div>
+      <div className="actions">
+        {run.imageUrls.map((url, index) => (
+          <figure key={url} style={{ margin: 0 }}>
+            <img src={url} alt={`foto ${index}`} width={140} />
+            <figcaption className="meta">foto {index}</figcaption>
+          </figure>
+        ))}
+      </div>
+      {run.status !== 'completed' ? (
+        <p className="muted">
+          Checkup {run.status}
+          {run.errorCode ? ` · ${run.errorCode}` : ''}
+        </p>
+      ) : (
+        <>
+          <ul>
+            {analysis.findings.map((finding, index) => (
+              <li key={index}>
+                foto {finding.imageIndex} · {visualKindLabels[finding.kind]} · {finding.component}:{' '}
+                {finding.description} · confiança {Math.round(finding.confidence * 100)}%
+                {!finding.mentionedInDescription && finding.kind !== 'no_issue_visible' && (
+                  <span className="badge">não está na descrição</span>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="meta">
+            {run.provider} · {run.model} · {run.inputTokens ?? 0} tokens de entrada +{' '}
+            {run.outputTokens ?? 0} de saída ·{' '}
+            {run.costMicroUsd === null
+              ? 'custo monetário não configurado'
+              : `US$ ${(run.costMicroUsd / 1_000_000).toFixed(4)}`}
+          </p>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -1961,6 +2028,22 @@ function ProjectDetail({
     }
   };
 
+  const scheduleVisualCheckup = async () => {
+    setAnalysisNotice('Selecionando finalistas para o checkup visual…');
+    try {
+      const result = visualAnalysisScheduleResultSchema.parse(
+        await request(`/api/projects/${project.id}/visual-analysis`, { method: 'POST' }),
+      );
+      setAnalysisNotice(
+        `Checkup visual: ${result.queued} enfileirado(s), ${result.alreadyAnalyzed} já analisado(s), ${result.skippedWithoutImages} finalista(s) sem foto; teto ${result.budget} por pedido.`,
+      );
+    } catch (error) {
+      setAnalysisNotice(
+        error instanceof Error ? error.message : 'Falha ao pedir o checkup visual.',
+      );
+    }
+  };
+
   const toggleTextAnalysis = async (listingId: string) => {
     if (expandedAnalysisId === listingId) {
       setExpandedAnalysisId(null);
@@ -2396,6 +2479,13 @@ function ProjectDetail({
       <div className="actions">
         <button type="button" className="button" onClick={() => void scheduleTextAnalysis()}>
           Analisar texto com IA
+        </button>
+        <button
+          type="button"
+          className="button secondary"
+          onClick={() => void scheduleVisualCheckup()}
+        >
+          Checkup visual dos finalistas
         </button>
       </div>
       {analysisNotice && <div className="notice">{analysisNotice}</div>}

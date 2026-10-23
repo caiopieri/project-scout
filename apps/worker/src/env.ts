@@ -54,6 +54,10 @@ export interface Env extends Omit<
   CEREBRAS_MODEL?: string;
   OPENROUTER_API_KEY?: string;
   OPENROUTER_MODEL?: string;
+  VISUAL_ANALYSIS_BUDGET_PER_PROJECT?: string;
+  GEMINI_VISION_MODEL?: string;
+  GEMINI_PRICE_INPUT_PER_MTOK_USD?: string;
+  GEMINI_PRICE_OUTPUT_PER_MTOK_USD?: string;
   GEMINI_API_KEY?: string;
   GEMINI_MODEL?: string;
   EBAY_GLOBAL_REQUESTS_PER_MINUTE?: string;

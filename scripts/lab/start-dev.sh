@@ -2,17 +2,16 @@
 # Starts the local Worker (wrangler dev, :8787) and the UI (next dev, :3000) in the background
 # against the running local Supabase, waits until both answer, and writes logs to $LOG_DIR.
 # Run `npx vite-node scripts/lab/write-local-env.ts` first. `npm run build` overwrites the UI's
-# .next directory, so restart this after a build.
+# .next directory, so restart this after a build. WORKER_RUNTIME=node serves the same Worker
+# from Node (scripts/lab/node-worker-server.ts), which can reach LLM providers through an egress
+# proxy that local workerd ignores.
 set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 log_dir="${LOG_DIR:-${TMPDIR:-/tmp}/scout-lab}"
 mkdir -p "$log_dir"
 
 stop_port() {
-  local pid
-  for pid in $(ss -ltnp 2>/dev/null | awk -v port=":$1" '$4 ~ port"$" {print}' | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u); do
-    kill "$pid" 2>/dev/null || true
-  done
+  fuser -k "$1/tcp" >/dev/null 2>&1 || true
 }
 
 wait_for() {
@@ -31,7 +30,11 @@ wait_for() {
 stop_port 8787
 stop_port 3000
 rm -rf "$root/apps/web/.next"
-(cd "$root/apps/worker" && nohup npx wrangler dev --local --port 8787 --ip 127.0.0.1 >"$log_dir/wrangler.log" 2>&1 &)
+if [ "${WORKER_RUNTIME:-wrangler}" = "node" ]; then
+  (cd "$root" && nohup npx vite-node scripts/lab/node-worker-server.ts >"$log_dir/worker.log" 2>&1 &)
+else
+  (cd "$root/apps/worker" && nohup npx wrangler dev --local --port 8787 --ip 127.0.0.1 >"$log_dir/worker.log" 2>&1 &)
+fi
 (cd "$root/apps/web" && nohup npx next dev -p 3000 >"$log_dir/next.log" 2>&1 &)
 wait_for http://127.0.0.1:8787/health worker
 wait_for http://127.0.0.1:3000/ web

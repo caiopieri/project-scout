@@ -17,7 +17,8 @@
     "./repair-proposals": "./src/repositories/pg/PgRepairProposalRepository.ts",
     "./triage": "./src/repositories/supabase/SupabaseRestTriageDecisionRepository.ts",
     "./search-intelligence": "./src/repositories/supabase/SupabaseRestSearchQueryFamilyRepository.ts",
-    "./user-actions": "./src/repositories/supabase/SupabaseRestUserListingActionRepository.ts"
+    "./user-actions": "./src/repositories/supabase/SupabaseRestUserListingActionRepository.ts",
+    "./visual-analysis": "./src/repositories/supabase/SupabaseRestVisualAnalysisRepository.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

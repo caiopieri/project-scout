@@ -21,6 +21,7 @@ const queue = { send: async (body: unknown) => void pending.push({ body, attempt
 const env = {
   EBAY_CONNECTOR_MODE: 'mock',
   EBAY_BROWSE_BUDGET_PER_RUN: '20',
+  VISUAL_ANALYSIS_BUDGET_PER_PROJECT: '5',
   TEXT_ANALYZER_MODE: 'llm',
   TEXT_ANALYZER_PROVIDERS: 'groq,gemini',
   LLM_MAX_REQUESTS_PER_PROVIDER: '5',
