@@ -14,7 +14,8 @@ export class TextAnalysisQueueScheduler implements TextAnalysisScheduler {
     private readonly analyzer: TextAnalyzer,
   ) {}
 
-  async schedule(listingIds: string[]) {
+  /** Returns how many analysis runs were newly queued (already analyzed inputs are skipped). */
+  async schedule(listingIds: string[]): Promise<number> {
     const analysisRunIds: string[] = [];
     for (const listingId of new Set(listingIds)) {
       const requested = await this.repository.request({
@@ -32,7 +33,7 @@ export class TextAnalysisQueueScheduler implements TextAnalysisScheduler {
         await this.queue.send(createTextAnalysisTask(analysisRunId));
         await this.repository.markQueued(analysisRunId);
       }
-      return;
+      return analysisRunIds.length;
     }
     for (let index = 0; index < analysisRunIds.length; index += 20) {
       const batch = analysisRunIds.slice(index, index + 20);
@@ -41,5 +42,6 @@ export class TextAnalysisQueueScheduler implements TextAnalysisScheduler {
       );
       await Promise.all(batch.map((analysisRunId) => this.repository.markQueued(analysisRunId)));
     }
+    return analysisRunIds.length;
   }
 }

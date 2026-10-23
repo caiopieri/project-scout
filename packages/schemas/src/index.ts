@@ -861,6 +861,49 @@ export const textAnalysisResultSchema = z
   });
 export type TextAnalysisResult = z.infer<typeof textAnalysisResultSchema>;
 
+// Read model of the latest textual analysis of one listing, as persisted. The model that
+// produced each evidence travels with it, so a provider chain stays auditable.
+export const listingTextAnalysisTransportSchema = z
+  .object({
+    listingId: z.string().uuid(),
+    run: z
+      .object({
+        id: z.string().uuid(),
+        status: z.enum(['pending', 'running', 'completed', 'failed']),
+        provider: z.string(),
+        model: z.string(),
+        promptVersion: z.string(),
+        errorCode: z.string().nullable(),
+        completedAt: z.coerce.date().nullable(),
+        producedBy: z
+          .object({ provider: z.string(), model: z.string(), promptVersion: z.string() })
+          .strict()
+          .nullable(),
+      })
+      .strict()
+      .nullable(),
+    evidences: z.array(
+      textEvidenceSchema.omit({ sourceType: true, sourceReference: true }).extend({
+        sourceType: z.string(),
+        sourceReference: z.string(),
+        model: z.string().nullable(),
+      }),
+    ),
+    defects: z.array(textDefectSchema.extend({ evidenceKeys: z.array(z.string()) })),
+  })
+  .strict();
+export type ListingTextAnalysisTransport = z.infer<typeof listingTextAnalysisTransportSchema>;
+
+export const textAnalysisScheduleResultSchema = z
+  .object({
+    requested: z.number().int().nonnegative(),
+    queued: z.number().int().nonnegative(),
+    provider: z.string(),
+    model: z.string(),
+  })
+  .strict();
+export type TextAnalysisScheduleResult = z.infer<typeof textAnalysisScheduleResultSchema>;
+
 export const textAnalysisTaskSchema = z
   .object({
     kind: z.literal('text-analysis'),

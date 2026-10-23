@@ -6,7 +6,10 @@ import { writeFileSync } from 'node:fs';
 import { readLocalSupabase } from './local-env';
 
 const supabase = readLocalSupabase();
-const optional = (name: string) => (process.env[name] ? [`${name}=${process.env[name]}`] : []);
+const optional = (name: string, ...aliases: string[]) => {
+  const value = [name, ...aliases].map((key) => process.env[key]).find(Boolean);
+  return value ? [`${name}=${value}`] : [];
+};
 
 writeFileSync(
   'apps/worker/.dev.vars',
@@ -16,9 +19,10 @@ writeFileSync(
     `SUPABASE_SERVICE_ROLE_KEY=${supabase.serviceRoleKey}`,
     'WEB_ORIGIN=http://localhost:3000',
     'PUBLIC_API_ENABLED=true',
-    ...optional('GEMINI_API_KEY'),
-    ...optional('GROQ_API_KEY'),
-    ...optional('CEREBRAS_API_KEY'),
+    ...optional('GEMINI_API_KEY', 'GOOGLE_API_KEY'),
+    ...optional('GROQ_API_KEY', 'GROQ_API'),
+    ...optional('CEREBRAS_API_KEY', 'CEREBRAS1_API'),
+    ...optional('OPENROUTER_API_KEY', 'OPENROUTER_API'),
     '',
   ].join('\n'),
   { mode: 0o600 },

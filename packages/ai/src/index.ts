@@ -183,7 +183,9 @@ export class AiIntentInterpreter implements IntentInterpreter {
 }
 
 export * from './text-analysis';
+export * from './llm-text-analyzer';
 export * from './gemini-text-analysis';
+export * from './openai-compatible-text-analysis';
 export * from './processor';
 
 export const AI_PACKAGE_MARKER = '@scout/ai';

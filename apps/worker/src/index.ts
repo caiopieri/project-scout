@@ -1,7 +1,9 @@
 import {
   DeterministicIntentInterpreter,
   DeterministicTextAnalyzer,
+  FallbackTextAnalyzer,
   GeminiTextAnalyzer,
+  OpenAiCompatibleTextAnalyzer,
   MockTextAnalyzer,
   TextAnalysisBatchTaskProcessor,
   TextAnalysisTaskProcessor,
@@ -65,6 +67,7 @@ import {
   idempotencyKeySchema,
   listingTriageReviewRequestSchema,
   listingFeedPageSchema,
+  textAnalysisScheduleResultSchema,
   listingFeedQuerySchema,
   marketMetricsInputSchema,
   marketMetricsTransportSchema,
@@ -95,7 +98,52 @@ export const configuredTextAnalyzer = (env: Env) => {
       model: env.GEMINI_MODEL,
       maxRequests: 1,
     });
+  if (env.TEXT_ANALYZER_MODE === 'llm') return configuredLlmChain(env);
   return new DeterministicTextAnalyzer();
+};
+
+/**
+ * Ordered provider chain from TEXT_ANALYZER_PROVIDERS (e.g. "groq,gemini"). Missing budget or an
+ * empty chain fails closed with LLM_CONFIGURATION_MISSING instead of falling back to rules.
+ */
+const configuredLlmChain = (env: Env) => {
+  const maxRequests = Number(env.LLM_MAX_REQUESTS_PER_PROVIDER);
+  const budget = Number.isSafeInteger(maxRequests) && maxRequests > 0 ? maxRequests : 0;
+  const analyzers = (env.TEXT_ANALYZER_PROVIDERS ?? '')
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .map((name) => {
+      if (name === 'gemini')
+        return new GeminiTextAnalyzer({
+          apiKey: env.GEMINI_API_KEY ?? '',
+          model: env.GEMINI_MODEL,
+          maxRequests: budget,
+        });
+      if (name === 'groq' || name === 'cerebras' || name === 'openrouter')
+        return new OpenAiCompatibleTextAnalyzer({
+          provider: name,
+          apiKey:
+            (name === 'groq'
+              ? env.GROQ_API_KEY
+              : name === 'cerebras'
+                ? env.CEREBRAS_API_KEY
+                : env.OPENROUTER_API_KEY) ?? '',
+          model:
+            name === 'groq'
+              ? env.GROQ_MODEL
+              : name === 'cerebras'
+                ? env.CEREBRAS_MODEL
+                : env.OPENROUTER_MODEL,
+          maxRequests: budget,
+        });
+      return null;
+    })
+    .filter(
+      (analyzer): analyzer is GeminiTextAnalyzer | OpenAiCompatibleTextAnalyzer =>
+        analyzer !== null,
+    );
+  return new FallbackTextAnalyzer(analyzers);
 };
 
 const sharedMercadoLivreTokenState: MercadoLivreTokenState = {};
@@ -508,6 +556,57 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
       env.WEB_ORIGIN,
     );
   }
+  const analysisScheduleMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/analysis$/);
+  if (analysisScheduleMatch) {
+    if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed.');
+    const projectId = projectIdSchema.parse(analysisScheduleMatch[1]);
+    const project = await repository.findById(projectId, user.id);
+    if (!project) throw new HttpError(404, 'Project not found.');
+    if (!env.ANALYSIS_QUEUE) throw new HttpError(503, 'Analysis queue is not configured.');
+    const analyzer = configuredTextAnalyzer(env);
+    const listings = await listingRepository.findByProjectId(projectId);
+    const listingIds = listings.slice(0, 100).map(({ id }) => id);
+    const queued = await new TextAnalysisQueueScheduler(
+      new SupabaseRestTextAnalysisRunRepository({
+        baseUrl: env.SUPABASE_URL,
+        anonKey: env.SUPABASE_SERVICE_ROLE_KEY,
+        accessToken: env.SUPABASE_SERVICE_ROLE_KEY,
+      }),
+      env.ANALYSIS_QUEUE,
+      analyzer,
+    ).schedule(listingIds);
+    return json(
+      textAnalysisScheduleResultSchema.parse({
+        requested: listingIds.length,
+        queued: queued ?? 0,
+        provider: analyzer.provider,
+        model: analyzer.model,
+      }),
+      202,
+      env.WEB_ORIGIN,
+    );
+  }
+  const listingAnalysisMatch = url.pathname.match(
+    /^\/api\/projects\/([^/]+)\/listings\/([^/]+)\/analysis$/,
+  );
+  if (listingAnalysisMatch) {
+    if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
+    const projectId = projectIdSchema.parse(listingAnalysisMatch[1]);
+    const listingId = projectIdSchema.parse(listingAnalysisMatch[2]);
+    const project = await repository.findById(projectId, user.id);
+    if (!project) throw new HttpError(404, 'Project not found.');
+    if (!(await listingRepository.isListingInProject(listingId, projectId)))
+      throw new HttpError(404, 'Listing not found in project.');
+    return json(
+      await new SupabaseRestTextAnalysisRunRepository({
+        baseUrl: env.SUPABASE_URL,
+        anonKey: env.SUPABASE_ANON_KEY,
+        accessToken,
+      }).findLatestByListingId(listingId),
+      200,
+      env.WEB_ORIGIN,
+    );
+  }
   const marketMetricsMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/market-metrics$/);
   if (marketMetricsMatch) {
     if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
@@ -516,11 +615,21 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     if (!project) throw new HttpError(404, 'Project not found.');
     const { windowDays, minimumObservations, iqrMultiplier } = REFERENCE_POLICY_V1;
     const asOf = new Date();
-    const observations = await listingRepository.getMarketMetricObservationsByProjectId(projectId, windowDays, asOf);
+    const observations = await listingRepository.getMarketMetricObservationsByProjectId(
+      projectId,
+      windowDays,
+      asOf,
+    );
     return json(
       marketMetricsTransportSchema.parse(
         calculateMarketMetrics(
-          marketMetricsInputSchema.parse({ observations, windowDays, minimumObservations, iqrMultiplier, asOf }),
+          marketMetricsInputSchema.parse({
+            observations,
+            windowDays,
+            minimumObservations,
+            iqrMultiplier,
+            asOf,
+          }),
         ),
       ),
       200,

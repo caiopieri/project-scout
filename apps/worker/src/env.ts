@@ -45,7 +45,15 @@ export interface Env extends Omit<
   EBAY_IDENTITY_HASH_SECRET?: string;
   EBAY_PROBE_TOKEN?: string;
   PUBLIC_API_ENABLED?: 'true' | 'false';
-  TEXT_ANALYZER_MODE?: 'deterministic' | 'mock' | 'gemini';
+  TEXT_ANALYZER_MODE?: 'deterministic' | 'mock' | 'gemini' | 'llm';
+  TEXT_ANALYZER_PROVIDERS?: string;
+  LLM_MAX_REQUESTS_PER_PROVIDER?: string;
+  GROQ_API_KEY?: string;
+  GROQ_MODEL?: string;
+  CEREBRAS_API_KEY?: string;
+  CEREBRAS_MODEL?: string;
+  OPENROUTER_API_KEY?: string;
+  OPENROUTER_MODEL?: string;
   GEMINI_API_KEY?: string;
   GEMINI_MODEL?: string;
   EBAY_GLOBAL_REQUESTS_PER_MINUTE?: string;

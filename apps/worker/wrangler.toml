@@ -32,7 +32,10 @@ EBAY_GLOBAL_REQUESTS_PER_MINUTE = "2"
 EBAY_NOTIFICATION_ENVIRONMENT = "production"
 PUBLIC_API_ENABLED = "true"
 TEXT_ANALYZER_MODE = "deterministic"
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-3.5-flash"
+# Used only when TEXT_ANALYZER_MODE = "llm": ordered provider chain and per-provider budget.
+TEXT_ANALYZER_PROVIDERS = "groq,gemini"
+LLM_MAX_REQUESTS_PER_PROVIDER = "5"
 
 # Cloudflare Queues Producers Bindings
 [[queues.producers]]

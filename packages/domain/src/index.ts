@@ -438,7 +438,7 @@ export interface TextAnalysisRunRepository {
 }
 
 export interface TextAnalysisScheduler {
-  schedule(listingIds: string[]): Promise<void>;
+  schedule(listingIds: string[]): Promise<number | void>;
 }
 
 export interface CreateCollectionRunInput {

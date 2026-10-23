@@ -9,6 +9,7 @@ import type {
   ListingFeedGroup,
   ListingFeedPage,
   ListingFeedSort,
+  ListingTextAnalysisTransport,
   ListingTransport,
   ListingTriageDecisionTransport,
   ListingTriageReviewTransport,
@@ -26,6 +27,8 @@ import {
   interpretIntentResultSchema,
   listingFeedPageSchema,
   listingFeedSortSchema,
+  listingTextAnalysisTransportSchema,
+  textAnalysisScheduleResultSchema,
   listingTransportSchema,
   listingTriageDecisionTransportSchema,
   listingTriageReviewTransportSchema,
@@ -302,6 +305,48 @@ function ListingFeed({
       )}
       {snapshot && <p className="meta">Snapshot {new Date(snapshot).toLocaleString('pt-BR')}</p>}
     </section>
+  );
+}
+
+function TextAnalysisSummary({ analysis }: { analysis?: ListingTextAnalysisTransport }) {
+  if (!analysis) return <p className="muted">Carregando análise…</p>;
+  if (!analysis.run) return <p className="muted">Nenhuma análise de texto para este anúncio ainda.</p>;
+  if (analysis.run.status !== 'completed')
+    return (
+      <p className="muted">
+        Análise {analysis.run.status}
+        {analysis.run.errorCode ? ` · ${analysis.run.errorCode}` : ''} · {analysis.run.provider}
+      </p>
+    );
+  return (
+    <div className="history">
+      <strong>Análise de texto</strong>
+      <p className="meta">
+        {analysis.run.producedBy
+          ? `${analysis.run.producedBy.provider} · ${analysis.run.producedBy.model} · ${analysis.run.producedBy.promptVersion}`
+          : `${analysis.run.provider} · ${analysis.run.promptVersion}`}
+      </p>
+      {analysis.defects.length === 0 ? (
+        <p className="muted">Nenhum defeito declarado ou inferido no texto. Ausência no texto não prova funcionamento.</p>
+      ) : (
+        <ul>
+          {analysis.defects.map((defect) => (
+            <li key={defect.key}>
+              {defect.component}: {defect.defectType} · {defect.status} · severidade {defect.severity} ·
+              confiança {Math.round(defect.confidence * 100)}% · evidência {defect.evidenceKeys.join(', ')}
+            </li>
+          ))}
+        </ul>
+      )}
+      <ul>
+        {analysis.evidences.map((evidence) => (
+          <li key={evidence.key} className="muted">
+            [{evidence.key}] {evidence.claim} · {evidence.assessmentKind} · origem {evidence.sourceReference} ·{' '}
+            {evidence.model ?? 'modelo desconhecido'}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -1107,6 +1152,40 @@ function ProjectDetail({
   const [priceHistories, setPriceHistories] = useState<Record<string, PriceHistoryTransport[]>>({});
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
   const [loadingHistoryId, setLoadingHistoryId] = useState<string | null>(null);
+  const [textAnalyses, setTextAnalyses] = useState<Record<string, ListingTextAnalysisTransport>>({});
+  const [expandedAnalysisId, setExpandedAnalysisId] = useState<string | null>(null);
+  const [analysisNotice, setAnalysisNotice] = useState<string | null>(null);
+
+  const scheduleTextAnalysis = async () => {
+    setAnalysisNotice('Enfileirando análise de texto…');
+    try {
+      const result = textAnalysisScheduleResultSchema.parse(
+        await request(`/api/projects/${project.id}/analysis`, { method: 'POST' }),
+      );
+      setAnalysisNotice(
+        `${result.queued} de ${result.requested} anúncio(s) enfileirado(s) para ${result.provider} (${result.model}); os já analisados com o mesmo texto e prompt foram pulados.`,
+      );
+    } catch (error) {
+      setAnalysisNotice(error instanceof Error ? error.message : 'Falha ao enfileirar a análise.');
+    }
+  };
+
+  const toggleTextAnalysis = async (listingId: string) => {
+    if (expandedAnalysisId === listingId) {
+      setExpandedAnalysisId(null);
+      return;
+    }
+    setExpandedAnalysisId(listingId);
+    try {
+      const raw = await request(`/api/projects/${project.id}/listings/${listingId}/analysis`);
+      setTextAnalyses((current) => ({
+        ...current,
+        [listingId]: listingTextAnalysisTransportSchema.parse(raw),
+      }));
+    } catch (error) {
+      setAnalysisNotice(error instanceof Error ? error.message : 'Falha ao carregar a análise.');
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -1344,6 +1423,9 @@ function ProjectDetail({
               </p>
             </>
           )}
+          {expandedAnalysisId === listing.id && (
+            <TextAnalysisSummary analysis={textAnalyses[listing.id]} />
+          )}
           {expandedHistoryId === listing.id && priceHistories[listing.id] && (
             <div className="history">
               <strong>Histórico de preço</strong>
@@ -1366,6 +1448,13 @@ function ProjectDetail({
           <a className="button secondary" href={listing.url} target="_blank" rel="noreferrer">
             Ver anúncio
           </a>
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => void toggleTextAnalysis(listing.id)}
+          >
+            {expandedAnalysisId === listing.id ? 'Ocultar análise de texto' : 'Ver análise de texto'}
+          </button>
           <button
             type="button"
             className="button secondary"
@@ -1509,6 +1598,12 @@ function ProjectDetail({
       </div>
       {listingError && <div className="notice">{listingError}</div>}
       {triageError && <div className="notice">{triageError}</div>}
+      <div className="actions">
+        <button type="button" className="button" onClick={() => void scheduleTextAnalysis()}>
+          Analisar texto com IA
+        </button>
+      </div>
+      {analysisNotice && <div className="notice">{analysisNotice}</div>}
       <ListingFeed
         projectId={project.id}
         request={request}
