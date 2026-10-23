@@ -316,10 +316,12 @@ function Dossier({
 function ListingFeed({
   projectId,
   request,
+  download,
   renderListingCard,
 }: {
   projectId: string;
   request: (path: string, init?: RequestInit) => Promise<unknown>;
+  download: (path: string) => Promise<void>;
   renderListingCard: (listing: ListingTransport) => JSX.Element;
 }) {
   const [sort, setSort] = useState<ListingFeedSort>('discount');
@@ -339,13 +341,10 @@ function ListingFeed({
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [dossier, setDossier] = useState<ListingTransport | null>(null);
 
-  const fetchPage = useCallback(
-    async (group: ListingFeedGroup, offset: number, at: string | null, limit = 25) => {
+  const lensParams = useCallback(
+    (at: string | null) => {
       const params = new URLSearchParams({
-        group,
         sort,
-        offset: String(offset),
-        limit: String(limit),
         hideDiscarded: lens.hideDiscarded ? 'true' : 'false',
       });
       if (at) params.set('snapshot', at);
@@ -353,11 +352,32 @@ function ListingFeed({
       if (lens.label) params.set('label', lens.label);
       if (lens.condition.trim()) params.set('condition', lens.condition.trim());
       if (lens.minScore.trim()) params.set('minScore', lens.minScore.trim());
+      return params;
+    },
+    [sort, lens],
+  );
+
+  const exportSelection = async (format: 'csv' | 'xlsx') => {
+    const params = lensParams(snapshot);
+    params.set('format', format);
+    try {
+      await download(`/api/projects/${projectId}/export?${params}`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Falha ao exportar.');
+    }
+  };
+
+  const fetchPage = useCallback(
+    async (group: ListingFeedGroup, offset: number, at: string | null, limit = 25) => {
+      const params = lensParams(at);
+      params.set('group', group);
+      params.set('offset', String(offset));
+      params.set('limit', String(limit));
       return listingFeedPageSchema.parse(
         await request(`/api/projects/${projectId}/feed?${params}`),
       );
     },
-    [projectId, request, sort, lens],
+    [projectId, request, lensParams],
   );
 
   const items = useMemo(() => [...groups.rankable.items, ...groups.unbacked.items], [groups]);
@@ -616,6 +636,20 @@ function ListingFeed({
           />
         </label>
         {filteredOut > 0 && <span className="muted">{filteredOut} fora da lente</span>}
+        <button
+          type="button"
+          className="button secondary"
+          onClick={() => void exportSelection('csv')}
+        >
+          Exportar CSV
+        </button>
+        <button
+          type="button"
+          className="button secondary"
+          onClick={() => void exportSelection('xlsx')}
+        >
+          Exportar XLSX
+        </button>
       </div>
       <p className="keyhint">
         Teclado: J/K navegar · X descartar · S shortlist · M monitorar · H coração · Enter dossiê ·
@@ -885,6 +919,25 @@ export default function HomePage() {
     [session],
   );
 
+  const download = useCallback(
+    async (path: string) => {
+      if (!session) throw new Error('Faça login para continuar.');
+      const response = await fetch(`${apiUrl}${path}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!response.ok) await readJson(response);
+      const disposition = response.headers.get('Content-Disposition') ?? '';
+      const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'scout-export';
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    },
+    [session],
+  );
+
   const loadProjects = useCallback(async () => {
     if (!session) return;
     setLoading(true);
@@ -977,7 +1030,7 @@ export default function HomePage() {
               />
             )}
           </div>
-          {selected && <ProjectDetail project={selected} request={request} />}
+          {selected && <ProjectDetail project={selected} request={request} download={download} />}
           <InventoryPanel request={request} />
         </section>
       </div>
@@ -1615,9 +1668,11 @@ function ProjectList({
 function ProjectDetail({
   project,
   request,
+  download,
 }: {
   project: ResearchProject;
   request: (path: string, init?: RequestInit) => Promise<unknown>;
+  download: (path: string) => Promise<void>;
 }) {
   const [listings, setListings] = useState<ListingTransport[]>([]);
   const [marketMetrics, setMarketMetrics] = useState<MarketMetricsTransport | null>(null);
@@ -2097,7 +2152,12 @@ function ProjectDetail({
         </button>
       </div>
       {analysisNotice && <div className="notice">{analysisNotice}</div>}
-      <ListingFeed projectId={project.id} request={request} renderListingCard={renderListingCard} />
+      <ListingFeed
+        projectId={project.id}
+        request={request}
+        download={download}
+        renderListingCard={renderListingCard}
+      />
     </article>
   );
 }

@@ -91,6 +91,7 @@ import { processEbayAccountDeletionTask } from './EbayAccountDeletionProcessor';
 import { ebayAccountDeletionTaskSchema } from '@scout/schemas';
 import { handleManualEbayProbe, MANUAL_EBAY_PROBE_PATH } from './ManualEbayProbe';
 import { TextAnalysisQueueScheduler } from './TextAnalysisQueueScheduler';
+import { exportListings } from './ListingExport';
 import { DurableObjectEbayRateLimiter } from './EbayRateLimitDurableObject';
 export { EbayRateLimitDurableObject } from './EbayRateLimitDurableObject';
 
@@ -644,6 +645,36 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
       200,
       env.WEB_ORIGIN,
     );
+  }
+  const exportMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/export$/);
+  if (exportMatch) {
+    if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
+    const projectId = projectIdSchema.parse(exportMatch[1]);
+    const project = await repository.findById(projectId, user.id);
+    if (!project) throw new HttpError(404, 'Project not found.');
+    const params = Object.fromEntries(url.searchParams);
+    const format = params.format === 'xlsx' ? 'xlsx' : params.format === 'csv' ? 'csv' : null;
+    if (!format) throw new HttpError(400, 'format must be csv or xlsx.');
+    delete params.format;
+    const query = listingFeedQuerySchema.parse(params);
+    const snapshot = query.snapshot ?? new Date();
+    const listings = await enrichedListings(enrichRepositories, user.id, { projectId }, snapshot);
+    // The export is the current selection: both groups under the same lens and order.
+    const options = { sort: query.sort, snapshot, offset: 0, limit: 100_000, lens: query };
+    const selection = [
+      ...sliceListingFeed(listings, { ...options, group: 'rankable' }).items,
+      ...sliceListingFeed(listings, { ...options, group: 'unbacked' }).items,
+    ];
+    const file = exportListings(selection, format);
+    return new Response(file.body as BodyInit, {
+      status: 200,
+      headers: {
+        'Content-Type': file.contentType,
+        'Content-Disposition': `attachment; filename="${file.filename}"`,
+        'Access-Control-Allow-Origin': env.WEB_ORIGIN ?? '*',
+        'Access-Control-Expose-Headers': 'Content-Disposition',
+      },
+    });
   }
   const analysisScheduleMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/analysis$/);
   if (analysisScheduleMatch) {

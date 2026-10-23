@@ -16,9 +16,10 @@
     "@scout/database": "*",
     "@scout/domain": "*",
     "@scout/ebay-connector": "*",
-    "@scout/search-intelligence": "*",
     "@scout/schemas": "*",
-    "@scout/valuation": "*"
+    "@scout/search-intelligence": "*",
+    "@scout/valuation": "*",
+    "fflate": "^0.8.2"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240208.0",
