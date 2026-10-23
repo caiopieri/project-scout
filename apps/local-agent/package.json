@@ -1,0 +1,19 @@
+{
+  "name": "@scout/local-agent",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "scripts": {
+    "start": "vite-node src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint \"src/**/*.ts\"",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@scout/collection": "*",
+    "@scout/domain": "*",
+    "@scout/schemas": "*",
+    "@scout/swappa-connector": "*",
+    "playwright": "1.56.1"
+  }
+}

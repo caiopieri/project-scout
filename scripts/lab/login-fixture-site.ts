@@ -1,0 +1,36 @@
+// Lab stand-in for a source that requires login, on loopback :8098. GET /login shows a form,
+// POST /login sets a session cookie, and /listings/* serves the recorded Swappa page only to a
+// browser holding that cookie (everyone else is redirected to /login).
+// Usage: npx vite-node scripts/lab/login-fixture-site.ts
+import { readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+
+const page = readFileSync('tests/fixtures/swappa/listings-apple-iphone-13.html', 'utf8');
+const SESSION = 'lab-session-7f3a';
+
+createServer((request, response) => {
+  const url = new URL(request.url ?? '/', 'http://127.0.0.1:8098');
+  const loggedIn = (request.headers.cookie ?? '').includes(`sid=${SESSION}`);
+  if (url.pathname === '/robots.txt') return response.end('User-agent: *\nDisallow: /cgi-bin/\n');
+  if (url.pathname === '/login' && request.method === 'POST') {
+    response.writeHead(302, {
+      'Set-Cookie': `sid=${SESSION}; HttpOnly; Path=/; Max-Age=86400`,
+      Location: '/account',
+    });
+    return response.end();
+  }
+  if (url.pathname === '/login') {
+    response.writeHead(200, { 'Content-Type': 'text/html' });
+    return response.end(
+      '<form method="post" action="/login"><input name="user"><input type="password" name="pass"><button>Entrar</button></form>',
+    );
+  }
+  if (!loggedIn) {
+    response.writeHead(302, { Location: '/login' });
+    return response.end();
+  }
+  response.writeHead(200, { 'Content-Type': 'text/html' });
+  response.end(
+    url.pathname.startsWith('/listings/') ? page : '<html><body>Minha conta</body></html>',
+  );
+}).listen(8098, '127.0.0.1', () => console.log('login fixture site on http://127.0.0.1:8098'));

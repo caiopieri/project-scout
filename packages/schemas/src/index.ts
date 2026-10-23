@@ -633,6 +633,39 @@ export const collectionRunRequestSchema = z
   .object({ sourceId: z.string().uuid().optional() })
   .strict();
 
+export const localAgentRegistrationSchema = z
+  .object({ name: z.string().trim().min(1).max(80) })
+  .strict();
+export const localAgentTaskRequestSchema = z.object({ sourceId: z.string().uuid() }).strict();
+
+// S6 Local Agent. Records come back extracted; anything that looks like a credential is refused.
+export const localAgentTaskTransportSchema = z
+  .object({
+    id: z.string().uuid(),
+    projectId: z.string().uuid(),
+    sourceId: z.string().uuid(),
+    agentId: z.string().uuid().nullable(),
+    status: z.enum(['pending', 'claimed', 'completed', 'failed']),
+    payload: z.record(z.string(), z.unknown()),
+    itemsReceived: z.number().int().nullable(),
+    itemsCreated: z.number().int().nullable(),
+    itemsUpdated: z.number().int().nullable(),
+    errorCode: z.string().nullable(),
+    createdAt: z.coerce.date(),
+    claimedAt: z.coerce.date().nullable(),
+    completedAt: z.coerce.date().nullable(),
+  })
+  .strict();
+export type LocalAgentTaskTransport = z.infer<typeof localAgentTaskTransportSchema>;
+
+const CREDENTIAL_KEY = /cookie|password|passwd|token|session|authorization|secret/i;
+const containsCredentialKey = (value: unknown, depth = 0): boolean => {
+  if (depth > 6 || !value || typeof value !== 'object') return false;
+  return Object.entries(value as Record<string, unknown>).some(
+    ([key, child]) => CREDENTIAL_KEY.test(key) || containsCredentialKey(child, depth + 1),
+  );
+};
+
 // Listing feed: two declared groups. Unbacked items are unknown, never "worst", so they are
 // never ordered by discount nor mixed with rankable items.
 export const listingFeedGroupSchema = z.enum(['rankable', 'unbacked']);
@@ -1931,3 +1964,20 @@ export const collectionPersistenceSummarySchema = z.object({
 export type CollectionPersistenceSummary = z.infer<typeof collectionPersistenceSummarySchema>;
 
 export const SCHEMAS_PACKAGE_MARKER = '@scout/schemas';
+
+export const localAgentResultSchema = z
+  .union([
+    z
+      .object({ status: z.literal('completed'), records: z.array(rawListingRecordSchema).max(200) })
+      .strict(),
+    z
+      .object({
+        status: z.literal('failed'),
+        errorCode: z.string().regex(/^[A-Z][A-Z0-9_]{2,63}$/),
+      })
+      .strict(),
+  ])
+  .refine((result) => result.status !== 'completed' || !containsCredentialKey(result.records), {
+    message: 'Records must not carry credentials or session data.',
+  });
+export type LocalAgentResult = z.infer<typeof localAgentResultSchema>;

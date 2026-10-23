@@ -67,13 +67,11 @@ const main = async () => {
           errorCode: current.errorCode,
         },
         feedBySource: bySource,
-        swappaSample: swappa
-          .slice(0, 2)
-          .map((item) => ({
-            title: item.title,
-            condition: item.condition,
-            refusal: item.referenceDiscount.reasons,
-          })),
+        swappaSample: swappa.slice(0, 2).map((item) => ({
+          title: item.title,
+          condition: item.condition,
+          refusal: item.referenceDiscount.reasons,
+        })),
       },
       null,
       2,

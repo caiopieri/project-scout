@@ -18,7 +18,8 @@
     "./triage": "./src/repositories/supabase/SupabaseRestTriageDecisionRepository.ts",
     "./search-intelligence": "./src/repositories/supabase/SupabaseRestSearchQueryFamilyRepository.ts",
     "./user-actions": "./src/repositories/supabase/SupabaseRestUserListingActionRepository.ts",
-    "./visual-analysis": "./src/repositories/supabase/SupabaseRestVisualAnalysisRepository.ts"
+    "./visual-analysis": "./src/repositories/supabase/SupabaseRestVisualAnalysisRepository.ts",
+    "./local-agent": "./src/repositories/supabase/SupabaseRestLocalAgentRepository.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

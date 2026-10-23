@@ -12,6 +12,7 @@ import type {
   ListingFeedSort,
   ListingTextAnalysisTransport,
   ListingVisualAnalysisTransport,
+  LocalAgentTaskTransport,
   ListingTransport,
   ListingTriageDecisionTransport,
   ListingTriageReviewTransport,
@@ -32,6 +33,7 @@ import {
   listingFeedSortSchema,
   listingTextAnalysisTransportSchema,
   listingVisualAnalysisTransportSchema,
+  localAgentTaskTransportSchema,
   visualAnalysisScheduleResultSchema,
   listingUserActionSchema,
   textAnalysisScheduleResultSchema,
@@ -1182,6 +1184,94 @@ function VisualCheckup({ analysis }: { analysis?: ListingVisualAnalysisTransport
           </p>
         </>
       )}
+    </div>
+  );
+}
+
+function LocalAgentPanel({
+  projectId,
+  request,
+}: {
+  projectId: string;
+  request: (path: string, init?: RequestInit) => Promise<unknown>;
+}) {
+  const [agents, setAgents] = useState<
+    Array<{ id: string; name: string; last_seen_at: string | null }>
+  >([]);
+  const [tasks, setTasks] = useState<LocalAgentTaskTransport[]>([]);
+  const [token, setToken] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const refresh = useCallback(async () => {
+    try {
+      setAgents((await request('/api/local-agents')) as typeof agents);
+      setTasks(
+        localAgentTaskTransportSchema
+          .array()
+          .parse(await request(`/api/projects/${projectId}/local-tasks`)),
+      );
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Falha ao carregar o agente local.');
+    }
+  }, [projectId, request]);
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+  const register = async () => {
+    const created = (await request('/api/local-agents', {
+      method: 'POST',
+      body: JSON.stringify({ name: `agente-${new Date().toISOString().slice(0, 10)}` }),
+    })) as { token: string };
+    setToken(created.token);
+    await refresh();
+  };
+  const queue = async () => {
+    await request(`/api/projects/${projectId}/local-tasks`, {
+      method: 'POST',
+      body: JSON.stringify({ sourceId: '00000000-0000-4000-a000-000000000004' }),
+    });
+    await refresh();
+  };
+  return (
+    <div className="valuation-settings">
+      <div className="eyebrow">Agente local · coleta com a sua sessão, na sua máquina</div>
+      <p className="muted">
+        O agente puxa tarefas, usa o perfil do seu navegador e devolve só os anúncios extraídos.
+        Cookies e senha não saem da máquina. Ele para em login pedido ou CAPTCHA.
+      </p>
+      <div className="actions">
+        <button type="button" className="button secondary" onClick={() => void register()}>
+          Registrar agente
+        </button>
+        <button
+          type="button"
+          className="button secondary"
+          disabled={!agents.length}
+          onClick={() => void queue()}
+        >
+          Enviar tarefa ao agente
+        </button>
+        <span className="meta">{agents.length} agente(s)</span>
+      </div>
+      {token && (
+        <div className="notice">
+          Token (aparece só agora): <code>{token}</code>
+          <br />
+          <code>
+            SCOUT_API={apiUrl} SCOUT_AGENT_TOKEN={token} SCOUT_PROFILE_DIR=~/.scout-profile npm
+            start --workspace @scout/local-agent
+          </code>
+        </div>
+      )}
+      {error && <div className="notice">{error}</div>}
+      <ul>
+        {tasks.map((task) => (
+          <li key={task.id} className="muted">
+            {task.createdAt.toLocaleString('pt-BR')} · {task.status}
+            {task.errorCode ? ` · ${task.errorCode}` : ''}
+            {task.itemsReceived !== null ? ` · ${task.itemsReceived} recebido(s)` : ''}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -2544,6 +2634,7 @@ function ProjectDetail({
         </button>
       </div>
       {analysisNotice && <div className="notice">{analysisNotice}</div>}
+      <LocalAgentPanel projectId={project.id} request={request} />
       <AgentPanel
         projectId={project.id}
         request={request}

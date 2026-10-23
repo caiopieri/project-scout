@@ -77,6 +77,9 @@ import {
   agentChatRequestSchema,
   agentChatResponseSchema,
   collectionRunRequestSchema,
+  localAgentRegistrationSchema,
+  localAgentResultSchema,
+  localAgentTaskRequestSchema,
   inventoryQuerySchema,
   visualAnalysisScheduleResultSchema,
   visualAnalysisTaskSchema,
@@ -106,6 +109,7 @@ import { exportListings } from './ListingExport';
 import { SWAPPA_BASE_URL, SwappaConnector, SwappaListingMapper } from '@scout/swappa-connector';
 import { VisualAnalysisProcessor } from './VisualAnalysisProcessor';
 import { SupabaseRestVisualAnalysisRepository } from '@scout/database/visual-analysis';
+import { SupabaseRestLocalAgentRepository } from '@scout/database/local-agent';
 import { DurableObjectEbayRateLimiter } from './EbayRateLimitDurableObject';
 export { EbayRateLimitDurableObject } from './EbayRateLimitDurableObject';
 
@@ -500,6 +504,77 @@ async function enrichedListings(
   });
 }
 
+const serviceRoleConfig = (env: Env) => ({
+  baseUrl: env.SUPABASE_URL,
+  anonKey: env.SUPABASE_SERVICE_ROLE_KEY,
+  accessToken: env.SUPABASE_SERVICE_ROLE_KEY,
+});
+
+/** One ingestion path for every source, whether the cloud or a Local Agent collected it. */
+const configuredIngestionService = (env: Env) =>
+  new ListingIngestionService(
+    new Map([
+      [SOURCE_IDS.ebay, new EbayListingMapper()],
+      [SOURCE_IDS.mercadolivre, new GenericListingMapper()],
+      [SOURCE_IDS.xianyu, new GenericListingMapper()],
+      [SOURCE_IDS.swappa, new SwappaListingMapper()],
+    ]),
+    new R2RawListingObjectStore(env.RAW_BUCKET, env.EBAY_IDENTITY_HASH_SECRET ?? ''),
+    new SupabaseRestListingIngestionRepository(serviceRoleConfig(env)),
+  );
+
+const sha256Hex = async (value: string) =>
+  [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+
+/**
+ * Endpoints the Local Agent calls with its own token (`Authorization: Agent <token>`). The agent
+ * only ever sends extracted records; the browser session and its cookies stay on its machine.
+ */
+async function handleLocalAgent(request: Request, env: Env, url: URL): Promise<Response> {
+  const header = request.headers.get('Authorization') ?? '';
+  if (!header.startsWith('Agent ')) throw new HttpError(401, 'Agent token required.');
+  const agents = new SupabaseRestLocalAgentRepository(serviceRoleConfig(env));
+  const agent = await agents.findAgentByTokenHash(
+    await sha256Hex(header.slice('Agent '.length).trim()),
+  );
+  if (!agent) throw new HttpError(401, 'Invalid or revoked agent token.');
+  if (url.pathname === '/api/local-agent/claim' && request.method === 'POST')
+    return json({ task: await agents.claim(agent.id) }, 200, env.WEB_ORIGIN);
+  const resultMatch = url.pathname.match(/^\/api\/local-agent\/tasks\/([^/]+)\/result$/);
+  if (resultMatch && request.method === 'POST') {
+    const taskId = projectIdSchema.parse(resultMatch[1]);
+    const result = localAgentResultSchema.parse(await parseBody(request));
+    // Only the task this agent currently holds may be finished.
+    const task = await agents.findClaimedTask(agent.id, taskId);
+    if (!task) throw new HttpError(409, 'Task is not claimed by this agent.');
+    if (result.status === 'failed')
+      return json(await agents.finish(taskId, agent.id, result), 200, env.WEB_ORIGIN);
+    const summary = await configuredIngestionService(env).ingest({
+      projectId: task.projectId,
+      sourceId: task.sourceId,
+      result: {
+        items: result.records,
+        pagesFetched: 1,
+        provider: `local-agent:${agent.name}`,
+        truncated: false,
+      },
+    });
+    return json(
+      await agents.finish(taskId, agent.id, {
+        status: 'completed',
+        itemsReceived: result.records.length,
+        itemsCreated: summary.itemsCreated,
+        itemsUpdated: summary.itemsUpdated,
+      }),
+      200,
+      env.WEB_ORIGIN,
+    );
+  }
+  throw new HttpError(404, 'Route not found.');
+}
+
 async function handleApi(request: Request, env: Env, url: URL): Promise<Response> {
   const { user, accessToken } = await authenticate(request, env);
   const repository = new SupabaseRestResearchProjectRepository({
@@ -589,6 +664,43 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
       200,
       env.WEB_ORIGIN,
     );
+  }
+  if (url.pathname === '/api/local-agents') {
+    const agents = new SupabaseRestLocalAgentRepository(serviceRoleConfig(env));
+    if (request.method === 'GET')
+      return json(await agents.listAgents(user.id), 200, env.WEB_ORIGIN);
+    if (request.method === 'POST') {
+      const { name } = localAgentRegistrationSchema.parse(await parseBody(request));
+      const bytes = crypto.getRandomValues(new Uint8Array(32));
+      const token = [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+      const agent = await agents.register(user.id, name, await sha256Hex(token));
+      // The token is shown once; only its hash is stored.
+      return json({ ...agent, token }, 201, env.WEB_ORIGIN);
+    }
+    throw new HttpError(405, 'Method not allowed.');
+  }
+  const localTaskMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/local-tasks$/);
+  if (localTaskMatch) {
+    const projectId = projectIdSchema.parse(localTaskMatch[1]);
+    const project = await repository.findById(projectId, user.id);
+    if (!project) throw new HttpError(404, 'Project not found.');
+    const agents = new SupabaseRestLocalAgentRepository(serviceRoleConfig(env));
+    if (request.method === 'GET')
+      return json(await agents.listTasks(projectId), 200, env.WEB_ORIGIN);
+    if (request.method === 'POST') {
+      const { sourceId } = localAgentTaskRequestSchema.parse(await parseBody(request));
+      return json(
+        await agents.createTask({
+          userId: user.id,
+          projectId,
+          sourceId,
+          payload: { criteria: project.structuredQuery },
+        }),
+        201,
+        env.WEB_ORIGIN,
+      );
+    }
+    throw new HttpError(405, 'Method not allowed.');
   }
   if (url.pathname === '/api/sources') {
     if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
@@ -1400,6 +1512,8 @@ export default {
     try {
       if (url.pathname.startsWith('/api/')) {
         if (env.PUBLIC_API_ENABLED === 'false') throw new HttpError(404, 'Route not found.');
+        if (url.pathname.startsWith('/api/local-agent/'))
+          return await handleLocalAgent(request, env, url);
         return await handleApi(request, env, url);
       }
       throw new HttpError(404, 'Route not found.');
@@ -1477,18 +1591,7 @@ export default {
           repository,
           configuredCollectionGateways(env, logEbayRequestTelemetry),
           3,
-          new ListingIngestionService(
-            new Map([
-              [SOURCE_IDS.ebay, new EbayListingMapper()],
-              [SOURCE_IDS.mercadolivre, new GenericListingMapper()],
-              [SOURCE_IDS.xianyu, new GenericListingMapper()],
-              [SOURCE_IDS.swappa, new SwappaListingMapper()],
-            ]),
-            new R2RawListingObjectStore(env.RAW_BUCKET, env.EBAY_IDENTITY_HASH_SECRET ?? ''),
-            new SupabaseRestListingIngestionRepository({
-              ...serviceConfig,
-            }),
-          ),
+          configuredIngestionService(env),
           env.ANALYSIS_QUEUE
             ? new TextAnalysisQueueScheduler(analysisRepository, env.ANALYSIS_QUEUE, textAnalyzer)
             : undefined,
