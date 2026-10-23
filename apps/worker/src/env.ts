@@ -55,6 +55,9 @@ export interface Env extends Omit<
   OPENROUTER_API_KEY?: string;
   OPENROUTER_MODEL?: string;
   VISUAL_ANALYSIS_BUDGET_PER_PROJECT?: string;
+  SWAPPA_MODE?: 'disabled' | 'fixture' | 'live';
+  SWAPPA_BASE_URL?: string;
+  HTML_MIN_INTERVAL_MS?: string;
   GEMINI_VISION_MODEL?: string;
   GEMINI_PRICE_INPUT_PER_MTOK_USD?: string;
   GEMINI_PRICE_OUTPUT_PER_MTOK_USD?: string;

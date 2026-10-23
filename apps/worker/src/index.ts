@@ -18,6 +18,7 @@ import {
   createCollectionTask,
   DefaultCollectionGateway,
   GenericListingMapper,
+  HttpScrapingProvider,
   ListingIngestionService,
   SourceCollectionGatewayRegistry,
   type CollectionLimits,
@@ -75,6 +76,7 @@ import {
   listingTriageReviewRequestSchema,
   agentChatRequestSchema,
   agentChatResponseSchema,
+  collectionRunRequestSchema,
   inventoryQuerySchema,
   visualAnalysisScheduleResultSchema,
   visualAnalysisTaskSchema,
@@ -101,6 +103,7 @@ import { ebayAccountDeletionTaskSchema } from '@scout/schemas';
 import { handleManualEbayProbe, MANUAL_EBAY_PROBE_PATH } from './ManualEbayProbe';
 import { TextAnalysisQueueScheduler } from './TextAnalysisQueueScheduler';
 import { exportListings } from './ListingExport';
+import { SWAPPA_BASE_URL, SwappaConnector, SwappaListingMapper } from '@scout/swappa-connector';
 import { VisualAnalysisProcessor } from './VisualAnalysisProcessor';
 import { SupabaseRestVisualAnalysisRepository } from '@scout/database/visual-analysis';
 import { DurableObjectEbayRateLimiter } from './EbayRateLimitDurableObject';
@@ -300,7 +303,22 @@ const SOURCE_IDS = {
   ebay: '00000000-0000-4000-a000-000000000001',
   mercadolivre: '00000000-0000-4000-a000-000000000002',
   xianyu: '00000000-0000-4000-a000-000000000003',
+  swappa: '00000000-0000-4000-a000-000000000004',
 } as const;
+
+/** Swappa (layer 4). Live mode is refused by the connector while its live policy says no. */
+export const configuredSwappaConnector = (env: Env) => {
+  const mode =
+    env.SWAPPA_MODE === 'fixture' || env.SWAPPA_MODE === 'live' ? env.SWAPPA_MODE : 'disabled';
+  const interval = Number(env.HTML_MIN_INTERVAL_MS);
+  return new SwappaConnector(
+    new HttpScrapingProvider({
+      minIntervalMs: Number.isSafeInteger(interval) && interval >= 0 ? interval : 5_000,
+    }),
+    mode,
+    env.SWAPPA_BASE_URL ?? SWAPPA_BASE_URL,
+  );
+};
 
 // Uma varredura gasta 1 chamada de busca por página mais 1 de detalhe por
 // anúncio. O orçamento por execução é o teto de tudo; o resto sai dele.
@@ -366,6 +384,7 @@ const configuredCollectionGateways = (env: Env, onEbayRequest?: EbayRequestTelem
     ],
     [SOURCE_IDS.mercadolivre, new DefaultCollectionGateway(configuredMercadoLivreConnector(env))],
     [SOURCE_IDS.xianyu, new DefaultCollectionGateway(new UnavailableXianyuConnector())],
+    [SOURCE_IDS.swappa, new DefaultCollectionGateway(configuredSwappaConnector(env))],
   ]);
 
 const interpretationMetadata = (result: InterpretIntentResult) => ({
@@ -567,6 +586,30 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
       .sort((left, right) => right.firstCollectedAt.getTime() - left.firstCollectedAt.getTime());
     return json(
       { total: listings.length, matched: items.length, items: items.slice(0, query.limit) },
+      200,
+      env.WEB_ORIGIN,
+    );
+  }
+  if (url.pathname === '/api/sources') {
+    if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
+    const swappa = configuredSwappaConnector(env);
+    return json(
+      [
+        {
+          id: SOURCE_IDS.ebay,
+          name: 'eBay',
+          layer: 1,
+          mode: env.EBAY_CONNECTOR_MODE ?? 'mock',
+          livePolicy: null,
+        },
+        {
+          id: SOURCE_IDS.swappa,
+          name: 'Swappa',
+          layer: swappa.manifest.primaryLayer,
+          mode: env.SWAPPA_MODE ?? 'disabled',
+          livePolicy: swappa.manifest.livePolicy ?? null,
+        },
+      ],
       200,
       env.WEB_ORIGIN,
     );
@@ -1270,9 +1313,13 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
       if (project.status !== 'active')
         throw new HttpError(409, 'Only active projects can be collected.');
       const idempotencyKey = idempotencyKeySchema.parse(request.headers.get('Idempotency-Key'));
+      const body =
+        request.headers.get('Content-Length') === '0' ? {} : await request.json().catch(() => ({}));
+      const sourceId = collectionRunRequestSchema.parse(body).sourceId;
       const created = await collectionRepository.createOrFind({
         projectId,
         idempotencyKey,
+        ...(sourceId ? { sourceId } : {}),
       });
       if (created.run.status === 'pending' && !created.run.queuedAt) {
         try {
@@ -1435,6 +1482,7 @@ export default {
               [SOURCE_IDS.ebay, new EbayListingMapper()],
               [SOURCE_IDS.mercadolivre, new GenericListingMapper()],
               [SOURCE_IDS.xianyu, new GenericListingMapper()],
+              [SOURCE_IDS.swappa, new SwappaListingMapper()],
             ]),
             new R2RawListingObjectStore(env.RAW_BUCKET, env.EBAY_IDENTITY_HASH_SECRET ?? ''),
             new SupabaseRestListingIngestionRepository({

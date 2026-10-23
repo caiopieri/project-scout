@@ -152,11 +152,23 @@ export const connectorLimitsSchema = z.object({
 });
 export type ConnectorLimits = z.infer<typeof connectorLimitsSchema>;
 
+// Whether a source may be collected live, and why. Recorded from the source's robots.txt and
+// terms on the date checked. A disallowed source still has a connector, exercised on fixtures.
+export const sourceLivePolicySchema = z
+  .object({
+    allowed: z.boolean(),
+    reason: z.string().min(1),
+    checkedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  })
+  .strict();
+export type SourceLivePolicy = z.infer<typeof sourceLivePolicySchema>;
+
 export const connectorManifestSchema = z.object({
   source: z.string().regex(/^[a-z][a-z0-9-]{1,31}$/),
   primaryLayer: connectorLayerSchema,
   fallbacks: z.array(connectorFallbackSchema),
   limits: connectorLimitsSchema,
+  livePolicy: sourceLivePolicySchema.optional(),
   healthStates: z
     .array(collectorHealthStateSchema)
     .min(1)
@@ -616,6 +628,10 @@ export const visualAnalysisScheduleResultSchema = z
   })
   .strict();
 export type VisualAnalysisScheduleResult = z.infer<typeof visualAnalysisScheduleResultSchema>;
+
+export const collectionRunRequestSchema = z
+  .object({ sourceId: z.string().uuid().optional() })
+  .strict();
 
 // Listing feed: two declared groups. Unbacked items are unknown, never "worst", so they are
 // never ordered by discount nor mixed with rankable items.
@@ -1246,8 +1262,9 @@ export type ValuationPolicy = z.infer<typeof valuationPolicySchema>;
 
 export const researchCriteriaSchema = z
   .object({
-    category: z.enum(['smartphone', 'laptop']).optional(),
-    brands: z.array(z.enum(['Apple'])).default([]),
+    // Free text since S5: the core does not know the vertical's taxonomy.
+    category: z.string().trim().min(1).max(60).optional(),
+    brands: z.array(z.string().trim().min(1).max(60)).default([]),
     models: z.array(z.string().min(1)).default([]),
     variants: z.array(z.string().min(1)).default([]),
     storageGb: z.array(z.number().int().positive()).default([]),
@@ -1683,6 +1700,21 @@ export const collectionTaskSchema = z.object({
   runId: z.string().uuid(),
 });
 export type CollectionTask = z.infer<typeof collectionTaskSchema>;
+
+// S5 seam: what any collection layer produces before a vertical interprets it. Price is not
+// required here; the commerce vertical decides whether a document can become a listing.
+export const sourceDocumentSchema = z
+  .object({
+    url: z.string().url(),
+    externalId: z.string().min(1).max(200),
+    title: z.string().min(1).max(500),
+    price: moneySchema.optional(),
+    imageUrls: z.array(z.string().url()).max(20).default([]),
+    fields: z.record(z.string(), z.string().max(2000)).default({}),
+    extractedBy: z.string().min(1),
+  })
+  .strict();
+export type SourceDocument = z.infer<typeof sourceDocumentSchema>;
 
 export const rawListingPreviewSchema = z.object({
   externalId: z.string().min(1),

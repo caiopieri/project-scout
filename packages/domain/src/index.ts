@@ -446,6 +446,8 @@ export interface TextAnalysisScheduler {
 export interface CreateCollectionRunInput {
   projectId: string;
   idempotencyKey: string;
+  /** Omitted means the reference eBay source, as before S5. */
+  sourceId?: string;
 }
 
 export interface CollectionRunRepository {

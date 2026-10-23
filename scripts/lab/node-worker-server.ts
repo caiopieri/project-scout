@@ -15,6 +15,7 @@ const fromDevVars = Object.fromEntries(
 );
 
 type Pending = { body: unknown; attempts: number };
+const rawObjects = new Map<string, unknown>();
 const pending: Pending[] = [];
 const queue = { send: async (body: unknown) => void pending.push({ body, attempts: 0 }) };
 
@@ -31,9 +32,13 @@ const env = {
   ANALYSIS_QUEUE: queue,
   EBAY_DELETION_QUEUE: queue,
   RAW_BUCKET: {
-    put: async () => ({}),
-    head: async () => null,
-    get: async () => null,
+    put: async (key: string, value: unknown) => {
+      rawObjects.set(key, value);
+      return { key };
+    },
+    head: async (key: string) => (rawObjects.has(key) ? { key } : null),
+    get: async (key: string) =>
+      rawObjects.has(key) ? { text: async () => String(rawObjects.get(key)) } : null,
   },
 } as never;
 

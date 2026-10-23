@@ -62,13 +62,17 @@ export class SupabaseRestCollectionRunRepository implements CollectionRunReposit
   constructor(private readonly config: SupabaseRestConfig) {}
 
   async createOrFind(input: CreateCollectionRunInput) {
-    const rows = await this.request<CollectionRunRow[]>('rpc/request_ebay_collection_run', {
-      method: 'POST',
-      body: JSON.stringify({
-        p_project_id: input.projectId,
-        p_idempotency_key: input.idempotencyKey,
-      }),
-    });
+    const rows = await this.request<CollectionRunRow[]>(
+      input.sourceId ? 'rpc/request_collection_run' : 'rpc/request_ebay_collection_run',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          p_project_id: input.projectId,
+          p_idempotency_key: input.idempotencyKey,
+          ...(input.sourceId ? { p_source_id: input.sourceId } : {}),
+        }),
+      },
+    );
     if (!rows[0]) throw new Error('Project not found, inactive or access denied.');
     const run = mapRun(rows[0]);
     return { run, created: run.status === 'pending' && !run.queuedAt && run.attemptCount === 0 };

@@ -2,6 +2,7 @@
 // running local Supabase stack, so `wrangler dev` and `next dev` talk to it. Optional LLM keys
 // are copied from the shell environment when present. Usage:
 //   npx vite-node scripts/lab/write-local-env.ts
+import { randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { readLocalSupabase } from './local-env';
 
@@ -19,6 +20,8 @@ writeFileSync(
     `SUPABASE_SERVICE_ROLE_KEY=${supabase.serviceRoleKey}`,
     'WEB_ORIGIN=http://localhost:3000',
     'PUBLIC_API_ENABLED=true',
+    // Lab-only key for pseudonymous raw-store prefixes; regenerated on every run.
+    `EBAY_IDENTITY_HASH_SECRET=${randomBytes(24).toString('hex')}`,
     ...optional('GEMINI_API_KEY', 'GOOGLE_API_KEY'),
     ...optional('GROQ_API_KEY', 'GROQ_API'),
     ...optional('CEREBRAS_API_KEY', 'CEREBRAS1_API'),

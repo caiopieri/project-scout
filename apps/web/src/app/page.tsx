@@ -58,6 +58,13 @@ const defaultValuationPolicy = {
   transactionRate: '0',
 };
 
+const sourceNames: Record<string, string> = {
+  '00000000-0000-4000-a000-000000000001': 'eBay',
+  '00000000-0000-4000-a000-000000000002': 'Mercado Livre',
+  '00000000-0000-4000-a000-000000000003': 'Xianyu',
+  '00000000-0000-4000-a000-000000000004': 'Swappa',
+};
+
 const formatMinorMoney = (currency: string, amountMinor: number | null) =>
   amountMinor === null ? 'indeterminado' : `${currency} ${(amountMinor / 100).toFixed(2)}`;
 
@@ -2028,6 +2035,41 @@ function ProjectDetail({
     }
   };
 
+  const [sources, setSources] = useState<
+    Array<{
+      id: string;
+      name: string;
+      mode: string;
+      livePolicy: { allowed: boolean; reason: string } | null;
+    }>
+  >([]);
+  const [sourceId, setSourceId] = useState('00000000-0000-4000-a000-000000000001');
+  useEffect(() => {
+    void request('/api/sources')
+      .then((raw) => setSources(raw as typeof sources))
+      .catch(() => setSources([]));
+  }, [request]);
+
+  const collectFrom = async () => {
+    setAnalysisNotice('Pedindo coleta…');
+    try {
+      const run = collectionRunTransportSchema.parse(
+        await request(`/api/projects/${project.id}/collection-runs`, {
+          method: 'POST',
+          headers: {
+            'Idempotency-Key': `collect-${project.id}-${sourceId.slice(-4)}-${Date.now()}`,
+          },
+          body: JSON.stringify({ sourceId }),
+        }),
+      );
+      setAnalysisNotice(
+        `Coleta ${run.id.slice(0, 8)} de ${sourceNames[sourceId] ?? 'fonte'}: ${run.status}.`,
+      );
+    } catch (error) {
+      setAnalysisNotice(error instanceof Error ? error.message : 'Falha ao pedir a coleta.');
+    }
+  };
+
   const scheduleVisualCheckup = async () => {
     setAnalysisNotice('Selecionando finalistas para o checkup visual…');
     try {
@@ -2258,7 +2300,9 @@ function ProjectDetail({
   const renderListingCard = (listing: ListingTransport) => (
     <article className="listing-card" key={listing.id}>
       <div>
-        <div className="meta">eBay · {listing.condition}</div>
+        <div className="meta">
+          {sourceNames[listing.sourceId] ?? 'fonte'} · {listing.condition}
+        </div>
         <h3>{listing.title}</h3>
         <LandedCostSummary listing={listing} />
         <ReferenceDiscountSummary listing={listing} />
@@ -2479,6 +2523,17 @@ function ProjectDetail({
       <div className="actions">
         <button type="button" className="button" onClick={() => void scheduleTextAnalysis()}>
           Analisar texto com IA
+        </button>
+        <select value={sourceId} onChange={(event) => setSourceId(event.target.value)}>
+          {sources.map((source) => (
+            <option key={source.id} value={source.id}>
+              {source.name} · {source.mode}
+              {source.livePolicy && !source.livePolicy.allowed ? ' · live proibido' : ''}
+            </option>
+          ))}
+        </select>
+        <button type="button" className="button secondary" onClick={() => void collectFrom()}>
+          Coletar desta fonte
         </button>
         <button
           type="button"
