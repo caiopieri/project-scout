@@ -18,7 +18,7 @@ import {
 } from '@scout/collection';
 import { SupabaseRestCollectionRunRepository } from '@scout/database/collection';
 import { SupabaseRestListingIngestionRepository } from '@scout/database/ingestion';
-import { SupabaseRestListingRepository } from '@scout/database/listings';
+import { listingReferenceSegment, SupabaseRestListingRepository } from '@scout/database/listings';
 import { SupabaseRestObservationEventRepository } from '@scout/database/observation-events';
 import { SupabaseRestResearchProjectRepository } from '@scout/database/supabase';
 import { SupabaseRestTextAnalysisRunRepository } from '@scout/database/text-analysis';
@@ -49,7 +49,7 @@ import {
 } from '@scout/search-intelligence';
 import { UnavailableXianyuConnector } from '@scout/xianyu-connector';
 import { CollectionOpportunityValuationProcessor } from '@scout/valuation';
-import { calculateMarketMetrics } from '@scout/domain';
+import { calculateMarketMetrics, calculateReferenceDiscount, REFERENCE_POLICY_V1 } from '@scout/domain';
 import {
   authenticatedUserSchema,
   crossSourceIdentityCandidateReviewRequestSchema,
@@ -434,7 +434,26 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     const projectId = projectIdSchema.parse(listingsMatch[1]);
     const project = await repository.findById(projectId, user.id);
     if (!project) throw new HttpError(404, 'Project not found.');
-    return json(await listingRepository.findByProjectId(projectId), 200, env.WEB_ORIGIN);
+    const asOf = new Date();
+    const listings = await listingRepository.findByProjectId(projectId);
+    const observations = await listingRepository.getTaggedMarketObservations(
+      listings,
+      REFERENCE_POLICY_V1.windowDays,
+      asOf,
+    );
+    return json(
+      listings.map((listing) => ({
+        ...listing,
+        referenceDiscount: calculateReferenceDiscount(
+          { id: listing.id, landedCost: listing.landedCost, segment: listingReferenceSegment(listing) },
+          observations,
+          REFERENCE_POLICY_V1,
+          asOf,
+        ),
+      })),
+      200,
+      env.WEB_ORIGIN,
+    );
   }
   const marketMetricsMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/market-metrics$/);
   if (marketMetricsMatch) {
@@ -442,13 +461,13 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     const projectId = projectIdSchema.parse(marketMetricsMatch[1]);
     const project = await repository.findById(projectId, user.id);
     if (!project) throw new HttpError(404, 'Project not found.');
-    const windowDays = 30;
+    const { windowDays, minimumObservations, iqrMultiplier } = REFERENCE_POLICY_V1;
     const asOf = new Date();
     const observations = await listingRepository.getMarketMetricObservationsByProjectId(projectId, windowDays, asOf);
     return json(
       marketMetricsTransportSchema.parse(
         calculateMarketMetrics(
-          marketMetricsInputSchema.parse({ observations, windowDays, minimumObservations: 10, iqrMultiplier: 1.5, asOf }),
+          marketMetricsInputSchema.parse({ observations, windowDays, minimumObservations, iqrMultiplier, asOf }),
         ),
       ),
       200,

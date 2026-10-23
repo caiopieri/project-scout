@@ -146,6 +146,9 @@ export type {
 
 export { calculateUsToUsLandedCost } from './landed-cost';
 export { calculateMarketMetrics } from './market-metrics';
+export { calculateReferenceDiscount, REFERENCE_POLICY_V1 } from './reference-discount';
+export type { ReferenceDiscountListing, TaggedMarketObservation } from './reference-discount';
+export type { ReferenceDiscount, ReferencePolicy } from '@scout/schemas';
 export type { UsToUsLandedCostInput } from '@scout/schemas';
 export type { LandedCost, LandedCostComponent, LandedCostComponentOrigin } from '@scout/schemas';
 export type { MarketMetricObservation, MarketMetrics, MarketMetricSegment } from '@scout/schemas';

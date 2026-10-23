@@ -71,6 +71,46 @@ function LandedCostSummary({ listing }: { listing: ListingTransport }) {
   );
 }
 
+const refusalLabels: Record<string, string> = {
+  CUSTO_INDETERMINADO: 'custo indeterminado',
+  SEGMENTO_DESCONHECIDO: 'marca, modelo ou condição desconhecidos',
+  AMOSTRA_INSUFICIENTE: 'amostra insuficiente no segmento',
+};
+
+function ReferenceDiscountSummary({ listing }: { listing: ListingTransport }) {
+  const discount = listing.referenceDiscount;
+  if (!discount) return null;
+  if (discount.status === 'NAO_RANQUEAVEL') {
+    return (
+      <p className="muted">
+        Não ranqueável · {discount.reasons.map((reason) => refusalLabels[reason] ?? reason).join(' + ')}
+        {discount.sample ? ` · n ${discount.sample.nRaw}/${discount.policy.minimumObservations}` : ''}
+      </p>
+    );
+  }
+  const percent = (discount.discountBasisPoints / 100).toFixed(1);
+  return (
+    <div className="muted">
+      <p>
+        Distância da referência: {formatMinorMoney(discount.segment.currency, discount.discountMinor)} ({percent}%)
+        {' '}· custo {formatMinorMoney(discount.segment.currency, discount.landedCostMinor)} vs mediana{' '}
+        {formatMinorMoney(discount.segment.currency, discount.referenceMedianMinor)}
+      </p>
+      <p>
+        n {discount.sample.nRaw} → {discount.sample.nTrimmed} em {discount.sample.windowDays} dias
+        {discount.sample.selfObservationsExcluded
+          ? ` · ${discount.sample.selfObservationsExcluded} observação(ões) do próprio anúncio fora da referência`
+          : ''}{' '}
+        · {discount.policy.version}
+      </p>
+      <p>
+        Não é margem nem oportunidade: é distância do preço pedido mediano. Desconto grande costuma
+        indicar defeito que a mediana não captura.
+      </p>
+    </div>
+  );
+}
+
 function MarketMetricsSummary({ metrics }: { metrics: MarketMetricsTransport | null }) {
   if (!metrics) return null;
   return (
@@ -1206,6 +1246,7 @@ function ProjectDetail({
               <div className="meta">eBay · {listing.condition}</div>
               <h3>{listing.title}</h3>
               <LandedCostSummary listing={listing} />
+              <ReferenceDiscountSummary listing={listing} />
               {listing.location ? <p className="muted">{listing.location}</p> : null}
               {valuations[listing.id] && listing.landedCost?.status === 'known' && (
                 <p className="valuation">

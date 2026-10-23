@@ -370,6 +370,73 @@ export const listingRawDataMetadataSchema = z
     }
   });
 
+// Reference discount: distance between a known landed cost and the clean asking-price median
+// of the listing's own segment. It is NOT a margin: fees, taxes and losses do not exist yet.
+export const referencePolicySchema = z
+  .object({
+    version: z.literal('reference-discount.v1'),
+    windowDays: z.number().int().positive(),
+    minimumObservations: z.number().int().min(10),
+    iqrMultiplier: z.literal(1.5),
+  })
+  .strict();
+export type ReferencePolicy = z.infer<typeof referencePolicySchema>;
+
+export const referenceDiscountRefusalReasonSchema = z.enum([
+  'CUSTO_INDETERMINADO',
+  'SEGMENTO_DESCONHECIDO',
+  'AMOSTRA_INSUFICIENTE',
+]);
+export type ReferenceDiscountRefusalReason = z.infer<typeof referenceDiscountRefusalReasonSchema>;
+
+const referenceSegmentSchema = z
+  .object({
+    product: z
+      .object({
+        brand: z.string().trim().min(1),
+        model: z.string().trim().min(1),
+        variant: z.string().trim().min(1).optional(),
+      })
+      .strict(),
+    condition: z.string().min(1),
+    currency: z.string().regex(/^[A-Z]{3}$/),
+  })
+  .strict();
+
+const referenceSampleSchema = z
+  .object({
+    windowDays: z.number().int().positive(),
+    nRaw: z.number().int().nonnegative(),
+    nTrimmed: z.number().int().nonnegative(),
+    selfObservationsExcluded: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const referenceDiscountSchema = z.discriminatedUnion('status', [
+  z
+    .object({
+      status: z.literal('known'),
+      policy: referencePolicySchema,
+      segment: referenceSegmentSchema,
+      sample: referenceSampleSchema,
+      landedCostMinor: z.number().int().nonnegative(),
+      referenceMedianMinor: z.number().int().positive(),
+      discountMinor: z.number().int(),
+      discountBasisPoints: z.number().int(),
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal('NAO_RANQUEAVEL'),
+      policy: referencePolicySchema,
+      reasons: z.array(referenceDiscountRefusalReasonSchema).min(1),
+      segment: referenceSegmentSchema.nullable(),
+      sample: referenceSampleSchema.nullable(),
+    })
+    .strict(),
+]);
+export type ReferenceDiscount = z.infer<typeof referenceDiscountSchema>;
+
 // Listing Schema
 export const listingSchema = z.object({
   id: z.string().uuid(),
@@ -405,6 +472,7 @@ export const listingTransportSchema = listingSchema
     firstCollectedAt: z.coerce.date(),
     lastUpdatedAt: z.coerce.date(),
     landedCost: landedCostSchema.optional(),
+    referenceDiscount: referenceDiscountSchema.optional(),
     rawDataMetadata: listingRawDataMetadataSchema.default({}),
   })
   .superRefine((listing, context) => {

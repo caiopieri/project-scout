@@ -5,7 +5,12 @@ import {
   type ListingTransport,
   type PriceHistory,
 } from '@scout/schemas';
-import { calculateUsToUsLandedCost, type MarketMetricObservation } from '@scout/domain';
+import {
+  calculateUsToUsLandedCost,
+  type MarketMetricObservation,
+  type ReferenceDiscountListing,
+  type TaggedMarketObservation,
+} from '@scout/domain';
 import { z } from 'zod';
 import type { SupabaseRestConfig } from './SupabaseRestResearchProjectRepository';
 
@@ -124,6 +129,25 @@ const listingSelect = [
   'raw_data_metadata',
 ].join(',');
 
+const UNKNOWN_VALUES = ['unknown', 'desconhecido'];
+
+/** The segment a listing belongs to, or null when brand, model or condition is unknown. */
+export const listingReferenceSegment = (
+  listing: ListingTransport,
+): ReferenceDiscountListing['segment'] => {
+  const brand = listing.inferredProduct?.brand?.trim();
+  const model = listing.inferredProduct?.model?.trim();
+  const variant = listing.inferredProduct?.variant?.trim();
+  const condition = listing.condition.trim();
+  if (!brand || !model || [brand, model, condition].some((value) => UNKNOWN_VALUES.includes(value.toLowerCase())))
+    return null;
+  return {
+    product: { brand, model, ...(variant ? { variant } : {}) },
+    condition,
+    currency: listing.currency,
+  };
+};
+
 export const LISTING_ID_BATCH_SIZE = 50;
 export const PRICE_HISTORY_ID_BATCH_SIZE = 50;
 
@@ -191,21 +215,29 @@ export class SupabaseRestListingRepository {
     asOf = new Date(),
   ): Promise<MarketMetricObservation[]> {
     const listings = await this.findByProjectId(projectId);
-    const eligible = listings.filter((listing) => {
-      const product = listing.inferredProduct;
-      const condition = listing.condition.trim().toLowerCase();
-      return Boolean(product?.brand?.trim() && product.model?.trim()) && ![condition, product?.brand, product?.model].some((value) => ['unknown', 'desconhecido'].includes(value?.trim().toLowerCase() ?? ''));
+    const tagged = await this.getTaggedMarketObservations(listings, windowDays, asOf);
+    return tagged.map(({ observation }) => observation);
+  }
+
+  async getTaggedMarketObservations(
+    listings: ListingTransport[],
+    windowDays: number,
+    asOf = new Date(),
+  ): Promise<TaggedMarketObservation[]> {
+    const eligible = listings.flatMap((listing) => {
+      const segment = listingReferenceSegment(listing);
+      return segment ? [{ listing, segment }] : [];
     });
     const cutoff = new Date(asOf.getTime() - windowDays * 24 * 60 * 60 * 1000).toISOString();
-    const observations: MarketMetricObservation[] = [];
+    const observations: TaggedMarketObservation[] = [];
     for (let offset = 0; offset < eligible.length; offset += PRICE_HISTORY_ID_BATCH_SIZE) {
       const batch = eligible.slice(offset, offset + PRICE_HISTORY_ID_BATCH_SIZE);
       const rows = await this.request<PriceHistoryRow[]>(
-        `price_history?listing_id=in.(${batch.map(({ id }) => id).join(',')})&collected_at=gte.${encodeURIComponent(cutoff)}&collected_at=lte.${encodeURIComponent(asOf.toISOString())}&select=id,listing_id,price,shipping_cost,status,collected_at&order=collected_at.asc`,
+        `price_history?listing_id=in.(${batch.map(({ listing }) => listing.id).join(',')})&collected_at=gte.${encodeURIComponent(cutoff)}&collected_at=lte.${encodeURIComponent(asOf.toISOString())}&select=id,listing_id,price,shipping_cost,status,collected_at&order=collected_at.asc`,
       );
       for (const row of rows) {
-        const listing = batch.find(({ id }) => id === row.listing_id);
-        if (!listing) continue;
+        const entry = batch.find(({ listing }) => listing.id === row.listing_id);
+        if (!entry) continue;
         const history = priceHistorySchema.parse({
           id: row.id,
           listingId: row.listing_id,
@@ -215,15 +247,14 @@ export class SupabaseRestListingRepository {
           collectedAt: new Date(row.collected_at),
         });
         observations.push({
-          product: {
-            brand: listing.inferredProduct!.brand!.trim(),
-            model: listing.inferredProduct!.model!.trim(),
-            ...(listing.inferredProduct!.variant?.trim() ? { variant: listing.inferredProduct!.variant.trim() } : {}),
+          listingId: entry.listing.id,
+          observation: {
+            product: entry.segment.product,
+            condition: entry.segment.condition,
+            currency: entry.segment.currency,
+            priceMinor: decimalToMinor(row.price),
+            observedAt: history.collectedAt,
           },
-          condition: listing.condition.trim(),
-          currency: listing.currency,
-          priceMinor: decimalToMinor(row.price),
-          observedAt: history.collectedAt,
         });
       }
     }
