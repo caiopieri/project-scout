@@ -15,7 +15,7 @@ export interface ListingFeedSlice {
 
 export type ListingLens = Pick<
   ListingFeedQuery,
-  'favorite' | 'label' | 'hideDiscarded' | 'condition' | 'minScore' | 'maxTotalCostMinor'
+  'favorite' | 'label' | 'hideDiscarded' | 'condition' | 'q' | 'minScore' | 'maxTotalCostMinor'
 >;
 
 /** A lens narrows the view only; an unknown score or cost never passes a numeric lens. */
@@ -27,6 +27,11 @@ const passesLens = (listing: ListingTransport, lens: ListingLens) => {
   if (lens.hideDiscarded !== 'false' && lens.label !== 'discarded' && action?.label === 'discarded')
     return false;
   if (lens.condition && listing.condition.toLowerCase() !== lens.condition.toLowerCase())
+    return false;
+  if (
+    lens.q &&
+    !`${listing.title}\n${listing.description}`.toLowerCase().includes(lens.q.toLowerCase())
+  )
     return false;
   if (lens.minScore !== undefined) {
     if (listing.score?.status !== 'known' || (listing.score.value ?? 0) < lens.minScore)

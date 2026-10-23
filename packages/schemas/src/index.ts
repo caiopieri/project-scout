@@ -506,6 +506,48 @@ export const inventoryQuerySchema = z
   .strict();
 export type InventoryQuery = z.infer<typeof inventoryQuerySchema>;
 
+export const agentChatRequestSchema = z
+  .object({
+    projectId: z.string().uuid().optional(),
+    messages: z
+      .array(
+        z
+          .object({ role: z.enum(['user', 'assistant']), content: z.string().min(1).max(4000) })
+          .strict(),
+      )
+      .min(1)
+      .max(20),
+    confirm: z
+      .object({
+        tool: z.enum(['disparar_coleta', 'analisar_texto', 'marcar']),
+        args: z.record(z.string(), z.unknown()),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+export type AgentChatRequest = z.infer<typeof agentChatRequestSchema>;
+
+export const agentChatResponseSchema = z
+  .object({
+    reply: z.string(),
+    toolCalls: z.array(
+      z.object({ name: z.string(), args: z.record(z.string(), z.unknown()) }).strict(),
+    ),
+    citations: z.array(z.string()),
+    appliedFilters: z.array(z.record(z.string(), z.unknown())),
+    pendingConfirmation: z
+      .object({ tool: z.string(), args: z.record(z.string(), z.unknown()), estimate: z.string() })
+      .strict()
+      .nullable(),
+    uncitedIds: z.array(z.string()),
+    provider: z.string(),
+    model: z.string(),
+    executed: z.unknown().optional(),
+  })
+  .strict();
+export type AgentChatResponse = z.infer<typeof agentChatResponseSchema>;
+
 // Listing feed: two declared groups. Unbacked items are unknown, never "worst", so they are
 // never ordered by discount nor mixed with rankable items.
 export const listingFeedGroupSchema = z.enum(['rankable', 'unbacked']);
@@ -525,6 +567,7 @@ export const listingFeedQuerySchema = z
     label: z.union([listingUserLabelSchema, z.literal('none')]).optional(),
     hideDiscarded: z.enum(['true', 'false']).default('true'),
     condition: z.string().trim().min(1).max(100).optional(),
+    q: z.string().trim().min(1).max(100).optional(),
     minScore: z.coerce.number().int().min(0).max(100).optional(),
     maxTotalCostMinor: z.coerce.number().int().positive().optional(),
   })

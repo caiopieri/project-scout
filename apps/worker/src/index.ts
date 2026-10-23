@@ -2,6 +2,8 @@ import {
   DeterministicIntentInterpreter,
   DeterministicTextAnalyzer,
   FallbackTextAnalyzer,
+  ScoutAgent,
+  type AgentTool,
   GeminiTextAnalyzer,
   OpenAiCompatibleTextAnalyzer,
   MockTextAnalyzer,
@@ -63,11 +65,14 @@ import {
   authenticatedUserSchema,
   crossSourceIdentityCandidateReviewRequestSchema,
   type InterpretIntentResult,
+  type ListingTransport,
   createResearchProjectRequestSchema,
   interpretIntentInputSchema,
   projectIdSchema,
   idempotencyKeySchema,
   listingTriageReviewRequestSchema,
+  agentChatRequestSchema,
+  agentChatResponseSchema,
   inventoryQuerySchema,
   listingFeedPageSchema,
   listingUserActionUpdateSchema,
@@ -642,6 +647,314 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
           reason: run.status === 'failed' ? (run.errorCode ?? run.error ?? 'unknown') : null,
         })),
       }),
+      200,
+      env.WEB_ORIGIN,
+    );
+  }
+  if (url.pathname === '/api/agent/chat') {
+    if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed.');
+    const input = agentChatRequestSchema.parse(await parseBody(request));
+    const internal = (path: string, init: RequestInit = {}) =>
+      handleApi(
+        new Request(new URL(path, url).toString(), {
+          ...init,
+          headers: {
+            Authorization: request.headers.get('Authorization') ?? '',
+            'Content-Type': 'application/json',
+            ...(init.headers ?? {}),
+          },
+        }),
+        env,
+        new URL(path, url),
+      ).then(async (response) => ({ status: response.status, body: await response.json() }));
+    const ownedProject = async (projectId: unknown) => {
+      const id = projectIdSchema.parse(projectId ?? input.projectId);
+      if (!(await repository.findById(id, user.id))) throw new HttpError(404, 'Project not found.');
+      return id;
+    };
+    const spendTools: Record<string, (args: Record<string, unknown>) => Promise<unknown>> = {
+      disparar_coleta: async (args) =>
+        internal(`/api/projects/${await ownedProject(args.projectId)}/collection-runs`, {
+          method: 'POST',
+          headers: { 'Idempotency-Key': `agent-${crypto.randomUUID()}` },
+        }),
+      analisar_texto: async (args) =>
+        internal(`/api/projects/${await ownedProject(args.projectId)}/analysis`, {
+          method: 'POST',
+        }),
+      marcar: async (args) =>
+        internal(`/api/listings/${projectIdSchema.parse(args.listingId)}/actions`, {
+          method: 'PUT',
+          body: JSON.stringify(
+            args.favorite !== undefined
+              ? { favorite: Boolean(args.favorite) }
+              : { label: args.label ?? null },
+          ),
+        }),
+    };
+    if (input.confirm) {
+      const execute = spendTools[input.confirm.tool];
+      if (!execute) throw new HttpError(400, 'Unknown confirmable tool.');
+      const result = await execute(input.confirm.args);
+      return json(
+        agentChatResponseSchema.parse({
+          reply: `Confirmado: ${input.confirm.tool} executado.`,
+          toolCalls: [{ name: input.confirm.tool, args: input.confirm.args }],
+          citations: [],
+          appliedFilters: [],
+          pendingConfirmation: null,
+          uncitedIds: [],
+          provider: 'user-confirmation',
+          model: 'none',
+          executed: result,
+        }),
+        200,
+        env.WEB_ORIGIN,
+      );
+    }
+    const compact = (listing: ListingTransport) => ({
+      id: listing.id,
+      title: listing.title,
+      condition: listing.condition,
+      landedCostMinor:
+        listing.landedCost?.status === 'known' ? listing.landedCost.totalMinor : null,
+      currency: listing.currency,
+      // Positive = cheaper than the segment's asking-price median; negative = more expensive.
+      percentBelowReferenceMedian:
+        listing.referenceDiscount?.status === 'known'
+          ? listing.referenceDiscount.discountBasisPoints / 100
+          : null,
+      refusal:
+        listing.referenceDiscount?.status === 'NAO_RANQUEAVEL'
+          ? listing.referenceDiscount.reasons
+          : null,
+      score: listing.score?.value ?? null,
+      scoreStatus: listing.score?.status ?? null,
+      label: listing.userAction?.label ?? null,
+      heart: listing.userAction?.favorite ?? false,
+    });
+    const searchParameters = {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string', description: 'id da pesquisa; omita para a pesquisa aberta' },
+        group: {
+          type: 'string',
+          enum: ['rankable', 'unbacked'],
+          description: 'rankable = com distância da referência; unbacked = sem lastro',
+        },
+        sort: { type: 'string', enum: ['score', 'discount', 'totalCost', 'price', 'newest'] },
+        q: {
+          type: 'string',
+          description:
+            'texto que deve aparecer no título ou na descrição, ex.: "iPhone 13", "bateria"',
+        },
+        condition: {
+          type: 'string',
+          description: 'condição exata como listada em agregados, ex.: "Used"',
+        },
+        minScore: { type: 'integer', minimum: 0, maximum: 100 },
+        maxTotalCostMinor: { type: 'integer', description: 'custo total máximo em centavos' },
+        label: { type: 'string', enum: ['shortlisted', 'monitored', 'discarded', 'none'] },
+        favorite: { type: 'boolean' },
+        limit: { type: 'integer', minimum: 1, maximum: 20 },
+      },
+    };
+    const tools: AgentTool[] = [
+      {
+        name: 'ver_pesquisas',
+        description: 'Lista as pesquisas do usuário (id, nome, status).',
+        parameters: { type: 'object', properties: {} },
+        requiresConfirmation: false,
+        run: async () => ({
+          data: (await repository.findByUserId(user.id)).map((project) => ({
+            id: project.id,
+            name: project.name,
+            status: project.status,
+          })),
+        }),
+      },
+      {
+        name: 'agregados',
+        description:
+          'Visão geral de uma pesquisa: totais por grupo, condições existentes, motivos de recusa, faixa de score.',
+        parameters: { type: 'object', properties: { projectId: { type: 'string' } } },
+        requiresConfirmation: false,
+        run: async (args) => {
+          const projectId = await ownedProject(args.projectId);
+          const listings = await enrichedListings(
+            enrichRepositories,
+            user.id,
+            { projectId },
+            new Date(),
+          );
+          const count = (values: string[]) =>
+            values.reduce<Record<string, number>>(
+              (acc, value) => ({ ...acc, [value]: (acc[value] ?? 0) + 1 }),
+              {},
+            );
+          const scores = listings.flatMap((listing) =>
+            listing.score?.value != null ? [listing.score.value] : [],
+          );
+          return {
+            data: {
+              total: listings.length,
+              rankable: listings.filter((listing) => listing.referenceDiscount?.status === 'known')
+                .length,
+              conditions: count(listings.map((listing) => listing.condition)),
+              refusalReasons: count(
+                listings.flatMap((listing) =>
+                  listing.referenceDiscount?.status === 'NAO_RANQUEAVEL'
+                    ? listing.referenceDiscount.reasons
+                    : [],
+                ),
+              ),
+              scored: scores.length,
+              scoreRange: scores.length ? [Math.min(...scores), Math.max(...scores)] : null,
+            },
+          };
+        },
+      },
+      {
+        name: 'buscar_resultados',
+        description:
+          'Busca anúncios por filtro estruturado na pesquisa. Devolve o total que casou e até 20 itens.',
+        parameters: searchParameters,
+        requiresConfirmation: false,
+        run: async (args) => {
+          const projectId = await ownedProject(args.projectId);
+          const filter = listingFeedQuerySchema.parse({
+            group: args.group ?? 'rankable',
+            sort: args.sort ?? 'score',
+            limit: Math.min(Number(args.limit ?? 10), 20),
+            ...(args.q ? { q: String(args.q) } : {}),
+            ...(args.condition ? { condition: String(args.condition) } : {}),
+            ...(args.minScore !== undefined ? { minScore: args.minScore } : {}),
+            ...(args.maxTotalCostMinor !== undefined
+              ? { maxTotalCostMinor: args.maxTotalCostMinor }
+              : {}),
+            ...(args.label ? { label: args.label } : {}),
+            ...(args.favorite ? { favorite: 'true' } : {}),
+          });
+          const snapshot = new Date();
+          const listings = await enrichedListings(
+            enrichRepositories,
+            user.id,
+            { projectId },
+            snapshot,
+          );
+          const slice = sliceListingFeed(listings, { ...filter, snapshot, lens: filter });
+          const matched =
+            filter.group === 'rankable' ? slice.totals.rankable : slice.totals.unbacked;
+          return {
+            data: {
+              matched,
+              showing: slice.items.length,
+              filteredOut: slice.filteredOut,
+              items: slice.items.map(compact),
+            },
+            listingIds: slice.items.map(({ id }) => id),
+            appliedFilter: { projectId, ...filter },
+          };
+        },
+      },
+      {
+        name: 'ver_anuncio',
+        description:
+          'Detalhe de um anúncio: custo, distância da referência, fatores do score e defeitos extraídos do texto.',
+        parameters: {
+          type: 'object',
+          properties: { listingId: { type: 'string' }, projectId: { type: 'string' } },
+          required: ['listingId'],
+        },
+        requiresConfirmation: false,
+        run: async (args) => {
+          const projectId = await ownedProject(args.projectId);
+          const listingId = projectIdSchema.parse(args.listingId);
+          const listing = (
+            await enrichedListings(enrichRepositories, user.id, { projectId }, new Date())
+          ).find(({ id }) => id === listingId);
+          if (!listing) throw new HttpError(404, 'Listing not found in project.');
+          const analysis = await analysisReadRepository.findLatestByListingId(listingId);
+          return {
+            data: {
+              ...compact(listing),
+              landedCost: listing.landedCost,
+              scoreFactors: listing.score?.factors ?? [],
+              defects: analysis.defects.map(({ defectType, status, severity }) => ({
+                defectType,
+                status,
+                severity,
+              })),
+            },
+            listingIds: [listingId],
+          };
+        },
+      },
+      {
+        name: 'saude_das_fontes',
+        description: 'Estado da última coleta por fonte na pesquisa.',
+        parameters: { type: 'object', properties: { projectId: { type: 'string' } } },
+        requiresConfirmation: false,
+        run: async (args) => ({
+          data: (
+            await collectionRepository.findLatestRunsByProjectId(await ownedProject(args.projectId))
+          ).map((run) => ({
+            sourceId: run.sourceId,
+            status: run.status,
+            itemsFound: run.itemsFound,
+            errorCode: run.errorCode ?? null,
+          })),
+        }),
+      },
+      {
+        name: 'disparar_coleta',
+        description: 'Prepara uma nova coleta da pesquisa. Exige confirmação do usuário.',
+        parameters: { type: 'object', properties: { projectId: { type: 'string' } } },
+        requiresConfirmation: true,
+        run: async () => ({
+          data: {
+            estimate: `até ${env.EBAY_BROWSE_BUDGET_PER_RUN ?? '?'} chamadas à API oficial do eBay; custo monetário US$ 0`,
+          },
+        }),
+      },
+      {
+        name: 'analisar_texto',
+        description:
+          'Prepara a análise de texto por IA dos anúncios da pesquisa. Exige confirmação do usuário.',
+        parameters: { type: 'object', properties: { projectId: { type: 'string' } } },
+        requiresConfirmation: true,
+        run: async () => ({
+          data: {
+            estimate: `1 chamada de LLM a cada 20 anúncios ainda não analisados, cadeia ${env.TEXT_ANALYZER_PROVIDERS ?? 'não configurada'}`,
+          },
+        }),
+      },
+      {
+        name: 'marcar',
+        description:
+          'Prepara marcar um anúncio (shortlisted, monitored, discarded) ou coração. Exige confirmação.',
+        parameters: {
+          type: 'object',
+          properties: {
+            listingId: { type: 'string' },
+            label: { type: 'string', enum: ['shortlisted', 'monitored', 'discarded'] },
+            favorite: { type: 'boolean' },
+          },
+          required: ['listingId'],
+        },
+        requiresConfirmation: true,
+        run: async () => ({ data: { estimate: 'grava uma etiqueta; sem custo' } }),
+      },
+    ];
+    const agent = new ScoutAgent([
+      { provider: 'groq', apiKey: env.GROQ_API_KEY ?? '', model: env.GROQ_MODEL },
+      { provider: 'openrouter', apiKey: env.OPENROUTER_API_KEY ?? '', model: env.OPENROUTER_MODEL },
+    ]);
+    const context = input.projectId
+      ? [{ role: 'user' as const, content: `Contexto: a pesquisa aberta é ${input.projectId}.` }]
+      : [];
+    return json(
+      agentChatResponseSchema.parse(await agent.run([...context, ...input.messages], tools)),
       200,
       env.WEB_ORIGIN,
     );

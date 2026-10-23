@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import type {
+  AgentChatResponse,
   AuthSession,
   CollectionRunTransport,
   CrossSourceIdentityCandidateTransport,
@@ -20,6 +21,7 @@ import type {
   SearchTermObservationTransport,
 } from '@scout/schemas';
 import {
+  agentChatResponseSchema,
   authSessionSchema,
   collectionRunTransportSchema,
   crossSourceIdentityCandidateReviewRequestSchema,
@@ -202,6 +204,8 @@ interface FeedLens {
   hideDiscarded: boolean;
   condition: string;
   minScore: string;
+  q: string;
+  maxTotalCostMinor: string;
 }
 
 const emptyLens: FeedLens = {
@@ -210,6 +214,8 @@ const emptyLens: FeedLens = {
   hideDiscarded: true,
   condition: '',
   minScore: '',
+  q: '',
+  maxTotalCostMinor: '',
 };
 
 const labelNames: Record<string, string> = {
@@ -317,11 +323,15 @@ function ListingFeed({
   projectId,
   request,
   download,
+  agentFilter,
+  openRequest,
   renderListingCard,
 }: {
   projectId: string;
   request: (path: string, init?: RequestInit) => Promise<unknown>;
   download: (path: string) => Promise<void>;
+  agentFilter: { filter: Record<string, unknown>; nonce: number } | null;
+  openRequest: { id: string; nonce: number } | null;
   renderListingCard: (listing: ListingTransport) => JSX.Element;
 }) {
   const [sort, setSort] = useState<ListingFeedSort>('discount');
@@ -341,6 +351,39 @@ function ListingFeed({
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [dossier, setDossier] = useState<ListingTransport | null>(null);
 
+  useEffect(() => {
+    if (!agentFilter) return;
+    const filter = agentFilter.filter;
+    setLens({
+      favorite: filter.favorite === 'true',
+      label: (typeof filter.label === 'string' ? filter.label : '') as FeedLens['label'],
+      hideDiscarded: filter.hideDiscarded !== 'false',
+      condition: typeof filter.condition === 'string' ? filter.condition : '',
+      minScore: filter.minScore !== undefined ? String(filter.minScore) : '',
+      q: typeof filter.q === 'string' ? filter.q : '',
+      maxTotalCostMinor:
+        filter.maxTotalCostMinor !== undefined ? String(filter.maxTotalCostMinor) : '',
+    });
+    if (typeof filter.sort === 'string' && listingFeedSortSchema.safeParse(filter.sort).success)
+      setSort(filter.sort as ListingFeedSort);
+  }, [agentFilter]);
+
+  useEffect(() => {
+    if (!openRequest) return;
+    void request(`/api/projects/${projectId}/listings`)
+      .then((raw) => {
+        const listing = listingTransportSchema
+          .array()
+          .parse(raw)
+          .find(({ id }) => id === openRequest.id);
+        if (listing) setDossier(listing);
+        else setError('Anúncio citado não pertence a esta pesquisa.');
+      })
+      .catch((caught) =>
+        setError(caught instanceof Error ? caught.message : 'Falha ao abrir o anúncio.'),
+      );
+  }, [openRequest, projectId, request]);
+
   const lensParams = useCallback(
     (at: string | null) => {
       const params = new URLSearchParams({
@@ -352,6 +395,9 @@ function ListingFeed({
       if (lens.label) params.set('label', lens.label);
       if (lens.condition.trim()) params.set('condition', lens.condition.trim());
       if (lens.minScore.trim()) params.set('minScore', lens.minScore.trim());
+      if (lens.q.trim()) params.set('q', lens.q.trim());
+      if (lens.maxTotalCostMinor.trim())
+        params.set('maxTotalCostMinor', lens.maxTotalCostMinor.trim());
       return params;
     },
     [sort, lens],
@@ -626,6 +672,23 @@ function ListingFeed({
           />
         </label>
         <label>
+          Texto{' '}
+          <input
+            type="text"
+            value={lens.q}
+            onChange={(event) => setLens({ ...lens, q: event.target.value })}
+          />
+        </label>
+        <label>
+          Custo máx. (centavos){' '}
+          <input
+            type="number"
+            min={1}
+            value={lens.maxTotalCostMinor}
+            onChange={(event) => setLens({ ...lens, maxTotalCostMinor: event.target.value })}
+          />
+        </label>
+        <label>
           Score mínimo{' '}
           <input
             type="number"
@@ -863,6 +926,185 @@ function InventoryPanel({
                 </a>
               </article>
             ))}
+          </div>
+        </>
+      )}
+    </article>
+  );
+}
+
+const ID_TOKEN = /\[id:([0-9a-f-]{36})\]/gi;
+
+function AgentPanel({
+  projectId,
+  request,
+  onApplyFilter,
+  onOpenListing,
+}: {
+  projectId: string;
+  request: (path: string, init?: RequestInit) => Promise<unknown>;
+  onApplyFilter: (filter: Record<string, unknown>) => void;
+  onOpenListing: (listingId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [history, setHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>(
+    [],
+  );
+  const [turn, setTurn] = useState<AgentChatResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const send = async (body: Record<string, unknown>, nextHistory: typeof history) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = agentChatResponseSchema.parse(
+        await request('/api/agent/chat', {
+          method: 'POST',
+          body: JSON.stringify({ projectId, ...body }),
+        }),
+      );
+      setTurn(response);
+      setHistory([...nextHistory, { role: 'assistant', content: response.reply }]);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'O agente falhou.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const ask = async () => {
+    if (!draft.trim()) return;
+    const nextHistory = [...history, { role: 'user' as const, content: draft.trim() }];
+    setHistory(nextHistory);
+    setDraft('');
+    await send({ messages: nextHistory }, nextHistory);
+  };
+
+  const renderReply = (text: string) => {
+    const parts: Array<string | JSX.Element> = [];
+    let last = 0;
+    for (const match of text.matchAll(ID_TOKEN)) {
+      parts.push(text.slice(last, match.index));
+      const id = match[1];
+      parts.push(
+        <button
+          key={`${id}-${match.index}`}
+          type="button"
+          className="badge"
+          onClick={() => onOpenListing(id)}
+        >
+          {id.slice(0, 8)}
+        </button>,
+      );
+      last = (match.index ?? 0) + match[0].length;
+    }
+    parts.push(text.slice(last));
+    return parts;
+  };
+
+  return (
+    <article className="panel detail">
+      <div className="actions">
+        <div className="eyebrow">Agente · responde só com o que as ferramentas devolvem</div>
+        <button type="button" className="button secondary" onClick={() => setOpen(!open)}>
+          {open ? 'Fechar agente' : 'Perguntar ao agente'}
+        </button>
+      </div>
+      {open && (
+        <>
+          {history.map((message, index) => (
+            <p
+              key={index}
+              className={message.role === 'user' ? 'meta' : undefined}
+              style={{ whiteSpace: 'pre-wrap' }}
+            >
+              {message.role === 'user' ? `Você: ${message.content}` : renderReply(message.content)}
+            </p>
+          ))}
+          {turn && turn.appliedFilters.length > 0 && (
+            <div className="notice">
+              Filtro aplicado pelo agente:
+              {turn.appliedFilters.map((filter, index) => (
+                <div key={index} className="actions">
+                  <code>
+                    {Object.entries(filter)
+                      .filter(
+                        ([key]) => !['projectId', 'offset', 'limit', 'hideDiscarded'].includes(key),
+                      )
+                      .map(([key, value]) => `${key}=${String(value)}`)
+                      .join(' · ')}
+                  </code>
+                  <button
+                    type="button"
+                    className="button secondary"
+                    onClick={() => onApplyFilter(filter)}
+                  >
+                    Aplicar na lista
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {turn?.uncitedIds.length ? (
+            <div className="notice">
+              {turn.uncitedIds.length} id(s) citados sem vir de ferramenta foram removidos.
+            </div>
+          ) : null}
+          {turn?.pendingConfirmation && (
+            <div className="notice">
+              Confirmação necessária: {turn.pendingConfirmation.tool} ·{' '}
+              {turn.pendingConfirmation.estimate}
+              <div className="actions">
+                <button
+                  type="button"
+                  className="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void send(
+                      {
+                        messages: history.length
+                          ? history
+                          : [{ role: 'user', content: 'confirmar' }],
+                        confirm: {
+                          tool: turn.pendingConfirmation!.tool,
+                          args: turn.pendingConfirmation!.args,
+                        },
+                      },
+                      history,
+                    )
+                  }
+                >
+                  Confirmar
+                </button>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => setTurn({ ...turn, pendingConfirmation: null })}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+          {error && <div className="notice">{error}</div>}
+          <textarea
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder='Ex.: "quantos iPhone 13 usados abaixo de US$ 300?"'
+            rows={3}
+            style={{ width: '100%' }}
+          />
+          <div className="actions">
+            <button type="button" className="button" disabled={busy} onClick={() => void ask()}>
+              {busy ? 'Consultando…' : 'Perguntar'}
+            </button>
+            {turn && (
+              <span className="meta">
+                {turn.provider} · {turn.model}
+              </span>
+            )}
           </div>
         </>
       )}
@@ -1699,6 +1941,11 @@ function ProjectDetail({
   );
   const [expandedAnalysisId, setExpandedAnalysisId] = useState<string | null>(null);
   const [analysisNotice, setAnalysisNotice] = useState<string | null>(null);
+  const [agentFilter, setAgentFilter] = useState<{
+    filter: Record<string, unknown>;
+    nonce: number;
+  } | null>(null);
+  const [openRequest, setOpenRequest] = useState<{ id: string; nonce: number } | null>(null);
 
   const scheduleTextAnalysis = async () => {
     setAnalysisNotice('Enfileirando análise de texto…');
@@ -2152,10 +2399,18 @@ function ProjectDetail({
         </button>
       </div>
       {analysisNotice && <div className="notice">{analysisNotice}</div>}
+      <AgentPanel
+        projectId={project.id}
+        request={request}
+        onApplyFilter={(filter) => setAgentFilter({ filter, nonce: Date.now() })}
+        onOpenListing={(id) => setOpenRequest({ id, nonce: Date.now() })}
+      />
       <ListingFeed
         projectId={project.id}
         request={request}
         download={download}
+        agentFilter={agentFilter}
+        openRequest={openRequest}
         renderListingCard={renderListingCard}
       />
     </article>
