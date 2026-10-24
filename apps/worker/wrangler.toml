@@ -39,6 +39,8 @@ LLM_MAX_REQUESTS_PER_PROVIDER = "5"
 # S4 visual checkup: finalists analyzed per request. Prices are optional; without them only
 # tokens are measured and the monetary cost stays unknown.
 VISUAL_ANALYSIS_BUDGET_PER_PROJECT = "5"
+# S9 level 3: a selector repair may apply without a human only when this is "on".
+SELF_HEAL_AUTONOMY = "off"
 
 # Cloudflare Queues Producers Bindings
 [[queues.producers]]
@@ -107,6 +109,7 @@ EBAY_NOTIFICATION_ENVIRONMENT = "production"
 PUBLIC_API_ENABLED = "false"
 TEXT_ANALYZER_MODE = "deterministic"
 GEMINI_MODEL = "gemini-2.5-flash"
+SELF_HEAL_AUTONOMY = "off"
 
 [[env.production.kv_namespaces]]
 binding = "SCOUT_CACHE"

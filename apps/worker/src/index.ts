@@ -5,6 +5,7 @@ import {
   GeminiVisualAnalyzer,
   htmlToExtractionText,
   LlmListingExtractor,
+  SelectorRepairProposer,
   ScoutAgent,
   verifyCandidates,
   selectVisualCheckupImages,
@@ -115,7 +116,13 @@ import { ebayAccountDeletionTaskSchema } from '@scout/schemas';
 import { handleManualEbayProbe, MANUAL_EBAY_PROBE_PATH } from './ManualEbayProbe';
 import { TextAnalysisQueueScheduler } from './TextAnalysisQueueScheduler';
 import { exportListings } from './ListingExport';
-import { SWAPPA_BASE_URL, SwappaConnector, SwappaListingMapper } from '@scout/swappa-connector';
+import {
+  SWAPPA_BASE_URL,
+  SwappaConnector,
+  SwappaListingMapper,
+  type SwappaSelectorMap,
+} from '@scout/swappa-connector';
+import { storePage, SwappaSelfHeal } from './SwappaSelfHeal';
 import { VisualAnalysisProcessor } from './VisualAnalysisProcessor';
 import { SupabaseRestVisualAnalysisRepository } from '@scout/database/visual-analysis';
 import { SupabaseRestLocalAgentRepository } from '@scout/database/local-agent';
@@ -320,7 +327,10 @@ const SOURCE_IDS = {
 } as const;
 
 /** Swappa (layer 4). Live mode is refused by the connector while its live policy says no. */
-export const configuredSwappaConnector = (env: Env) => {
+export const configuredSwappaConnector = (
+  env: Env,
+  selectors?: SwappaSelectorMap | (() => Promise<SwappaSelectorMap>),
+) => {
   const mode =
     env.SWAPPA_MODE === 'fixture' || env.SWAPPA_MODE === 'live' ? env.SWAPPA_MODE : 'disabled';
   const interval = Number(env.HTML_MIN_INTERVAL_MS);
@@ -330,6 +340,7 @@ export const configuredSwappaConnector = (env: Env) => {
     }),
     mode,
     env.SWAPPA_BASE_URL ?? SWAPPA_BASE_URL,
+    selectors,
   );
 };
 
@@ -384,7 +395,11 @@ export const ebayCollectionLimits = (env: Env): CollectionLimits | undefined => 
   };
 };
 
-const configuredCollectionGateways = (env: Env, onEbayRequest?: EbayRequestTelemetryLogger) =>
+const configuredCollectionGateways = (
+  env: Env,
+  onEbayRequest?: EbayRequestTelemetryLogger,
+  swappaSelectors?: SwappaSelectorMap | (() => Promise<SwappaSelectorMap>),
+) =>
   new SourceCollectionGatewayRegistry([
     [
       SOURCE_IDS.ebay,
@@ -397,7 +412,10 @@ const configuredCollectionGateways = (env: Env, onEbayRequest?: EbayRequestTelem
     ],
     [SOURCE_IDS.mercadolivre, new DefaultCollectionGateway(configuredMercadoLivreConnector(env))],
     [SOURCE_IDS.xianyu, new DefaultCollectionGateway(new UnavailableXianyuConnector())],
-    [SOURCE_IDS.swappa, new DefaultCollectionGateway(configuredSwappaConnector(env))],
+    [
+      SOURCE_IDS.swappa,
+      new DefaultCollectionGateway(configuredSwappaConnector(env, swappaSelectors)),
+    ],
   ]);
 
 const interpretationMetadata = (result: InterpretIntentResult) => ({
@@ -624,27 +642,47 @@ const SOURCE_CANARIES = [
   },
 ];
 
-export const runSourceCanaries = async (env: Env, actor: string) => {
-  const gateways = configuredCollectionGateways(env);
-  const results = [];
-  for (const canary of SOURCE_CANARIES) {
-    const gate = await circuitAllows(env, canary.sourceId);
-    if (!gate?.allowed) {
-      results.push({ sourceId: canary.sourceId, skipped: `circuit ${gate?.state}` });
-      continue;
-    }
-    const started = Date.now();
-    let items = 0;
-    let errorCode: string | null = null;
-    try {
-      const result = await gateways
-        .resolve(canary.sourceId)
-        .collect(researchCriteriaSchema.parse(canary.criteria), canary.expectedMinItems + 5);
-      items = result.items.length;
-    } catch (error) {
-      errorCode = error instanceof ConnectorError ? error.code : 'CANARY_UNEXPECTED_ERROR';
-    }
-    const ok = errorCode === null && items >= canary.expectedMinItems;
+type SourceCanary = (typeof SOURCE_CANARIES)[number];
+
+/**
+ * Runs one canary. Swappa runs with the given (or active) selector map and keeps the page it saw
+ * by content hash, so a later diagnosis can diff the last good page against the broken one.
+ * `record` writes the outcome to `canary_runs`, which feeds the circuit and incidents; trial runs
+ * of a candidate map are not recorded.
+ */
+const runCanary = async (
+  env: Env,
+  canary: SourceCanary,
+  options: { record: boolean; selectors?: SwappaSelectorMap },
+) => {
+  const swappa =
+    canary.sourceId === SOURCE_IDS.swappa
+      ? configuredSwappaConnector(
+          env,
+          options.selectors ??
+            (async () => (await swappaSelfHeal(env).activeSelectors()).selectors),
+        )
+      : null;
+  const gateway = swappa
+    ? new DefaultCollectionGateway(swappa)
+    : configuredCollectionGateways(env).resolve(canary.sourceId);
+  const started = Date.now();
+  let items = 0;
+  let errorCode: string | null = null;
+  try {
+    const result = await gateway.collect(
+      researchCriteriaSchema.parse(canary.criteria),
+      canary.expectedMinItems + 5,
+    );
+    items = result.items.length;
+  } catch (error) {
+    errorCode = error instanceof ConnectorError ? error.code : 'CANARY_UNEXPECTED_ERROR';
+  }
+  const ok = errorCode === null && items >= canary.expectedMinItems;
+  const rawSha = swappa?.lastPage
+    ? await storePage(env.RAW_BUCKET, canary.sourceId, swappa.lastPage)
+    : null;
+  if (options.record)
     await serviceRest(env, 'canary_runs', {
       method: 'POST',
       body: JSON.stringify({
@@ -654,9 +692,48 @@ export const runSourceCanaries = async (env: Env, actor: string) => {
         expected_min_items: canary.expectedMinItems,
         error_code: errorCode ?? (ok ? null : 'CANARY_BELOW_EXPECTED'),
         latency_ms: Date.now() - started,
+        raw_sha256: rawSha,
       }),
     });
-    results.push({ sourceId: canary.sourceId, ok, items, errorCode });
+  return { ok, items, errorCode: errorCode ?? (ok ? null : 'CANARY_BELOW_EXPECTED') };
+};
+
+const swappaCanary = SOURCE_CANARIES.find((canary) => canary.sourceId === SOURCE_IDS.swappa)!;
+
+const swappaSelfHeal = (env: Env): SwappaSelfHeal =>
+  new SwappaSelfHeal({
+    sourceId: SOURCE_IDS.swappa,
+    rest: (path, init) => serviceRest(env, path, init),
+    pages: env.RAW_BUCKET,
+    proposer: env.GROQ_API_KEY
+      ? new SelectorRepairProposer('groq', env.GROQ_API_KEY, env.GROQ_MODEL ?? undefined)
+      : null,
+    trialCanary: (selectors) => runCanary(env, swappaCanary, { record: false, selectors }),
+    officialCanary: () => runCanary(env, swappaCanary, { record: true }),
+    autonomy: env.SELF_HEAL_AUTONOMY === 'on',
+    expectedMinItems: swappaCanary.expectedMinItems,
+  });
+
+export const runSourceCanaries = async (env: Env, actor: string) => {
+  const results = [];
+  for (const canary of SOURCE_CANARIES) {
+    const gate = await circuitAllows(env, canary.sourceId);
+    if (!gate?.allowed) {
+      results.push({ sourceId: canary.sourceId, skipped: `circuit ${gate?.state}` });
+      continue;
+    }
+    const outcome = await runCanary(env, canary, { record: true });
+    let heal: { proposalId: string; status: string } | undefined;
+    if (!outcome.ok && canary.sourceId === SOURCE_IDS.swappa) {
+      // Level 1 runs on every failed canary; levels 2 and 3 follow inside onCanaryFailure.
+      const [incident] = await serviceRest<Array<{ id: string }>>(
+        env,
+        `incidents?source_id=eq.${canary.sourceId}&kind=eq.CANARY_FAILED&status=eq.open&select=id&limit=1`,
+      );
+      const proposal = await swappaSelfHeal(env).onCanaryFailure(incident?.id ?? null);
+      heal = { proposalId: proposal.id, status: proposal.status };
+    }
+    results.push({ sourceId: canary.sourceId, ...outcome, ...(heal ? { heal } : {}) });
   }
   await serviceRest(env, 'ops_audit', {
     method: 'POST',
@@ -805,6 +882,51 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
   if (url.pathname === '/api/ops/canaries/run') {
     if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed.');
     return json({ results: await runSourceCanaries(env, `user:${user.id}`) }, 200, env.WEB_ORIGIN);
+  }
+  if (url.pathname === '/api/ops/heal-proposals') {
+    if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
+    const [proposals, versions] = await Promise.all([
+      serviceRest<unknown[]>(
+        env,
+        'heal_proposals?select=id,incident_id,source_id,failure_class,status,report,patch,proposer,sandbox,canary,autonomous,decided_by,created_at,updated_at&order=created_at.desc&limit=20',
+      ),
+      serviceRest<unknown[]>(
+        env,
+        'connector_selector_versions?select=source_id,version,selectors,status,proposal_id,activated_by,created_at&order=created_at.desc&limit=20',
+      ),
+    ]);
+    return json({ proposals, selectorVersions: versions }, 200, env.WEB_ORIGIN);
+  }
+  if (url.pathname === '/api/ops/heal/diagnose') {
+    if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed.');
+    const [incident] = await serviceRest<Array<{ id: string }>>(
+      env,
+      `incidents?source_id=eq.${SOURCE_IDS.swappa}&status=eq.open&select=id&order=opened_at.desc&limit=1`,
+    );
+    const proposal = await swappaSelfHeal(env).diagnose(incident?.id ?? null, `user:${user.id}`);
+    return json(proposal, 201, env.WEB_ORIGIN);
+  }
+  const healActionMatch = url.pathname.match(
+    /^\/api\/ops\/heal-proposals\/([^/]+)\/(sandbox|approve|reject)$/,
+  );
+  if (healActionMatch) {
+    if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed.');
+    const proposalId = projectIdSchema.parse(healActionMatch[1]);
+    const heal = swappaSelfHeal(env);
+    const actor = `user:${user.id}`;
+    try {
+      const result =
+        healActionMatch[2] === 'sandbox'
+          ? await heal.sandbox(proposalId, actor)
+          : healActionMatch[2] === 'approve'
+            ? await heal.apply(proposalId, actor)
+            : await heal.reject(proposalId, actor);
+      return json(result, 200, env.WEB_ORIGIN);
+    } catch (error) {
+      if (error instanceof Error && /^Proposal is|not found|Recorded pages/.test(error.message))
+        throw new HttpError(409, error.message);
+      throw error;
+    }
   }
   const circuitResetMatch = url.pathname.match(/^\/api\/ops\/circuits\/([^/]+)\/reset$/);
   if (circuitResetMatch) {
@@ -1870,7 +1992,11 @@ export default {
         }
         const processor = new CollectionTaskProcessor(
           repository,
-          configuredCollectionGateways(env, logEbayRequestTelemetry),
+          configuredCollectionGateways(
+            env,
+            logEbayRequestTelemetry,
+            async () => (await swappaSelfHeal(env).activeSelectors()).selectors,
+          ),
           3,
           configuredIngestionService(env),
           env.ANALYSIS_QUEUE

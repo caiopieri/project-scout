@@ -1276,6 +1276,177 @@ function LocalAgentPanel({
   );
 }
 
+type HealProposal = {
+  id: string;
+  source_id: string;
+  failure_class: string;
+  status: string;
+  report: string;
+  patch: string | null;
+  proposer: string | null;
+  autonomous: boolean;
+  sandbox: {
+    passed: boolean;
+    checks: Array<{ name: string; passed: boolean; detail: string }>;
+  } | null;
+  created_at: string;
+};
+
+const healStatusLabel: Record<string, string> = {
+  diagnosed: 'diagnosticada',
+  no_fix: 'sem correção de seletor',
+  sandbox_passed: 'passou no sandbox',
+  sandbox_failed: 'reprovada no sandbox',
+  canary_passed: 'canário ok · aguarda aprovação',
+  canary_failed: 'reprovada no canário',
+  applied: 'aplicada',
+  rolled_back: 'revertida automaticamente',
+  rejected: 'rejeitada',
+};
+
+/** S8 + S9: circuits, open incidents and self-heal proposals, with the human decisions. */
+function SourceHealthPanel({
+  request,
+}: {
+  request: (path: string, init?: RequestInit) => Promise<unknown>;
+}) {
+  const [circuits, setCircuits] = useState<
+    Array<{ source_id: string; state: string; reason: string | null; reopen_after: string | null }>
+  >([]);
+  const [incidents, setIncidents] = useState<
+    Array<{ id: string; source_id: string | null; kind: string; status: string }>
+  >([]);
+  const [proposals, setProposals] = useState<HealProposal[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const refresh = useCallback(async () => {
+    try {
+      const health = (await request('/api/ops/health')) as {
+        circuits: typeof circuits;
+        incidents: typeof incidents;
+      };
+      const heal = (await request('/api/ops/heal-proposals')) as { proposals: HealProposal[] };
+      setCircuits(health.circuits);
+      setIncidents(health.incidents.filter((incident) => incident.status === 'open'));
+      setProposals(heal.proposals.slice(0, 5));
+      setError(null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Falha ao carregar a saúde das fontes.');
+    }
+  }, [request]);
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+  const act = async (path: string) => {
+    setBusy(true);
+    try {
+      await request(path, { method: 'POST' });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'A ação falhou.');
+    } finally {
+      setBusy(false);
+      await refresh();
+    }
+  };
+  return (
+    <div className="valuation-settings">
+      <div className="eyebrow">Saúde das fontes · auto-cura</div>
+      <p className="muted">
+        Canários detectam quebra, o diagnóstico compara a página que funcionava com a que quebrou e
+        propõe só um mapa de seletores. Nada é aplicado sem sandbox, canário e a sua aprovação.
+      </p>
+      <div className="actions">
+        <button
+          type="button"
+          className="button secondary"
+          disabled={busy}
+          onClick={() => void act('/api/ops/canaries/run')}
+        >
+          Rodar canários
+        </button>
+        <button
+          type="button"
+          className="button secondary"
+          disabled={busy}
+          onClick={() => void act('/api/ops/heal/diagnose')}
+        >
+          Diagnosticar agora
+        </button>
+      </div>
+      {error && <div className="notice">{error}</div>}
+      <ul>
+        {circuits.map((circuit) => (
+          <li key={circuit.source_id} className="muted">
+            {sourceNames[circuit.source_id] ?? 'fonte'} · circuito {circuit.state}
+            {circuit.reason ? ` · ${circuit.reason}` : ''}
+            {circuit.reopen_after
+              ? ` · reabre ${new Date(circuit.reopen_after).toLocaleString('pt-BR')}`
+              : ''}
+          </li>
+        ))}
+        {incidents.map((incident) => (
+          <li key={incident.id}>
+            Incidente aberto · {incident.kind} ·{' '}
+            {incident.source_id ? (sourceNames[incident.source_id] ?? 'fonte') : 'fila'}
+          </li>
+        ))}
+      </ul>
+      {proposals.map((proposal) => (
+        <div key={proposal.id} className="notice">
+          <strong>
+            {sourceNames[proposal.source_id] ?? 'fonte'} · {proposal.failure_class} ·{' '}
+            {healStatusLabel[proposal.status] ?? proposal.status}
+            {proposal.autonomous ? ' · sem humano' : ''}
+          </strong>
+          <p className="muted">{proposal.report}</p>
+          {proposal.patch && <pre>{proposal.patch}</pre>}
+          {proposal.sandbox && (
+            <ul>
+              {proposal.sandbox.checks.map((check) => (
+                <li key={check.name} className="muted">
+                  {check.passed ? '✓' : '✗'} {check.name} · {check.detail}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="actions">
+            {proposal.status === 'diagnosed' && (
+              <button
+                type="button"
+                className="button secondary"
+                disabled={busy}
+                onClick={() => void act(`/api/ops/heal-proposals/${proposal.id}/sandbox`)}
+              >
+                Testar no sandbox
+              </button>
+            )}
+            {proposal.status === 'canary_passed' && (
+              <button
+                type="button"
+                className="button"
+                disabled={busy}
+                onClick={() => void act(`/api/ops/heal-proposals/${proposal.id}/approve`)}
+              >
+                Aprovar e aplicar
+              </button>
+            )}
+            {['diagnosed', 'sandbox_passed', 'canary_passed'].includes(proposal.status) && (
+              <button
+                type="button"
+                className="button secondary"
+                disabled={busy}
+                onClick={() => void act(`/api/ops/heal-proposals/${proposal.id}/reject`)}
+              >
+                Rejeitar
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function OnDemandSourcePanel({
   projectId,
   request,
@@ -1511,6 +1682,7 @@ export default function HomePage() {
           </div>
           {selected && <ProjectDetail project={selected} request={request} download={download} />}
           <InventoryPanel request={request} />
+          <SourceHealthPanel request={request} />
         </section>
       </div>
     </main>

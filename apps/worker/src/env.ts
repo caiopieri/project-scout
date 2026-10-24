@@ -58,6 +58,8 @@ export interface Env extends Omit<
   SWAPPA_MODE?: 'disabled' | 'fixture' | 'live';
   SWAPPA_BASE_URL?: string;
   HTML_MIN_INTERVAL_MS?: string;
+  /** Level-3 self-heal: 'on' lets a fully gated selector repair apply without a human. */
+  SELF_HEAL_AUTONOMY?: 'on' | 'off';
   GEMINI_VISION_MODEL?: string;
   GEMINI_PRICE_INPUT_PER_MTOK_USD?: string;
   GEMINI_PRICE_OUTPUT_PER_MTOK_USD?: string;

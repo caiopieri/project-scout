@@ -13,8 +13,11 @@ import {
   type RawListingRecord,
 } from '@scout/schemas';
 import { SWAPPA_CONNECTOR_MANIFEST } from './manifest';
+import { DEFAULT_SWAPPA_SELECTORS, type SwappaSelectorMap } from './selectors';
 
 export { SWAPPA_CONNECTOR_MANIFEST } from './manifest';
+export * from './selectors';
+export * from './sandbox';
 
 export const SWAPPA_BASE_URL = 'https://swappa.com';
 
@@ -47,15 +50,48 @@ export interface SwappaCard {
   alt: string | null;
 }
 
-/** Parses the listing cards of a Swappa product listings page. */
-export const parseSwappaListingsPage = (html: string): SwappaCard[] => {
-  const starts = [
-    ...html.matchAll(
-      /class="xui_card_wrapper[^"]*"[^>]*data-code="([A-Z0-9]+)"[^>]*data-price="([\d.]+)"/g,
-    ),
-  ];
-  return starts.map((match, index) => {
-    const card = html.slice(match.index ?? 0, starts[index + 1]?.index ?? html.length);
+const attributeOf = (tag: string, names: string[]) => {
+  for (const name of names) {
+    const value = new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1];
+    if (value !== undefined) return value;
+  }
+  return undefined;
+};
+
+const hasClass = (tag: string, classes: string[]) => {
+  const tokens = /\sclass="([^"]*)"/.exec(tag)?.[1].split(/\s+/) ?? [];
+  return classes.some((name) => tokens.includes(name));
+};
+
+/** True when the page still carries the listings container, even with zero cards. */
+export const hasSwappaListingsContainer = (
+  html: string,
+  selectors: SwappaSelectorMap = DEFAULT_SWAPPA_SELECTORS,
+) =>
+  [...html.matchAll(/<[a-z][^>]*>/gi)].some((match) =>
+    hasClass(match[0], selectors.containerClass),
+  );
+
+/**
+ * Parses the listing cards of a Swappa product listings page. Which tags are cards and which
+ * attributes carry the code and price comes from the selector map; everything else is
+ * schema.org microdata, which Swappa does not own.
+ */
+export const parseSwappaListingsPage = (
+  html: string,
+  selectors: SwappaSelectorMap = DEFAULT_SWAPPA_SELECTORS,
+): SwappaCard[] => {
+  const starts = [...html.matchAll(/<[a-z][^>]*>/gi)].flatMap((match) => {
+    const tag = match[0];
+    if (!hasClass(tag, selectors.cardClass)) return [];
+    const code = attributeOf(tag, selectors.codeAttribute);
+    const price = attributeOf(tag, selectors.priceAttribute);
+    if (!code || !/^[A-Z0-9]{4,20}$/.test(code) || !price || !/^\d+(\.\d{1,2})?$/.test(price))
+      return [];
+    return [{ index: match.index ?? 0, code, price }];
+  });
+  return starts.map((start, index) => {
+    const card = html.slice(start.index, starts[index + 1]?.index ?? html.length);
     const plain = text(card);
     const meta = (name: string) =>
       new RegExp(`itemprop="${name}" content="([^"]*)"`).exec(card)?.[1] ?? null;
@@ -66,9 +102,9 @@ export const parseSwappaListingsPage = (html: string): SwappaCard[] => {
           ?.split(',')
           .map((part) => part.trim())
       : undefined;
-    const [dollars, cents = '0'] = match[2].split('.');
+    const [dollars, cents = '0'] = start.price.split('.');
     return {
-      code: match[1],
+      code: start.code,
       priceMinor: Number(dollars) * 100 + Number(cents.padEnd(2, '0').slice(0, 2)),
       sku: meta('sku') ?? 'unknown',
       productName: decode(meta('description') ?? ''),
@@ -123,11 +159,16 @@ export class SwappaConnector implements SourceConnector {
   readonly manifest = SWAPPA_CONNECTOR_MANIFEST;
   private readonly cards = new Map<string, SwappaCard>();
   private requestsUsed = 0;
+  /** Raw HTML of the last page fetched, kept so canaries can store it for diagnosis. */
+  lastPage: string | null = null;
 
   constructor(
     private readonly scraper: ScrapingProvider,
     private readonly mode: SwappaMode,
     private readonly baseUrl = SWAPPA_BASE_URL,
+    // A map, or a loader for the active one, resolved on the first search only.
+    private readonly selectorSource:
+      SwappaSelectorMap | (() => Promise<SwappaSelectorMap>) = DEFAULT_SWAPPA_SELECTORS,
   ) {
     this.provider = `swappa-html-${mode}`;
   }
@@ -163,8 +204,11 @@ export class SwappaConnector implements SourceConnector {
     const slug = swappaProductSlug(input);
     this.requestsUsed += 1;
     const page = await this.scraper.fetchPage({ url: `${this.baseUrl}/listings/${slug}` });
-    const cards = parseSwappaListingsPage(page.content);
-    if (!cards.length && !/xui_card_slots/.test(page.content))
+    this.lastPage = page.content;
+    const selectors =
+      typeof this.selectorSource === 'function' ? await this.selectorSource() : this.selectorSource;
+    const cards = parseSwappaListingsPage(page.content, selectors);
+    if (!cards.length && !hasSwappaListingsContainer(page.content, selectors))
       throw new ConnectorError('Swappa page layout changed.', 'permanent', 'CONTENT_CHANGED');
     for (const card of cards) this.cards.set(card.code, card);
     return {

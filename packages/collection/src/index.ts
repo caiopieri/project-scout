@@ -26,6 +26,7 @@ export * from './ListingIngestionService';
 export * from './GenericListingMapper';
 export * from './HttpScrapingProvider';
 export * from './SchemaOrgExtractor';
+export * from './SelfHealDiagnosis';
 
 export class SourceCollectionGatewayRegistry implements CollectionGatewayResolver {
   private readonly gateways: ReadonlyMap<string, CollectionGateway>;
