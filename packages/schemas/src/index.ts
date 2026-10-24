@@ -1999,11 +1999,13 @@ export const monitorCutoffSchema = z
     minPercentBelowReference: z.number().min(0).max(100).optional(),
     maxTotalCostMinor: z.number().int().positive().optional(),
     minPriceDropPercent: z.number().min(0).max(100).optional(),
+    /** Lot monitors: alert when the high bid passes this amount. */
+    maxBidMinor: z.number().int().positive().optional(),
   })
   .strict();
 export type MonitorCutoff = z.infer<typeof monitorCutoffSchema>;
 
-export const monitorKindSchema = z.enum(['search', 'listing']);
+export const monitorKindSchema = z.enum(['search', 'listing', 'lot']);
 
 export const monitorCreateSchema = z.discriminatedUnion('kind', [
   z
@@ -2012,7 +2014,7 @@ export const monitorCreateSchema = z.discriminatedUnion('kind', [
       projectId: z.string().uuid(),
       sourceId: z.string().uuid().optional(),
       cutoff: monitorCutoffSchema
-        .omit({ minPriceDropPercent: true })
+        .omit({ minPriceDropPercent: true, maxBidMinor: true })
         .refine(
           (cutoff) =>
             cutoff.minScore !== undefined ||
@@ -2032,6 +2034,13 @@ export const monitorCreateSchema = z.discriminatedUnion('kind', [
       cadenceMinutes: z.number().int().min(60).max(10_080).default(360),
     })
     .strict(),
+  z
+    .object({
+      kind: z.literal('lot'),
+      lotId: z.string().uuid(),
+      cutoff: monitorCutoffSchema.pick({ maxBidMinor: true }).default({}),
+    })
+    .strict(),
 ]);
 export type MonitorCreate = z.infer<typeof monitorCreateSchema>;
 
@@ -2040,6 +2049,7 @@ export const monitorTransportSchema = z.object({
   kind: monitorKindSchema,
   projectId: z.string().uuid().nullable(),
   listingId: z.string().uuid().nullable(),
+  lotId: z.string().uuid().nullable(),
   sourceId: z.string().uuid().nullable(),
   cutoff: monitorCutoffSchema,
   baseline: z.object({ priceMinor: z.number().int().nonnegative(), status: z.string() }).nullable(),
@@ -2051,13 +2061,22 @@ export const monitorTransportSchema = z.object({
 });
 export type MonitorTransport = z.infer<typeof monitorTransportSchema>;
 
-export const alertKindSchema = z.enum(['NEW_OPPORTUNITY', 'PRICE_DROP', 'ENDED', 'GONE']);
+export const alertKindSchema = z.enum([
+  'NEW_OPPORTUNITY',
+  'PRICE_DROP',
+  'ENDED',
+  'GONE',
+  'LOT_BID_ABOVE',
+  'LOT_CLOSING',
+  'LOT_CLOSED',
+]);
 export type AlertKind = z.infer<typeof alertKindSchema>;
 
 export const alertTransportSchema = z.object({
   id: z.string().uuid(),
   monitorId: z.string().uuid(),
-  listingId: z.string().uuid(),
+  listingId: z.string().uuid().nullable(),
+  lotId: z.string().uuid().nullable(),
   kind: alertKindSchema,
   payload: jsonObjectSchema,
   createdAt: z.coerce.date(),
@@ -2067,4 +2086,104 @@ export type AlertTransport = z.infer<typeof alertTransportSchema>;
 
 export const alertReadRequestSchema = z
   .object({ ids: z.array(z.string().uuid()).min(1).max(100) })
+  .strict();
+
+// S11 auctions, read-only. A lot is not a listing: it has a closing date, bids and terms.
+export const auctionTermFactSchema = z
+  .object({ value: z.union([z.number(), z.boolean(), z.string()]), evidence: z.string().max(300) })
+  .strict();
+
+/** What the terms text states, each fact with the snippet it came from; absent = not stated. */
+export const auctionTermsSchema = z
+  .object({
+    parserVersion: z.literal('auction-terms.v1'),
+    quantity: auctionTermFactSchema.optional(),
+    buyerPremiumPercent: auctionTermFactSchema.optional(),
+    adminFeeMinor: auctionTermFactSchema.optional(),
+    salesTaxApplies: auctionTermFactSchema.optional(),
+    buyerRemoves: auctionTermFactSchema.optional(),
+    removalDays: auctionTermFactSchema.optional(),
+    paymentDays: auctionTermFactSchema.optional(),
+    asIs: auctionTermFactSchema.optional(),
+    partsMayBeMissing: auctionTermFactSchema.optional(),
+    storageRemoved: auctionTermFactSchema.optional(),
+    memoryRemoved: auctionTermFactSchema.optional(),
+    inspectionByAppointment: auctionTermFactSchema.optional(),
+  })
+  .strict();
+export type AuctionTerms = z.infer<typeof auctionTermsSchema>;
+
+/** User premises for what the terms leave open. Every premise is shown as assumed, never known. */
+export const auctionPremisesSchema = z
+  .object({
+    buyerPremiumPercent: z.number().min(0).max(50).optional(),
+    salesTaxPercent: z.number().min(0).max(20).optional(),
+    removalMinor: z.number().int().min(0).max(10_000_000).optional(),
+    /** Used only when the terms do not state the quantity. */
+    quantity: z.number().int().min(1).max(100_000).optional(),
+    usefulRatio: z.number().min(0).max(1).optional(),
+  })
+  .strict();
+export type AuctionPremises = z.infer<typeof auctionPremisesSchema>;
+
+export const auctionCostComponentSchema = z
+  .object({
+    amountMinor: z.number().int().nonnegative().nullable(),
+    origin: z.enum(['stated', 'assumed', 'unknown']),
+    basis: z.string().max(200),
+  })
+  .strict();
+
+export const auctionCostSchema = z
+  .object({
+    policyVersion: z.literal('auction-cost.v1'),
+    currency: z.string().length(3),
+    status: z.enum(['known', 'assumed', 'indeterminate']),
+    components: z
+      .object({
+        hammer: auctionCostComponentSchema,
+        buyerPremium: auctionCostComponentSchema,
+        adminFee: auctionCostComponentSchema,
+        salesTax: auctionCostComponentSchema,
+        removal: auctionCostComponentSchema,
+      })
+      .strict(),
+    totalMinor: z.number().int().nonnegative().nullable(),
+    usefulUnits: z.number().nonnegative().nullable(),
+    unitsOrigin: z.enum(['stated', 'assumed', 'unknown']),
+    costPerUsefulUnitMinor: z.number().int().nonnegative().nullable(),
+    missing: z.array(z.string()),
+  })
+  .strict();
+export type AuctionCost = z.infer<typeof auctionCostSchema>;
+
+export const auctionLotTransportSchema = z.object({
+  id: z.string().uuid(),
+  sourceId: z.string().uuid(),
+  externalId: z.string().min(1),
+  title: z.string().min(1),
+  url: z.string().url(),
+  imageUrl: z.string().url().nullable(),
+  closesOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  status: z.enum(['active', 'closed']),
+  currentBidMinor: z.number().int().nonnegative().nullable(),
+  bidders: z.number().int().nonnegative().nullable(),
+  incrementMinor: z.number().int().nonnegative().nullable(),
+  reserve: z.boolean().nullable(),
+  location: z.string().nullable(),
+  agency: z.string().nullable(),
+  currency: z.string().length(3),
+  termsText: z.string(),
+  terms: auctionTermsSchema,
+  firstSeenAt: z.coerce.date(),
+  lastSeenAt: z.coerce.date(),
+});
+export type AuctionLotTransport = z.infer<typeof auctionLotTransportSchema>;
+
+export const auctionLotQuerySchema = z
+  .object({
+    q: z.string().trim().max(100).optional(),
+    closingWithinDays: z.coerce.number().int().min(0).max(60).optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+  })
   .strict();

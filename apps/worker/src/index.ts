@@ -69,6 +69,8 @@ import {
   calculateReferenceDiscount,
   REFERENCE_POLICY_V1,
   sliceListingFeed,
+  calculateAuctionCost,
+  maxBidForUnitCost,
 } from '@scout/domain';
 import {
   authenticatedUserSchema,
@@ -89,6 +91,8 @@ import {
   rawListingRecordSchema,
   localAgentRegistrationSchema,
   monitorCreateSchema,
+  auctionLotQuerySchema,
+  auctionPremisesSchema,
   alertReadRequestSchema,
   localAgentResultSchema,
   localAgentTaskRequestSchema,
@@ -130,6 +134,9 @@ import { SupabaseRestVisualAnalysisRepository } from '@scout/database/visual-ana
 import { SupabaseRestLocalAgentRepository } from '@scout/database/local-agent';
 import { SupabaseRestMonitorRepository } from '@scout/database/monitors';
 import { MonitorScheduler } from './MonitorScheduler';
+import { SupabaseRestAuctionRepository } from '@scout/database/auctions';
+import { GsaAuctionsClient } from '@scout/gsa-auctions-connector';
+import { AuctionSweeper } from './AuctionSweeper';
 import { DurableObjectEbayRateLimiter } from './EbayRateLimitDurableObject';
 export { EbayRateLimitDurableObject } from './EbayRateLimitDurableObject';
 
@@ -328,6 +335,7 @@ const SOURCE_IDS = {
   mercadolivre: '00000000-0000-4000-a000-000000000002',
   xianyu: '00000000-0000-4000-a000-000000000003',
   swappa: '00000000-0000-4000-a000-000000000004',
+  gsa: '00000000-0000-4000-a000-000000000005',
 } as const;
 
 /** Swappa (layer 4). Live mode is refused by the connector while its live policy says no. */
@@ -718,6 +726,20 @@ const swappaSelfHeal = (env: Env): SwappaSelfHeal =>
     expectedMinItems: swappaCanary.expectedMinItems,
   });
 
+const auctionSweeper = (env: Env) => {
+  const budget = Number(env.GSA_DAILY_SWEEP_BUDGET);
+  const interval = Number(env.AUCTION_SWEEP_MINUTES);
+  const mode = env.GSA_MODE === 'live' || env.GSA_MODE === 'fixture' ? env.GSA_MODE : 'disabled';
+  return new AuctionSweeper({
+    sourceId: SOURCE_IDS.gsa,
+    client: new GsaAuctionsClient(mode, { apiKey: env.GSA_API_KEY, baseUrl: env.GSA_BASE_URL }),
+    auctions: new SupabaseRestAuctionRepository(serviceRoleConfig(env)),
+    // DEMO_KEY allows ~50 calls a day; stay under it unless a real key raises the budget.
+    dailyBudget: Number.isSafeInteger(budget) && budget > 0 ? budget : 40,
+    minIntervalMinutes: Number.isSafeInteger(interval) && interval >= 5 ? interval : 360,
+  });
+};
+
 const monitorScheduler = (env: Env) => {
   const service = serviceRoleConfig(env);
   const listings = new SupabaseRestListingRepository(service);
@@ -732,6 +754,10 @@ const monitorScheduler = (env: Env) => {
       enrichedListings(repositories, userId, { projectId }, new Date()),
     findListing: (listingId) => listings.findById(listingId),
     circuitAllows: async (sourceId) => (await circuitAllows(env, sourceId))?.allowed !== false,
+    findLot: (lotId) => new SupabaseRestAuctionRepository(service).findById(lotId),
+    // Lot monitors near their close may sweep more often than the default interval, never past
+    // the daily budget.
+    refreshAuctions: () => auctionSweeper(env).sweep('monitors', { minIntervalMinutes: 25 }),
     queueCollection: async (runId) => {
       await env.COLLECT_QUEUE.send(createCollectionTask(runId));
     },
@@ -907,6 +933,21 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed.');
     return json({ results: await runSourceCanaries(env, `user:${user.id}`) }, 200, env.WEB_ORIGIN);
   }
+  if (url.pathname === '/api/ops/auctions/sweep') {
+    if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed.');
+    const result = await auctionSweeper(env).sweep(`user:${user.id}`, { ignoreInterval: true });
+    await serviceRest(env, 'ops_audit', {
+      method: 'POST',
+      body: JSON.stringify({
+        actor_user_id: user.id,
+        actor: 'user',
+        action: 'auctions.sweep',
+        source_id: SOURCE_IDS.gsa,
+        details: result,
+      }),
+    });
+    return json(result, 200, env.WEB_ORIGIN);
+  }
   if (url.pathname === '/api/ops/monitors/run') {
     if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed.');
     const results = await monitorScheduler(env).runDue();
@@ -926,6 +967,75 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     anonKey: env.SUPABASE_ANON_KEY,
     accessToken,
   });
+  const userAuctions = new SupabaseRestAuctionRepository({
+    baseUrl: env.SUPABASE_URL,
+    anonKey: env.SUPABASE_ANON_KEY,
+    accessToken,
+  });
+  if (url.pathname === '/api/auctions/lots') {
+    if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
+    const query = auctionLotQuerySchema.parse(Object.fromEntries(url.searchParams));
+    const lots = await userAuctions.list(query, new Date().toISOString().slice(0, 10));
+    const premises = await userAuctions.premises(
+      user.id,
+      lots.map((lot) => lot.id),
+    );
+    return json(
+      lots.map((lot) => ({
+        ...lot,
+        premises: premises.get(lot.id) ?? {},
+        costAtCurrentBid: calculateAuctionCost({
+          hammerMinor: lot.currentBidMinor,
+          currency: lot.currency,
+          terms: lot.terms,
+          premises: premises.get(lot.id),
+        }),
+      })),
+      200,
+      env.WEB_ORIGIN,
+    );
+  }
+  const lotMatch = url.pathname.match(/^\/api\/auctions\/lots\/([^/]+)(\/premises)?$/);
+  if (lotMatch) {
+    const lotId = projectIdSchema.parse(lotMatch[1]);
+    const lot = await userAuctions.findById(lotId);
+    if (!lot) throw new HttpError(404, 'Lot not found.');
+    if (lotMatch[2]) {
+      if (request.method !== 'PUT') throw new HttpError(405, 'Method not allowed.');
+      const premises = auctionPremisesSchema.parse(await parseBody(request));
+      await userAuctions.savePremises(user.id, lotId, premises);
+      return json({ lotId, premises }, 200, env.WEB_ORIGIN);
+    }
+    if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
+    const premises = (await userAuctions.premises(user.id, [lotId])).get(lotId) ?? {};
+    const target = Number(url.searchParams.get('targetUnitCostMinor'));
+    return json(
+      {
+        lot,
+        premises,
+        bids: await userAuctions.bidHistory(lotId),
+        costAtCurrentBid: calculateAuctionCost({
+          hammerMinor: lot.currentBidMinor,
+          currency: lot.currency,
+          terms: lot.terms,
+          premises,
+        }),
+        maxBidForTarget:
+          Number.isSafeInteger(target) && target > 0
+            ? {
+                targetUnitCostMinor: target,
+                maxHammerMinor: maxBidForUnitCost({
+                  targetUnitCostMinor: target,
+                  terms: lot.terms,
+                  premises,
+                }),
+              }
+            : null,
+      },
+      200,
+      env.WEB_ORIGIN,
+    );
+  }
   if (url.pathname === '/api/monitors') {
     if (request.method === 'GET')
       return json(await userMonitors.list(user.id), 200, env.WEB_ORIGIN);
@@ -939,7 +1049,7 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
         accessToken,
       }).findById(input.projectId, user.id);
       if (!owned) throw new HttpError(404, 'Project not found.');
-    } else {
+    } else if (input.kind === 'listing') {
       const listing = await new SupabaseRestListingRepository({
         baseUrl: env.SUPABASE_URL,
         anonKey: env.SUPABASE_ANON_KEY,
@@ -947,6 +1057,8 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
       }).findById(input.listingId);
       if (!listing) throw new HttpError(404, 'Listing not found.');
       baseline = { priceMinor: Math.round(listing.price * 100), status: listing.status };
+    } else if (!(await userAuctions.findById(input.lotId))) {
+      throw new HttpError(404, 'Lot not found.');
     }
     let monitor;
     try {
@@ -990,22 +1102,32 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
       ),
     ]);
     const byId = new Map(inventory.map((listing) => [listing.id, listing]));
+    const lotIds = [
+      ...new Set(alerts.map((alert) => alert.lotId).filter((id): id is string => !!id)),
+    ];
+    const lotsById = new Map(
+      (await Promise.all(lotIds.map((id) => userAuctions.findById(id))))
+        .filter((lot): lot is NonNullable<typeof lot> => lot !== null)
+        .map((lot) => [lot.id, lot]),
+    );
     const arrived = inventory.filter((listing) => listing.firstCollectedAt >= since);
     const scoreOf = (listing: (typeof inventory)[number]) =>
       listing.score?.status === 'known' ? (listing.score.value ?? -1) : -1;
     return json(
       {
         since,
-        alerts: alerts.map((alert) => ({
-          ...alert,
-          listing: byId.has(alert.listingId)
-            ? {
-                title: byId.get(alert.listingId)!.title,
-                url: byId.get(alert.listingId)!.url,
-                sourceId: byId.get(alert.listingId)!.sourceId,
-              }
-            : null,
-        })),
+        alerts: alerts.map((alert) => {
+          const listing = alert.listingId ? byId.get(alert.listingId) : undefined;
+          const lot = alert.lotId ? lotsById.get(alert.lotId) : undefined;
+          return {
+            ...alert,
+            listing: listing
+              ? { title: listing.title, url: listing.url, sourceId: listing.sourceId }
+              : lot
+                ? { title: lot.title, url: lot.url, sourceId: lot.sourceId }
+                : null,
+          };
+        }),
         arrived: {
           count: arrived.length,
           top: [...arrived]
@@ -2119,6 +2241,7 @@ export default {
     const outcomes = await Promise.allSettled([
       runSourceCanaries(env, 'cron'),
       monitorScheduler(env).runDue(),
+      auctionSweeper(env).sweep('cron'),
     ]);
     for (const outcome of outcomes)
       if (outcome.status === 'rejected')

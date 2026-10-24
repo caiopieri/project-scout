@@ -1,11 +1,18 @@
 import type { SupabaseRestMonitorRepository, MonitorRow } from '@scout/database/monitors';
 import {
   evaluateListingMonitor,
+  evaluateLotMonitor,
   evaluateSearchMonitor,
   listingPriceMinor,
+  nextLotCheckAt,
   type MonitorAlertCandidate,
 } from '@scout/domain';
-import { monitorCutoffSchema, type AlertTransport, type ListingTransport } from '@scout/schemas';
+import {
+  monitorCutoffSchema,
+  type AlertTransport,
+  type AuctionLotTransport,
+  type ListingTransport,
+} from '@scout/schemas';
 
 const EBAY_SOURCE_ID = '00000000-0000-4000-a000-000000000001';
 
@@ -16,6 +23,9 @@ export interface MonitorSchedulerDeps {
   findListing: (listingId: string) => Promise<ListingTransport | null>;
   circuitAllows: (sourceId: string) => Promise<boolean>;
   queueCollection: (runId: string) => Promise<void>;
+  findLot?: (lotId: string) => Promise<AuctionLotTransport | null>;
+  /** Refreshes auction lots (one sweep, within the source's budget) before lot monitors run. */
+  refreshAuctions?: () => Promise<unknown>;
   now?: () => Date;
 }
 
@@ -62,12 +72,22 @@ export class MonitorScheduler {
       );
       candidates = result.alerts;
       await this.deps.monitors.updateBaseline(row.id, result.nextBaseline);
+    } else if (row.kind === 'lot' && row.lot_id && this.deps.findLot) {
+      const lot = await this.deps.findLot(row.lot_id);
+      if (!lot) return [];
+      const now = this.now();
+      candidates = evaluateLotMonitor(lot, cutoff, now.toISOString().slice(0, 10));
+      // Closer to the close, look more often; after it closed, stop.
+      const next = nextLotCheckAt(lot.closesOn, lot.status, now);
+      if (next) await this.deps.monitors.scheduleNext(row.id, next);
+      else await this.deps.monitors.stop(row.id);
     }
     return this.deps.monitors.insertAlerts(
       candidates.map((candidate) => ({
         user_id: row.user_id,
         monitor_id: row.id,
-        listing_id: candidate.listingId,
+        ...(candidate.listingId ? { listing_id: candidate.listingId } : {}),
+        ...(candidate.lotId ? { lot_id: candidate.lotId } : {}),
         kind: candidate.kind,
         dedupe_key: candidate.dedupeKey,
         payload: { ...candidate.payload, ...(initial ? { atCreation: true } : {}) },
@@ -96,6 +116,15 @@ export class MonitorScheduler {
   async runDue(limit = 20): Promise<MonitorRunResult[]> {
     const due = await this.deps.monitors.claimDue(limit);
     const results: MonitorRunResult[] = [];
+    if (due.some((row) => row.kind === 'lot') && this.deps.refreshAuctions)
+      await this.deps.refreshAuctions().catch((error: unknown) =>
+        results.push({
+          monitorId: 'auction-sweep',
+          alerts: 0,
+          collection: null,
+          error: error instanceof Error ? error.message : 'sweep failed',
+        }),
+      );
     for (const row of due) {
       try {
         const alerts = await this.evaluate(row);

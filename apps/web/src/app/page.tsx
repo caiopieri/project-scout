@@ -65,6 +65,7 @@ const sourceNames: Record<string, string> = {
   '00000000-0000-4000-a000-000000000002': 'Mercado Livre',
   '00000000-0000-4000-a000-000000000003': 'Xianyu',
   '00000000-0000-4000-a000-000000000004': 'Swappa',
+  '00000000-0000-4000-a000-000000000005': 'GSA Auctions',
 };
 
 const formatMinorMoney = (currency: string, amountMinor: number | null) =>
@@ -1475,7 +1476,14 @@ function SourceHealthPanel({
 
 type TodayAlert = {
   id: string;
-  kind: 'NEW_OPPORTUNITY' | 'PRICE_DROP' | 'ENDED' | 'GONE';
+  kind:
+    | 'NEW_OPPORTUNITY'
+    | 'PRICE_DROP'
+    | 'ENDED'
+    | 'GONE'
+    | 'LOT_BID_ABOVE'
+    | 'LOT_CLOSING'
+    | 'LOT_CLOSED';
   payload: Record<string, string | number | null | boolean>;
   createdAt: string;
   listing: { title: string; url: string; sourceId: string } | null;
@@ -1500,6 +1508,11 @@ const alertLine = (alert: TodayAlert) => {
     } · custo ${money(payload.totalCostMinor)}`;
   if (alert.kind === 'PRICE_DROP')
     return `Preço caiu ${payload.dropPercent}% · ${money(payload.fromMinor)} → ${money(payload.toMinor)}`;
+  if (alert.kind === 'LOT_BID_ABOVE')
+    return `Lance do lote passou do seu limite · ${money(payload.highBidMinor)} > ${money(payload.limitMinor)}`;
+  if (alert.kind === 'LOT_CLOSING') return `Lote fecha hoje · lance ${money(payload.highBidMinor)}`;
+  if (alert.kind === 'LOT_CLOSED')
+    return `Lote fechou · último lance ${money(payload.lastHighBidMinor)}`;
   return alert.kind === 'ENDED'
     ? 'Anúncio encerrado (vendido ou finalizado)'
     : 'Anúncio sem estoque';
@@ -1741,6 +1754,286 @@ function SearchMonitorPanel({
   );
 }
 
+type AuctionCostView = {
+  status: 'known' | 'assumed' | 'indeterminate';
+  totalMinor: number | null;
+  usefulUnits: number | null;
+  unitsOrigin: 'stated' | 'assumed' | 'unknown';
+  costPerUsefulUnitMinor: number | null;
+  missing: string[];
+  components: Record<string, { amountMinor: number | null; origin: string; basis: string }>;
+};
+
+type AuctionLotView = {
+  id: string;
+  title: string;
+  url: string;
+  closesOn: string;
+  currentBidMinor: number | null;
+  bidders: number | null;
+  location: string | null;
+  terms: Record<string, { value: number | boolean | string; evidence: string } | string>;
+  premises: Record<string, number>;
+  costAtCurrentBid: AuctionCostView;
+};
+
+const TERM_FLAGS: Array<[string, string]> = [
+  ['storageRemoved', 'sem disco'],
+  ['memoryRemoved', 'sem RAM'],
+  ['partsMayBeMissing', 'peças podem faltar'],
+  ['asIs', 'no estado'],
+  ['buyerRemoves', 'retirada por conta do comprador'],
+  ['inspectionByAppointment', 'inspeção com agendamento'],
+];
+
+const COMPONENT_NAMES: Record<string, string> = {
+  hammer: 'arremate',
+  buyerPremium: 'comissão',
+  adminFee: 'taxa administrativa',
+  salesTax: 'imposto',
+  removal: 'retirada/frete',
+};
+
+const ORIGIN_NAMES: Record<string, string> = {
+  stated: 'declarado',
+  assumed: 'premissa',
+  unknown: 'desconhecido',
+};
+
+/** S11: auction lots read-only — terms read into real cost, premises explicit, no bidding. */
+function AuctionsPanel({
+  request,
+}: {
+  request: (path: string, init?: RequestInit) => Promise<unknown>;
+}) {
+  const [lots, setLots] = useState<AuctionLotView[]>([]);
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState<string | null>(null);
+  const [bids, setBids] = useState<
+    Array<{ highBidMinor: number | null; bidders: number | null; observedAt: string }>
+  >([]);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [message, setMessage] = useState<string | null>(null);
+  const refresh = useCallback(async () => {
+    try {
+      setLots(
+        (await request(
+          `/api/auctions/lots?limit=30${q ? `&q=${encodeURIComponent(q)}` : ''}`,
+        )) as AuctionLotView[],
+      );
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : 'Falha ao carregar leilões.');
+    }
+  }, [q, request]);
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+  const sweep = async () => {
+    const result = (await request('/api/ops/auctions/sweep', { method: 'POST' })) as {
+      status: string;
+      reason?: string;
+      seen?: number;
+      kept?: number;
+      bidChanges?: number;
+    };
+    setMessage(
+      result.status === 'swept'
+        ? `Varredura: ${result.seen} lotes ativos na fonte, ${result.kept} de eletrônicos guardados, ${result.bidChanges} mudança(s) de lance.`
+        : `Varredura ${result.status}: ${result.reason ?? ''}`,
+    );
+    await refresh();
+  };
+  const expand = async (lot: AuctionLotView) => {
+    if (open === lot.id) {
+      setOpen(null);
+      return;
+    }
+    setOpen(lot.id);
+    setForm({
+      ...Object.fromEntries(
+        Object.entries(lot.premises).map(([key, value]) => [key, String(value)]),
+      ),
+      ...(lot.premises.removalMinor !== undefined
+        ? { removal: String(lot.premises.removalMinor / 100) }
+        : {}),
+    });
+    const detail = (await request(`/api/auctions/lots/${lot.id}`)) as { bids: typeof bids };
+    setBids(detail.bids);
+  };
+  const savePremises = async (lotId: string) => {
+    const premises: Record<string, number> = {};
+    if (form.buyerPremiumPercent) premises.buyerPremiumPercent = Number(form.buyerPremiumPercent);
+    if (form.salesTaxPercent) premises.salesTaxPercent = Number(form.salesTaxPercent);
+    if (form.removal) premises.removalMinor = Math.round(Number(form.removal) * 100);
+    if (form.quantity) premises.quantity = Number(form.quantity);
+    if (form.usefulRatio) premises.usefulRatio = Number(form.usefulRatio);
+    try {
+      await request(`/api/auctions/lots/${lotId}/premises`, {
+        method: 'PUT',
+        body: JSON.stringify(premises),
+      });
+      await refresh();
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : 'Premissas inválidas.');
+    }
+  };
+  const watch = async (lotId: string) => {
+    try {
+      await request('/api/monitors', {
+        method: 'POST',
+        body: JSON.stringify({
+          kind: 'lot',
+          lotId,
+          cutoff: form.maxBid ? { maxBidMinor: Math.round(Number(form.maxBid) * 100) } : {},
+        }),
+      });
+      setMessage(
+        'Lote monitorado: aviso de lance acima do limite, no dia do fechamento e ao fechar.',
+      );
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : 'Falha ao monitorar o lote.');
+    }
+  };
+  return (
+    <div className="valuation-settings auctions-panel">
+      <div className="eyebrow">Leilões · somente leitura · GSA Auctions (API oficial)</div>
+      <p className="muted">
+        O edital vira custo real: o que ele afirma entra como declarado, o que você supõe entra como
+        premissa e o resto fica desconhecido. Nenhum lance é dado por aqui.
+      </p>
+      <div className="actions">
+        <input
+          placeholder="filtrar (ex.: laptop)"
+          value={q}
+          onChange={(event) => setQ(event.target.value)}
+        />
+        <button type="button" className="button secondary" onClick={() => void sweep()}>
+          Varrer GSA agora
+        </button>
+      </div>
+      {message && <div className="notice">{message}</div>}
+      <ul>
+        {lots.map((lot) => {
+          const cost = lot.costAtCurrentBid;
+          const quantity = typeof lot.terms.quantity === 'object' ? lot.terms.quantity.value : null;
+          return (
+            <li key={lot.id} className="auction-lot">
+              <button type="button" className="button secondary" onClick={() => void expand(lot)}>
+                {lot.title}
+              </button>{' '}
+              <span className="muted">
+                fecha {lot.closesOn} · lance {money(lot.currentBidMinor)} · {lot.bidders ?? 0}{' '}
+                licitante(s) · {quantity ? `${quantity} un.` : 'quantidade não declarada'} ·{' '}
+                {lot.location ?? ''} ·{' '}
+                <a href={lot.url} target="_blank" rel="noreferrer">
+                  ver na fonte
+                </a>
+              </span>
+              <div className="muted">
+                {TERM_FLAGS.filter(([key]) => typeof lot.terms[key] === 'object')
+                  .map(([, label]) => label)
+                  .join(' · ')}
+              </div>
+              <div>
+                Custo no lance atual:{' '}
+                {cost.totalMinor !== null
+                  ? `${money(cost.totalMinor)} (${cost.status === 'assumed' ? 'com premissas' : 'declarado'})`
+                  : `indeterminado — falta ${cost.missing
+                      .map((name) => COMPONENT_NAMES[name] ?? name)
+                      .join(', ')}`}
+                {cost.costPerUsefulUnitMinor !== null
+                  ? ` · ${money(cost.costPerUsefulUnitMinor)} por unidade útil (${cost.usefulUnits} un., ${ORIGIN_NAMES[cost.unitsOrigin]})`
+                  : ''}
+              </div>
+              {open === lot.id && (
+                <div className="notice">
+                  <ul>
+                    {Object.entries(cost.components).map(([name, component]) => (
+                      <li key={name} className="muted">
+                        {COMPONENT_NAMES[name] ?? name}:{' '}
+                        {component.amountMinor === null ? '?' : money(component.amountMinor)} ·{' '}
+                        {ORIGIN_NAMES[component.origin] ?? component.origin} · {component.basis}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="eyebrow">Evidência do edital</div>
+                  <ul>
+                    {Object.entries(lot.terms)
+                      .filter(([, fact]) => typeof fact === 'object')
+                      .map(([key, fact]) => {
+                        const { value, evidence } = fact as { value: unknown; evidence: string };
+                        return (
+                          <li key={key} className="muted">
+                            {key}: {String(value)} — “{evidence}”
+                          </li>
+                        );
+                      })}
+                  </ul>
+                  <div className="actions">
+                    {[
+                      ['buyerPremiumPercent', 'Comissão %'],
+                      ['salesTaxPercent', 'Imposto %'],
+                      ['removal', 'Retirada/frete US$'],
+                      ['quantity', 'Quantidade (se não declarada)'],
+                      ['usefulRatio', 'Fração útil (0–1)'],
+                    ].map(([key, label]) => (
+                      <label key={key}>
+                        {label}{' '}
+                        <input
+                          size={6}
+                          value={form[key] ?? ''}
+                          onChange={(event) =>
+                            setForm((current) => ({ ...current, [key]: event.target.value }))
+                          }
+                        />
+                      </label>
+                    ))}
+                    <button
+                      type="button"
+                      className="button secondary"
+                      onClick={() => void savePremises(lot.id)}
+                    >
+                      Salvar premissas
+                    </button>
+                  </div>
+                  <div className="actions">
+                    <label>
+                      Avisar se o lance passar de US${' '}
+                      <input
+                        size={6}
+                        value={form.maxBid ?? ''}
+                        onChange={(event) =>
+                          setForm((current) => ({ ...current, maxBid: event.target.value }))
+                        }
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="button secondary"
+                      onClick={() => void watch(lot.id)}
+                    >
+                      Monitorar lote
+                    </button>
+                  </div>
+                  <div className="eyebrow">Lances observados</div>
+                  <ul>
+                    {bids.map((bid) => (
+                      <li key={bid.observedAt} className="muted">
+                        {new Date(bid.observedAt).toLocaleString('pt-BR')} ·{' '}
+                        {money(bid.highBidMinor)} · {bid.bidders ?? 0} licitante(s)
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function OnDemandSourcePanel({
   projectId,
   request,
@@ -1975,6 +2268,7 @@ export default function HomePage() {
             )}
           </div>
           <TodayPanel request={request} />
+          <AuctionsPanel request={request} />
           {selected && <ProjectDetail project={selected} request={request} download={download} />}
           <InventoryPanel request={request} />
           <SourceHealthPanel request={request} />

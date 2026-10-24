@@ -11,9 +11,10 @@ import type { SupabaseRestConfig } from './SupabaseRestResearchProjectRepository
 export interface MonitorRow {
   id: string;
   user_id: string;
-  kind: 'search' | 'listing';
+  kind: 'search' | 'listing' | 'lot';
   project_id: string | null;
   listing_id: string | null;
+  lot_id: string | null;
   source_id: string | null;
   cutoff: Record<string, number>;
   baseline: { priceMinor: number; status: string } | null;
@@ -27,7 +28,8 @@ export interface MonitorRow {
 interface AlertRow {
   id: string;
   monitor_id: string;
-  listing_id: string;
+  listing_id: string | null;
+  lot_id: string | null;
   kind: AlertKind;
   payload: Record<string, unknown>;
   created_at: string;
@@ -40,6 +42,7 @@ export const toMonitor = (row: MonitorRow): MonitorTransport =>
     kind: row.kind,
     projectId: row.project_id,
     listingId: row.listing_id,
+    lotId: row.lot_id ?? null,
     sourceId: row.source_id,
     cutoff: row.cutoff,
     baseline: row.baseline,
@@ -55,6 +58,7 @@ const toAlert = (row: AlertRow): AlertTransport =>
     id: row.id,
     monitorId: row.monitor_id,
     listingId: row.listing_id,
+    lotId: row.lot_id ?? null,
     kind: row.kind,
     payload: row.payload,
     createdAt: row.created_at,
@@ -79,14 +83,18 @@ export class SupabaseRestMonitorRepository {
       body: JSON.stringify({
         user_id: userId,
         kind: input.kind,
-        project_id: input.projectId ?? null,
+        project_id: input.kind === 'lot' ? null : (input.projectId ?? null),
         listing_id: input.kind === 'listing' ? input.listingId : null,
+        lot_id: input.kind === 'lot' ? input.lotId : null,
         source_id: input.kind === 'search' ? (input.sourceId ?? null) : null,
         cutoff: input.cutoff,
         baseline,
-        cadence_minutes: input.cadenceMinutes,
+        // Lot monitors follow the closing date (see nextLotCheckAt); 60 min is their ceiling.
+        cadence_minutes: input.kind === 'lot' ? 60 : input.cadenceMinutes,
         // The first evaluation happens at creation; the scheduler takes over after one cadence.
-        next_run_at: new Date(Date.now() + input.cadenceMinutes * 60_000).toISOString(),
+        next_run_at: new Date(
+          Date.now() + (input.kind === 'lot' ? 60 : input.cadenceMinutes) * 60_000,
+        ).toISOString(),
       }),
     });
     return toMonitor(rows[0]);
@@ -142,7 +150,8 @@ export class SupabaseRestMonitorRepository {
     rows: Array<{
       user_id: string;
       monitor_id: string;
-      listing_id: string;
+      listing_id?: string;
+      lot_id?: string;
       kind: AlertKind;
       dedupe_key: string;
       payload: Record<string, unknown>;
@@ -157,6 +166,24 @@ export class SupabaseRestMonitorRepository {
         body: JSON.stringify(rows),
       })
     ).map(toAlert);
+  }
+
+  /** Service-side stop, e.g. a lot monitor after the lot closed. */
+  async stop(id: string) {
+    await this.request(`monitors?id=eq.${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ active: false, updated_at: new Date().toISOString() }),
+    });
+  }
+
+  async scheduleNext(id: string, nextRunAt: Date) {
+    await this.request(`monitors?id=eq.${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        next_run_at: nextRunAt.toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+    });
   }
 
   async updateBaseline(id: string, baseline: { priceMinor: number; status: string }) {

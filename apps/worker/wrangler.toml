@@ -41,6 +41,10 @@ LLM_MAX_REQUESTS_PER_PROVIDER = "5"
 VISUAL_ANALYSIS_BUDGET_PER_PROJECT = "5"
 # S9 level 3: a selector repair may apply without a human only when this is "on".
 SELF_HEAL_AUTONOMY = "off"
+# S11 auctions (read-only). "live" needs GSA_API_KEY (an api.data.gov key) as a secret.
+GSA_MODE = "disabled"
+GSA_DAILY_SWEEP_BUDGET = "40"
+AUCTION_SWEEP_MINUTES = "360"
 
 # Cloudflare Queues Producers Bindings
 [[queues.producers]]
@@ -110,6 +114,7 @@ PUBLIC_API_ENABLED = "false"
 TEXT_ANALYZER_MODE = "deterministic"
 GEMINI_MODEL = "gemini-2.5-flash"
 SELF_HEAL_AUTONOMY = "off"
+GSA_MODE = "disabled"
 
 [[env.production.kv_namespaces]]
 binding = "SCOUT_CACHE"

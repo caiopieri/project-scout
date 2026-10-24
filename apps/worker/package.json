@@ -20,7 +20,8 @@
     "@scout/search-intelligence": "*",
     "@scout/swappa-connector": "*",
     "@scout/valuation": "*",
-    "fflate": "^0.8.2"
+    "fflate": "^0.8.2",
+    "@scout/gsa-auctions-connector": "*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240208.0",

@@ -154,11 +154,15 @@ export type { ListingScoreInput, ListingScoreTextAnalysis } from './listing-scor
 export type { ListingFeedSlice } from './listing-feed';
 export {
   evaluateListingMonitor,
+  evaluateLotMonitor,
   evaluateSearchMonitor,
   listingPriceMinor,
+  nextLotCheckAt,
   passesSearchCutoff,
 } from './monitors';
-export type { ListingState, MonitorAlertCandidate } from './monitors';
+export type { ListingState, LotState, MonitorAlertCandidate } from './monitors';
+export { auctionTermsText, parseAuctionTerms } from './auction-terms';
+export { calculateAuctionCost, maxBidForUnitCost } from './auction-cost';
 export type { ReferenceDiscount, ReferencePolicy } from '@scout/schemas';
 export type { UsToUsLandedCostInput } from '@scout/schemas';
 export type { LandedCost, LandedCostComponent, LandedCostComponentOrigin } from '@scout/schemas';

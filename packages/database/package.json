@@ -20,7 +20,8 @@
     "./user-actions": "./src/repositories/supabase/SupabaseRestUserListingActionRepository.ts",
     "./visual-analysis": "./src/repositories/supabase/SupabaseRestVisualAnalysisRepository.ts",
     "./local-agent": "./src/repositories/supabase/SupabaseRestLocalAgentRepository.ts",
-    "./monitors": "./src/repositories/supabase/SupabaseRestMonitorRepository.ts"
+    "./monitors": "./src/repositories/supabase/SupabaseRestMonitorRepository.ts",
+    "./auctions": "./src/repositories/supabase/SupabaseRestAuctionRepository.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

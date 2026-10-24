@@ -1,7 +1,9 @@
 import type { AlertKind, ListingTransport, MonitorCutoff } from '@scout/schemas';
 
 export interface MonitorAlertCandidate {
-  listingId: string;
+  /** Exactly one target: a listing (search and listing monitors) or an auction lot. */
+  listingId?: string;
+  lotId?: string;
   kind: AlertKind;
   /** Stable per event, so the same event never alerts twice. */
   dedupeKey: string;
@@ -111,4 +113,60 @@ export const evaluateListingMonitor = (
       status: current.status,
     },
   };
+};
+
+export interface LotState {
+  id: string;
+  status: 'active' | 'closed';
+  currentBidMinor: number | null;
+  closesOn: string;
+}
+
+/**
+ * Lot events: the high bid passed the user's limit, the lot closes today, the lot closed. Each
+ * fires once per lot (per closing date for "closes today").
+ */
+export const evaluateLotMonitor = (
+  lot: LotState,
+  cutoff: MonitorCutoff,
+  today: string,
+): MonitorAlertCandidate[] => {
+  const alerts: MonitorAlertCandidate[] = [];
+  if (
+    cutoff.maxBidMinor !== undefined &&
+    lot.currentBidMinor !== null &&
+    lot.currentBidMinor > cutoff.maxBidMinor
+  )
+    alerts.push({
+      lotId: lot.id,
+      kind: 'LOT_BID_ABOVE',
+      dedupeKey: `bid-above:${lot.id}`,
+      payload: { highBidMinor: lot.currentBidMinor, limitMinor: cutoff.maxBidMinor },
+    });
+  if (lot.status === 'active' && lot.closesOn === today)
+    alerts.push({
+      lotId: lot.id,
+      kind: 'LOT_CLOSING',
+      dedupeKey: `closing:${lot.id}:${lot.closesOn}`,
+      payload: { closesOn: lot.closesOn, highBidMinor: lot.currentBidMinor },
+    });
+  if (lot.status === 'closed')
+    alerts.push({
+      lotId: lot.id,
+      kind: 'LOT_CLOSED',
+      dedupeKey: `closed:${lot.id}`,
+      payload: { lastHighBidMinor: lot.currentBidMinor },
+    });
+  return alerts;
+};
+
+/**
+ * When to look at a lot again: rarely while the close is days away, more often as it nears, and
+ * never after it closed. The source's request budget still caps the real sweep frequency.
+ */
+export const nextLotCheckAt = (closesOn: string, status: LotState['status'], now: Date) => {
+  if (status === 'closed') return null;
+  const days = (Date.parse(`${closesOn}T23:59:59Z`) - now.getTime()) / 86_400_000;
+  const minutes = days > 3 ? 360 : days > 1 ? 60 : 30;
+  return new Date(now.getTime() + minutes * 60_000);
 };

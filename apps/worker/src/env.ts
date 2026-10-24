@@ -57,6 +57,12 @@ export interface Env extends Omit<
   VISUAL_ANALYSIS_BUDGET_PER_PROJECT?: string;
   SWAPPA_MODE?: 'disabled' | 'fixture' | 'live';
   SWAPPA_BASE_URL?: string;
+  GSA_MODE?: 'disabled' | 'fixture' | 'live';
+  /** api.data.gov key (DEMO_KEY works with ~50 calls a day). */
+  GSA_API_KEY?: string;
+  GSA_BASE_URL?: string;
+  GSA_DAILY_SWEEP_BUDGET?: string;
+  AUCTION_SWEEP_MINUTES?: string;
   HTML_MIN_INTERVAL_MS?: string;
   /** Level-3 self-heal: 'on' lets a fully gated selector repair apply without a human. */
   SELF_HEAL_AUTONOMY?: 'on' | 'off';
