@@ -163,6 +163,14 @@ export {
 export type { ListingState, LotState, MonitorAlertCandidate } from './monitors';
 export { auctionTermsText, parseAuctionTerms } from './auction-terms';
 export { calculateAuctionCost, maxBidForUnitCost } from './auction-cost';
+export {
+  SUPPLY_LEVELS,
+  buildSupplyLadder,
+  checkContact,
+  parseSupplierQuotesCsv,
+  unitPriceAt,
+} from './supply-chain';
+export type { LadderEntry, LadderOffer } from './supply-chain';
 export type { ReferenceDiscount, ReferencePolicy } from '@scout/schemas';
 export type { UsToUsLandedCostInput } from '@scout/schemas';
 export type { LandedCost, LandedCostComponent, LandedCostComponentOrigin } from '@scout/schemas';

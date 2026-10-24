@@ -1,0 +1,4 @@
+supplier_name,website,level,country,email,phone,product_key,title,sku,currency,moq,tier1_qty,tier1_price,tier2_qty,tier2_price,tier3_qty,tier3_price,lead_time_days,incoterm,ship_from
+Example Licensed Manufacturing Ltd,https://manufacturer.example.com,factory,GB,sales@manufacturer.example.com,+44 20 7946 0000,raspberry-pi-5,Raspberry Pi 5 SC1110 (synthetic quote),SC1110,GBP,1000,1000,54.00,5000,52.50,,,45,FCA,GB
+Example Electronics Distribution,https://distribution.example.com,distributor,GB,quotes@distribution.example.com,+44 161 496 0000,raspberry-pi-5,Raspberry Pi 5 SC1110 (synthetic quote),SC1110,GBP,50,50,60.00,250,58.20,1000,56.90,10,DAP,GB
+Broken Row Ltd,,factory,GB,not-an-email,,raspberry-pi-5,Bad row,,GBP,10,,,,,,,,XYZ,GB

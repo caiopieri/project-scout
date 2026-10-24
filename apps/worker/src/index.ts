@@ -24,6 +24,7 @@ import {
   GenericListingMapper,
   HttpScrapingProvider,
   extractSchemaOrgOffers,
+  extractSupplierPage,
   ListingIngestionService,
   SourceCollectionGatewayRegistry,
   type CollectionLimits,
@@ -70,6 +71,8 @@ import {
   REFERENCE_POLICY_V1,
   sliceListingFeed,
   calculateAuctionCost,
+  buildSupplyLadder,
+  parseSupplierQuotesCsv,
   maxBidForUnitCost,
 } from '@scout/domain';
 import {
@@ -92,6 +95,9 @@ import {
   localAgentRegistrationSchema,
   monitorCreateSchema,
   auctionLotQuerySchema,
+  supplierExtractionRequestSchema,
+  supplierImportRequestSchema,
+  supplyLadderQuerySchema,
   auctionPremisesSchema,
   alertReadRequestSchema,
   localAgentResultSchema,
@@ -137,6 +143,8 @@ import { MonitorScheduler } from './MonitorScheduler';
 import { SupabaseRestAuctionRepository } from '@scout/database/auctions';
 import { GsaAuctionsClient } from '@scout/gsa-auctions-connector';
 import { AuctionSweeper } from './AuctionSweeper';
+import { SupabaseRestSupplierRepository } from '@scout/database/suppliers';
+import { supplierFromPage, verifyContacts } from './SupplierService';
 import { DurableObjectEbayRateLimiter } from './EbayRateLimitDurableObject';
 export { EbayRateLimitDurableObject } from './EbayRateLimitDurableObject';
 
@@ -972,6 +980,101 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     anonKey: env.SUPABASE_ANON_KEY,
     accessToken,
   });
+  const userSuppliers = new SupabaseRestSupplierRepository({
+    baseUrl: env.SUPABASE_URL,
+    anonKey: env.SUPABASE_ANON_KEY,
+    accessToken,
+  });
+  if (url.pathname === '/api/suppliers') {
+    if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
+    return json(await userSuppliers.list(), 200, env.WEB_ORIGIN);
+  }
+  if (url.pathname === '/api/suppliers/extract') {
+    if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed.');
+    const input = supplierExtractionRequestSchema.parse(await parseBody(request));
+    let page;
+    try {
+      // Same layer-4 provider as everything else: robots.txt, identified agent, blocks terminal.
+      page = await new HttpScrapingProvider({ minIntervalMs: 0 }).fetchPage({ url: input.url });
+    } catch (error) {
+      const code = error instanceof ConnectorError ? error.code : 'SOURCE_UNAVAILABLE';
+      return json({ error: `The page could not be read (${code}).`, code }, 422, env.WEB_ORIGIN);
+    }
+    const supplier = supplierFromPage(
+      extractSupplierPage(page.content, page.url),
+      input.productKey,
+      page.url,
+      input.level,
+      input.sku,
+    );
+    if ('error' in supplier) throw new HttpError(422, supplier.error);
+    const verifications = await verifyContacts(supplier.contacts, supplier.website);
+    const id = await userSuppliers.save(user.id, supplier, verifications);
+    return json(
+      {
+        id,
+        name: supplier.name,
+        level: supplier.level,
+        claims: supplier.claims,
+        offers: supplier.offers.map(({ title, currency, tiers, moq }) => ({
+          title,
+          currency,
+          tiers,
+          moq,
+        })),
+        contacts: supplier.contacts.map((contact) => ({
+          ...contact,
+          verification: verifications.get(`${contact.kind}:${contact.value}`),
+        })),
+      },
+      201,
+      env.WEB_ORIGIN,
+    );
+  }
+  if (url.pathname === '/api/suppliers/import') {
+    if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed.');
+    const { csv } = supplierImportRequestSchema.parse(await parseBody(request));
+    const { suppliers, errors } = parseSupplierQuotesCsv(csv);
+    for (const supplier of suppliers)
+      await userSuppliers.save(
+        user.id,
+        supplier,
+        await verifyContacts(supplier.contacts, supplier.website),
+      );
+    return json(
+      { saved: suppliers.length, errors },
+      errors.length && !suppliers.length ? 422 : 200,
+      env.WEB_ORIGIN,
+    );
+  }
+  if (url.pathname === '/api/supply/ladder') {
+    if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
+    const query = supplyLadderQuerySchema.parse(Object.fromEntries(url.searchParams));
+    const levels = buildSupplyLadder(
+      await userSuppliers.offersForProduct(query.productKey, query.sku),
+      query.volume,
+    );
+    return json(
+      {
+        ...query,
+        levels,
+        levelsWithReachableOffer: levels.filter((level) =>
+          level.entries.some((entry) => entry.accessible),
+        ).length,
+        outOfReach: levels.flatMap((level) =>
+          level.entries
+            .filter((entry) => entry.accessible === false)
+            .map((entry) => ({
+              supplier: entry.supplierName,
+              level: level.level,
+              reason: entry.reason,
+            })),
+        ),
+      },
+      200,
+      env.WEB_ORIGIN,
+    );
+  }
   if (url.pathname === '/api/auctions/lots') {
     if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
     const query = auctionLotQuerySchema.parse(Object.fromEntries(url.searchParams));

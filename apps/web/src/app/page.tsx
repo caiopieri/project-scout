@@ -2034,6 +2034,212 @@ function AuctionsPanel({
   );
 }
 
+type LadderEntryView = {
+  supplierName: string;
+  website: string | null;
+  contacts: Array<{ kind: string; value: string; status: string }>;
+  title: string;
+  currency: string;
+  moq: { value: number | null; origin: string; basis: string };
+  leadTimeDays: number | null;
+  incoterm: string | null;
+  accessible: boolean | null;
+  reason: string;
+  unitPriceAtVolumeMinor: number | null;
+  totalAtVolumeMinor: number | null;
+  priceRange: { minMinor: number; maxMinor: number };
+};
+
+const LEVEL_NAMES: Record<string, string> = {
+  factory: 'Fábrica',
+  trading: 'Trading',
+  distributor: 'Distribuidor',
+  reseller: 'Revendedor',
+  liquidator: 'Liquidante',
+};
+
+const priceIn = (currency: string, minor: number | null) =>
+  minor === null ? '—' : `${currency} ${(minor / 100).toFixed(2)}`;
+
+/** S12: the same product down the supply chain, for the user's volume. Nothing is ever sent. */
+function SuppliersPanel({
+  request,
+}: {
+  request: (path: string, init?: RequestInit) => Promise<unknown>;
+}) {
+  const [productKey, setProductKey] = useState('raspberry-pi-5');
+  const [volume, setVolume] = useState('20');
+  const [sku, setSku] = useState('');
+  const [ladder, setLadder] = useState<{
+    levels: Array<{ level: string; entries: LadderEntryView[] }>;
+    outOfReach: Array<{ supplier: string; level: string; reason: string }>;
+  } | null>(null);
+  const [url, setUrl] = useState('');
+  const [level, setLevel] = useState('');
+  const [terms, setTerms] = useState(false);
+  const [csv, setCsv] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    try {
+      setLadder(
+        (await request(
+          `/api/supply/ladder?productKey=${encodeURIComponent(productKey)}&volume=${encodeURIComponent(volume)}${sku ? `&sku=${encodeURIComponent(sku)}` : ''}`,
+        )) as typeof ladder,
+      );
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : 'Falha ao montar a escada.');
+    }
+  }, [productKey, volume, sku, request]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  const extract = async () => {
+    try {
+      const created = (await request('/api/suppliers/extract', {
+        method: 'POST',
+        body: JSON.stringify({
+          url,
+          productKey,
+          termsConfirmed: terms,
+          ...(level ? { level } : {}),
+          ...(sku ? { sku } : {}),
+        }),
+      })) as { name: string; level: string; offers: unknown[]; contacts: unknown[] };
+      setMessage(
+        `${created.name} (${LEVEL_NAMES[created.level] ?? created.level}): ${created.offers.length} oferta(s), ${created.contacts.length} contato(s).`,
+      );
+      await load();
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : 'Falha ao ler a página.');
+    }
+  };
+  const importCsv = async () => {
+    try {
+      const result = (await request('/api/suppliers/import', {
+        method: 'POST',
+        body: JSON.stringify({ csv }),
+      })) as { saved: number; errors: Array<{ row: number; error: string }> };
+      setMessage(
+        `${result.saved} cotação(ões) importada(s)${result.errors.length ? `; linhas recusadas: ${result.errors.map((error) => error.row).join(', ')}` : ''}.`,
+      );
+      await load();
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : 'Falha ao importar.');
+    }
+  };
+  return (
+    <div className="valuation-settings suppliers-panel">
+      <div className="eyebrow">Fornecedores · escada da cadeia</div>
+      <p className="muted">
+        Fábrica → distribuidor → revendedor para o seu volume: quem está ao alcance, a que preço, e
+        por que os outros não estão. Contatos são verificados sem enviar nada.
+      </p>
+      <div className="actions">
+        <label>
+          Produto{' '}
+          <input value={productKey} onChange={(event) => setProductKey(event.target.value)} />
+        </label>
+        <label>
+          Volume (un.){' '}
+          <input size={6} value={volume} onChange={(event) => setVolume(event.target.value)} />
+        </label>
+        <label>
+          SKU (opcional){' '}
+          <input size={8} value={sku} onChange={(event) => setSku(event.target.value)} />
+        </label>
+      </div>
+      {message && <div className="notice">{message}</div>}
+      {ladder?.levels.map((group) => (
+        <div key={group.level}>
+          <div className="eyebrow">{LEVEL_NAMES[group.level] ?? group.level}</div>
+          <ul>
+            {group.entries.map((entry) => (
+              <li key={`${entry.supplierName}-${entry.title}`} className="supply-entry">
+                <strong>
+                  {entry.accessible === true ? '✓' : entry.accessible === false ? '✗' : '?'}{' '}
+                  {entry.supplierName}
+                </strong>{' '}
+                · {entry.title} · {entry.reason}
+                {entry.unitPriceAtVolumeMinor !== null
+                  ? ` · ${priceIn(entry.currency, entry.unitPriceAtVolumeMinor)}/un. (total ${priceIn(entry.currency, entry.totalAtVolumeMinor)})`
+                  : ` · faixa ${priceIn(entry.currency, entry.priceRange.minMinor)}–${priceIn(entry.currency, entry.priceRange.maxMinor)}`}
+                {entry.moq.value !== null
+                  ? ` · MOQ ${entry.moq.value} (${entry.moq.origin === 'stated' ? 'declarado' : 'premissa'})`
+                  : ' · MOQ desconhecido'}
+                {entry.leadTimeDays !== null ? ` · prazo ${entry.leadTimeDays} d` : ''}
+                {entry.incoterm ? ` · ${entry.incoterm}` : ''}
+                <div className="muted">
+                  {entry.contacts.length
+                    ? entry.contacts
+                        .map(
+                          (contact) =>
+                            `${contact.value} (${contact.status === 'verified' ? 'verificado' : contact.status === 'format_only' ? 'formato válido, não verificado' : 'não verificado'})`,
+                        )
+                        .join(' · ')
+                    : 'sem contato'}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      {ladder && ladder.outOfReach.length > 0 && (
+        <p className="muted">
+          Fora do alcance no seu volume:{' '}
+          {ladder.outOfReach.map((entry) => `${entry.supplier} (${entry.reason})`).join('; ')}
+        </p>
+      )}
+      <div className="actions">
+        <input
+          placeholder="URL da página do fornecedor"
+          value={url}
+          onChange={(event) => setUrl(event.target.value)}
+        />
+        <select value={level} onChange={(event) => setLevel(event.target.value)}>
+          <option value="">nível pela página</option>
+          {Object.entries(LEVEL_NAMES).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <label>
+          <input
+            type="checkbox"
+            checked={terms}
+            onChange={(event) => setTerms(event.target.checked)}
+          />{' '}
+          Confirmo que posso ler esta página
+        </label>
+        <button
+          type="button"
+          className="button secondary"
+          disabled={!url || !terms}
+          onClick={() => void extract()}
+        >
+          Adicionar de URL
+        </button>
+      </div>
+      <div className="actions">
+        <textarea
+          rows={3}
+          placeholder="Cole cotações em CSV (supplier_name,level,product_key,title,currency,moq,tier1_qty,tier1_price,…)"
+          value={csv}
+          onChange={(event) => setCsv(event.target.value)}
+        />
+        <button
+          type="button"
+          className="button secondary"
+          disabled={!csv}
+          onClick={() => void importCsv()}
+        >
+          Importar cotações
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function OnDemandSourcePanel({
   projectId,
   request,
@@ -2269,6 +2475,7 @@ export default function HomePage() {
           </div>
           <TodayPanel request={request} />
           <AuctionsPanel request={request} />
+          <SuppliersPanel request={request} />
           {selected && <ProjectDetail project={selected} request={request} download={download} />}
           <InventoryPanel request={request} />
           <SourceHealthPanel request={request} />

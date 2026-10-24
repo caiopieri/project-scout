@@ -21,7 +21,8 @@
     "./visual-analysis": "./src/repositories/supabase/SupabaseRestVisualAnalysisRepository.ts",
     "./local-agent": "./src/repositories/supabase/SupabaseRestLocalAgentRepository.ts",
     "./monitors": "./src/repositories/supabase/SupabaseRestMonitorRepository.ts",
-    "./auctions": "./src/repositories/supabase/SupabaseRestAuctionRepository.ts"
+    "./auctions": "./src/repositories/supabase/SupabaseRestAuctionRepository.ts",
+    "./suppliers": "./src/repositories/supabase/SupabaseRestSupplierRepository.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

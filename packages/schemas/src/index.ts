@@ -2187,3 +2187,115 @@ export const auctionLotQuerySchema = z
     limit: z.coerce.number().int().min(1).max(100).default(50),
   })
   .strict();
+
+// S12 suppliers. A supplier is not a listing: it is who sells what, at which level of the chain,
+// at what price per quantity tier, with what minimum order, lead time and verified contact.
+export const supplierLevelSchema = z.enum([
+  'factory',
+  'trading',
+  'distributor',
+  'reseller',
+  'liquidator',
+]);
+export type SupplierLevel = z.infer<typeof supplierLevelSchema>;
+
+export const supplierContactVerificationSchema = z
+  .object({
+    format: z.boolean(),
+    domainMatchesWebsite: z.boolean().nullable(),
+    mailExchange: z.boolean().nullable(),
+    checkedAt: z.coerce.date(),
+  })
+  .strict();
+
+export const supplierContactSchema = z
+  .object({
+    kind: z.enum(['email', 'phone', 'url']),
+    value: z.string().trim().min(3).max(300),
+    verification: supplierContactVerificationSchema.optional(),
+  })
+  .strict();
+export type SupplierContact = z.infer<typeof supplierContactSchema>;
+
+export const priceTierSchema = z
+  .object({
+    minQuantity: z.number().int().min(1),
+    unitPriceMinor: z.number().int().nonnegative(),
+  })
+  .strict();
+export type PriceTier = z.infer<typeof priceTierSchema>;
+
+export const supplierOfferInputSchema = z
+  .object({
+    productKey: z
+      .string()
+      .trim()
+      .min(2)
+      .max(120)
+      .regex(/^[a-z0-9][a-z0-9-]*$/),
+    title: z.string().trim().min(1).max(300),
+    sku: z.string().trim().max(120).optional(),
+    currency: z.string().length(3),
+    tiers: z.array(priceTierSchema).min(1).max(20),
+    moq: z
+      .object({
+        value: z.number().int().min(1).nullable(),
+        origin: z.enum(['stated', 'assumed', 'unknown']),
+        basis: z.string().max(300),
+      })
+      .strict(),
+    leadTimeDays: z.number().int().min(0).max(365).optional(),
+    incoterm: z
+      .enum(['EXW', 'FCA', 'FOB', 'CFR', 'CIF', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP'])
+      .optional(),
+    shipFrom: z.string().length(2).optional(),
+    sourceUrl: z.string().url().optional(),
+    evidence: z.string().max(500).optional(),
+  })
+  .strict();
+export type SupplierOfferInput = z.infer<typeof supplierOfferInputSchema>;
+
+export const supplierInputSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    website: z.string().url().optional(),
+    level: supplierLevelSchema,
+    country: z.string().length(2).optional(),
+    claims: z
+      .array(z.object({ claim: z.string().max(200), evidence: z.string().max(500) }).strict())
+      .max(10)
+      .default([]),
+    contacts: z.array(supplierContactSchema).max(20).default([]),
+    offers: z.array(supplierOfferInputSchema).max(50).default([]),
+    origin: z.enum(['extracted', 'imported', 'manual']),
+  })
+  .strict();
+export type SupplierInput = z.infer<typeof supplierInputSchema>;
+
+export const supplierExtractionRequestSchema = z
+  .object({
+    url: z
+      .string()
+      .url()
+      .refine((value) => value.startsWith('https://') || value.startsWith('http://127.0.0.1'), {
+        message: 'Use an https URL.',
+      }),
+    productKey: supplierOfferInputSchema.shape.productKey,
+    level: supplierLevelSchema.optional(),
+    /** Keep only this variant; pages often list every variant of a product. */
+    sku: z.string().trim().min(1).max(120).optional(),
+    termsConfirmed: z.literal(true),
+  })
+  .strict();
+
+export const supplierImportRequestSchema = z
+  .object({ csv: z.string().min(1).max(200_000) })
+  .strict();
+
+export const supplyLadderQuerySchema = z
+  .object({
+    productKey: supplierOfferInputSchema.shape.productKey,
+    volume: z.coerce.number().int().min(1).max(1_000_000),
+    sku: z.string().trim().min(1).max(120).optional(),
+  })
+  .strict();
