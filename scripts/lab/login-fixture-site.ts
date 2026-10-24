@@ -2,23 +2,29 @@
 // POST /login sets a session cookie, and /listings/* serves the recorded Swappa page only to a
 // browser holding that cookie (everyone else is redirected to /login). /blocked/* always answers
 // 403, to drill how the system degrades when a source blocks it. /swappa/* serves the recorded
-// page with no login, in a markup mode switched at runtime with POST /__mode/<mode> (self-heal
-// drills): good, renamed, renamed-cents, or renamed-then-empty (renamed for the failing canary and
-// the trial canary, then no cards — so the post-apply canary fails and forces a rollback).
+// page with no login, in a mode switched at runtime with POST /__mode/<mode>: good; cheaper (first
+// card $195 → $149, monitor drills); renamed or renamed-cents (self-heal drills); renamed-then-empty
+// (renamed for the failing canary and the trial canary, then no cards — so the post-apply canary
+// fails and forces a rollback).
 // Usage: npx vite-node scripts/lab/login-fixture-site.ts
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { emptySwappaPage, redesignSwappaPage } from '../../tests/fixtures/swappa/redesign';
+import {
+  cheaperSwappaPage,
+  emptySwappaPage,
+  redesignSwappaPage,
+} from '../../tests/fixtures/swappa/redesign';
 
 const page = readFileSync('tests/fixtures/swappa/listings-apple-iphone-13.html', 'utf8');
 const SESSION = 'lab-session-7f3a';
-const MODES = ['good', 'renamed', 'renamed-cents', 'renamed-then-empty'] as const;
+const MODES = ['good', 'cheaper', 'renamed', 'renamed-cents', 'renamed-then-empty'] as const;
 let swappaMode: (typeof MODES)[number] = 'good';
 let swappaRequests = 0;
 
 const swappaPage = () => {
   swappaRequests += 1;
   if (swappaMode === 'good') return page;
+  if (swappaMode === 'cheaper') return cheaperSwappaPage(page);
   if (swappaMode === 'renamed-then-empty')
     return swappaRequests <= 2 ? redesignSwappaPage(page, 'renamed') : emptySwappaPage(page);
   return redesignSwappaPage(page, swappaMode);

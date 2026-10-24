@@ -472,6 +472,31 @@ function ListingFeed({
     [request],
   );
 
+  // M also creates (or stops) a real listing monitor: price drop, ended or gone become alerts.
+  const toggleListingMonitor = useCallback(
+    async (listingId: string, watching: boolean) => {
+      try {
+        if (watching) {
+          await request('/api/monitors', {
+            method: 'POST',
+            body: JSON.stringify({ kind: 'listing', listingId, projectId }),
+          });
+          return;
+        }
+        const monitors = (await request('/api/monitors')) as Array<{
+          id: string;
+          listingId: string | null;
+        }>;
+        const monitor = monitors.find((candidate) => candidate.listingId === listingId);
+        if (monitor) await request(`/api/monitors/${monitor.id}`, { method: 'DELETE' });
+      } catch (caught) {
+        if (!(caught instanceof Error && /already being monitored/.test(caught.message)))
+          setError(caught instanceof Error ? caught.message : 'Falha ao atualizar o monitor.');
+      }
+    },
+    [projectId, request],
+  );
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -493,18 +518,19 @@ function ListingFeed({
         void applyAction(current, {
           label: current.userAction?.label === 'shortlisted' ? null : 'shortlisted',
         });
-      else if (key === 'm')
-        void applyAction(current, {
-          label: current.userAction?.label === 'monitored' ? null : 'monitored',
-        });
-      else if (key === 'h') void applyAction(current, { favorite: !current.userAction?.favorite });
+      else if (key === 'm') {
+        const watching = current.userAction?.label !== 'monitored';
+        void applyAction(current, { label: watching ? 'monitored' : null });
+        void toggleListingMonitor(current.id, watching);
+      } else if (key === 'h')
+        void applyAction(current, { favorite: !current.userAction?.favorite });
       else if (event.key === 'Enter') setDossier(current);
       else return;
       event.preventDefault();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [items, focusedIndex, dossier, applyAction]);
+  }, [items, focusedIndex, dossier, applyAction, toggleListingMonitor]);
 
   useEffect(() => {
     document.querySelector('.feed-item.focused')?.scrollIntoView({ block: 'nearest' });
@@ -1447,6 +1473,274 @@ function SourceHealthPanel({
   );
 }
 
+type TodayAlert = {
+  id: string;
+  kind: 'NEW_OPPORTUNITY' | 'PRICE_DROP' | 'ENDED' | 'GONE';
+  payload: Record<string, string | number | null | boolean>;
+  createdAt: string;
+  listing: { title: string; url: string; sourceId: string } | null;
+};
+
+const money = (minor: unknown) =>
+  typeof minor === 'number' ? `US$ ${(minor / 100).toFixed(2)}` : 'desconhecido';
+
+/** Positive = cheaper than the segment median; negative = more expensive. */
+const referenceWords = (percent: number) =>
+  percent >= 0
+    ? `${percent.toFixed(1)}% abaixo da referência`
+    : `${Math.abs(percent).toFixed(1)}% acima da referência`;
+
+const alertLine = (alert: TodayAlert) => {
+  const payload = alert.payload;
+  if (alert.kind === 'NEW_OPPORTUNITY')
+    return `Oportunidade acima do corte · score ${payload.score ?? '—'} · ${
+      typeof payload.percentBelowReference === 'number'
+        ? referenceWords(payload.percentBelowReference)
+        : 'sem referência'
+    } · custo ${money(payload.totalCostMinor)}`;
+  if (alert.kind === 'PRICE_DROP')
+    return `Preço caiu ${payload.dropPercent}% · ${money(payload.fromMinor)} → ${money(payload.toMinor)}`;
+  return alert.kind === 'ENDED'
+    ? 'Anúncio encerrado (vendido ou finalizado)'
+    : 'Anúncio sem estoque';
+};
+
+/** S10 "Hoje": what changed since yesterday — unread alerts, arrivals, degraded sources. */
+function TodayPanel({
+  request,
+}: {
+  request: (path: string, init?: RequestInit) => Promise<unknown>;
+}) {
+  const [today, setToday] = useState<{
+    alerts: TodayAlert[];
+    arrived: {
+      count: number;
+      top: Array<{
+        id: string;
+        title: string;
+        url: string;
+        sourceId: string;
+        score: number | null;
+        percentBelowReference: number | null;
+      }>;
+    };
+    sources: {
+      degraded: Array<{ source_id: string; state: string; reason: string | null }>;
+      openIncidents: Array<{ source_id: string | null; kind: string }>;
+    };
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const refresh = useCallback(async () => {
+    try {
+      setToday((await request('/api/today')) as typeof today);
+      setError(null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Falha ao carregar o Hoje.');
+    }
+  }, [request]);
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+  const markRead = async (ids: string[]) => {
+    if (!ids.length) return;
+    await request('/api/alerts/read', { method: 'POST', body: JSON.stringify({ ids }) });
+    await refresh();
+  };
+  if (!today) return error ? <div className="notice">{error}</div> : null;
+  return (
+    <div className="valuation-settings today-panel">
+      <div className="eyebrow">Hoje · o que mudou nas últimas 24 h</div>
+      {error && <div className="notice">{error}</div>}
+      <div className="actions">
+        <span className="meta">{today.alerts.length} alerta(s) não lido(s)</span>
+        <span className="meta">{today.arrived.count} anúncio(s) novo(s)</span>
+        <span className="meta">
+          {today.sources.degraded.length} fonte(s) degradada(s) ·{' '}
+          {today.sources.openIncidents.length} incidente(s) aberto(s)
+        </span>
+        <button type="button" className="button secondary" onClick={() => void refresh()}>
+          Atualizar
+        </button>
+        {today.alerts.length > 0 && (
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => void markRead(today.alerts.map((alert) => alert.id))}
+          >
+            Marcar tudo como lido
+          </button>
+        )}
+      </div>
+      <ul>
+        {today.alerts.map((alert) => (
+          <li key={alert.id}>
+            <strong>{alertLine(alert)}</strong>
+            {' · '}
+            {alert.listing ? (
+              <a href={alert.listing.url} target="_blank" rel="noreferrer">
+                {alert.listing.title}
+              </a>
+            ) : (
+              'anúncio'
+            )}{' '}
+            <span className="muted">
+              {sourceNames[alert.listing?.sourceId ?? ''] ?? ''} ·{' '}
+              {new Date(alert.createdAt).toLocaleString('pt-BR')}
+            </span>{' '}
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => void markRead([alert.id])}
+            >
+              Lido
+            </button>
+          </li>
+        ))}
+      </ul>
+      {today.arrived.top.length > 0 && (
+        <>
+          <div className="eyebrow">Chegaram · melhores por score</div>
+          <ul>
+            {today.arrived.top.map((listing) => (
+              <li key={listing.id} className="muted">
+                <a href={listing.url} target="_blank" rel="noreferrer">
+                  {listing.title}
+                </a>{' '}
+                · {sourceNames[listing.sourceId] ?? 'fonte'} · score {listing.score ?? 'incompleto'}
+                {listing.percentBelowReference !== null
+                  ? ` · ${referenceWords(listing.percentBelowReference)}`
+                  : ''}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** S10: a saved search that runs on its own and alerts above the cutoff. */
+function SearchMonitorPanel({
+  projectId,
+  request,
+}: {
+  projectId: string;
+  request: (path: string, init?: RequestInit) => Promise<unknown>;
+}) {
+  const [monitors, setMonitors] = useState<
+    Array<{
+      id: string;
+      kind: string;
+      projectId: string | null;
+      listingId: string | null;
+      cutoff: Record<string, number>;
+      cadenceMinutes: number;
+      nextRunAt: string;
+    }>
+  >([]);
+  const [minScore, setMinScore] = useState('60');
+  const [minPercent, setMinPercent] = useState('');
+  const [maxCost, setMaxCost] = useState('');
+  const [cadence, setCadence] = useState('360');
+  const [message, setMessage] = useState<string | null>(null);
+  const refresh = useCallback(async () => {
+    try {
+      setMonitors((await request('/api/monitors')) as typeof monitors);
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : 'Falha ao carregar monitores.');
+    }
+  }, [request]);
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+  const create = async () => {
+    const cutoff: Record<string, number> = {};
+    if (minScore) cutoff.minScore = Number(minScore);
+    if (minPercent) cutoff.minPercentBelowReference = Number(minPercent);
+    if (maxCost) cutoff.maxTotalCostMinor = Math.round(Number(maxCost) * 100);
+    try {
+      const created = (await request('/api/monitors', {
+        method: 'POST',
+        body: JSON.stringify({
+          kind: 'search',
+          projectId,
+          cutoff,
+          cadenceMinutes: Number(cadence),
+        }),
+      })) as { matchingAtCreation: number };
+      setMessage(
+        `Monitor criado. ${created.matchingAtCreation} anúncio(s) já passam do corte hoje (registrados como lidos); os próximos viram alerta.`,
+      );
+      await refresh();
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : 'Falha ao criar o monitor.');
+    }
+  };
+  const stop = async (id: string) => {
+    await request(`/api/monitors/${id}`, { method: 'DELETE' });
+    await refresh();
+  };
+  const mine = monitors.filter((monitor) => monitor.projectId === projectId);
+  return (
+    <div className="valuation-settings">
+      <div className="eyebrow">Monitorar esta pesquisa</div>
+      <p className="muted">
+        Roda sozinha na cadência escolhida e avisa no Hoje quando aparece anúncio acima do corte.
+        Valor desconhecido nunca passa no corte.
+      </p>
+      <div className="actions">
+        <label>
+          Score mínimo{' '}
+          <input value={minScore} onChange={(event) => setMinScore(event.target.value)} size={4} />
+        </label>
+        <label>
+          % abaixo da referência{' '}
+          <input
+            value={minPercent}
+            onChange={(event) => setMinPercent(event.target.value)}
+            size={4}
+          />
+        </label>
+        <label>
+          Custo máximo US${' '}
+          <input value={maxCost} onChange={(event) => setMaxCost(event.target.value)} size={6} />
+        </label>
+        <label>
+          A cada{' '}
+          <select value={cadence} onChange={(event) => setCadence(event.target.value)}>
+            <option value="60">1 h</option>
+            <option value="360">6 h</option>
+            <option value="1440">24 h</option>
+          </select>
+        </label>
+        <button type="button" className="button secondary" onClick={() => void create()}>
+          Monitorar
+        </button>
+      </div>
+      {message && <div className="notice">{message}</div>}
+      <ul>
+        {mine.map((monitor) => (
+          <li key={monitor.id} className="muted">
+            {monitor.kind === 'search' ? 'Busca' : 'Item'} ·{' '}
+            {Object.entries(monitor.cutoff)
+              .map(([key, value]) => `${key} ${value}`)
+              .join(', ') || 'qualquer queda de preço'}{' '}
+            · a cada {monitor.cadenceMinutes / 60} h · próxima{' '}
+            {new Date(monitor.nextRunAt).toLocaleString('pt-BR')}{' '}
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => void stop(monitor.id)}
+            >
+              Parar
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function OnDemandSourcePanel({
   projectId,
   request,
@@ -1680,6 +1974,7 @@ export default function HomePage() {
               />
             )}
           </div>
+          <TodayPanel request={request} />
           {selected && <ProjectDetail project={selected} request={request} download={download} />}
           <InventoryPanel request={request} />
           <SourceHealthPanel request={request} />
@@ -2879,6 +3174,7 @@ function ProjectDetail({
         </button>
       </div>
       {analysisNotice && <div className="notice">{analysisNotice}</div>}
+      <SearchMonitorPanel projectId={project.id} request={request} />
       <LocalAgentPanel projectId={project.id} request={request} />
       <OnDemandSourcePanel projectId={project.id} request={request} />
       <AgentPanel

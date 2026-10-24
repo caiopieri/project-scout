@@ -88,6 +88,8 @@ import {
   onDemandExtractionRequestSchema,
   rawListingRecordSchema,
   localAgentRegistrationSchema,
+  monitorCreateSchema,
+  alertReadRequestSchema,
   localAgentResultSchema,
   localAgentTaskRequestSchema,
   inventoryQuerySchema,
@@ -126,6 +128,8 @@ import { storePage, SwappaSelfHeal } from './SwappaSelfHeal';
 import { VisualAnalysisProcessor } from './VisualAnalysisProcessor';
 import { SupabaseRestVisualAnalysisRepository } from '@scout/database/visual-analysis';
 import { SupabaseRestLocalAgentRepository } from '@scout/database/local-agent';
+import { SupabaseRestMonitorRepository } from '@scout/database/monitors';
+import { MonitorScheduler } from './MonitorScheduler';
 import { DurableObjectEbayRateLimiter } from './EbayRateLimitDurableObject';
 export { EbayRateLimitDurableObject } from './EbayRateLimitDurableObject';
 
@@ -714,6 +718,26 @@ const swappaSelfHeal = (env: Env): SwappaSelfHeal =>
     expectedMinItems: swappaCanary.expectedMinItems,
   });
 
+const monitorScheduler = (env: Env) => {
+  const service = serviceRoleConfig(env);
+  const listings = new SupabaseRestListingRepository(service);
+  const repositories = {
+    listings,
+    analyses: new SupabaseRestTextAnalysisRunRepository(service),
+    actions: new SupabaseRestUserListingActionRepository(service),
+  };
+  return new MonitorScheduler({
+    monitors: new SupabaseRestMonitorRepository(service),
+    enrichedProjectListings: (userId, projectId) =>
+      enrichedListings(repositories, userId, { projectId }, new Date()),
+    findListing: (listingId) => listings.findById(listingId),
+    circuitAllows: async (sourceId) => (await circuitAllows(env, sourceId))?.allowed !== false,
+    queueCollection: async (runId) => {
+      await env.COLLECT_QUEUE.send(createCollectionTask(runId));
+    },
+  });
+};
+
 export const runSourceCanaries = async (env: Env, actor: string) => {
   const results = [];
   for (const canary of SOURCE_CANARIES) {
@@ -882,6 +906,128 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
   if (url.pathname === '/api/ops/canaries/run') {
     if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed.');
     return json({ results: await runSourceCanaries(env, `user:${user.id}`) }, 200, env.WEB_ORIGIN);
+  }
+  if (url.pathname === '/api/ops/monitors/run') {
+    if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed.');
+    const results = await monitorScheduler(env).runDue();
+    await serviceRest(env, 'ops_audit', {
+      method: 'POST',
+      body: JSON.stringify({
+        actor_user_id: user.id,
+        actor: 'user',
+        action: 'monitors.run',
+        details: { results },
+      }),
+    });
+    return json({ results }, 200, env.WEB_ORIGIN);
+  }
+  const userMonitors = new SupabaseRestMonitorRepository({
+    baseUrl: env.SUPABASE_URL,
+    anonKey: env.SUPABASE_ANON_KEY,
+    accessToken,
+  });
+  if (url.pathname === '/api/monitors') {
+    if (request.method === 'GET')
+      return json(await userMonitors.list(user.id), 200, env.WEB_ORIGIN);
+    if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed.');
+    const input = monitorCreateSchema.parse(await parseBody(request));
+    let baseline: { priceMinor: number; status: string } | null = null;
+    if (input.kind === 'search') {
+      const owned = await new SupabaseRestResearchProjectRepository({
+        baseUrl: env.SUPABASE_URL,
+        anonKey: env.SUPABASE_ANON_KEY,
+        accessToken,
+      }).findById(input.projectId, user.id);
+      if (!owned) throw new HttpError(404, 'Project not found.');
+    } else {
+      const listing = await new SupabaseRestListingRepository({
+        baseUrl: env.SUPABASE_URL,
+        anonKey: env.SUPABASE_ANON_KEY,
+        accessToken,
+      }).findById(input.listingId);
+      if (!listing) throw new HttpError(404, 'Listing not found.');
+      baseline = { priceMinor: Math.round(listing.price * 100), status: listing.status };
+    }
+    let monitor;
+    try {
+      monitor = await userMonitors.create(user.id, input, baseline);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'MONITOR_CONFLICT')
+        throw new HttpError(409, 'This is already being monitored.');
+      throw error;
+    }
+    const scheduler = monitorScheduler(env);
+    const row = await new SupabaseRestMonitorRepository(serviceRoleConfig(env)).findRow(monitor.id);
+    const atCreation = row ? await scheduler.evaluate(row, true) : [];
+    return json({ monitor, matchingAtCreation: atCreation.length }, 201, env.WEB_ORIGIN);
+  }
+  const monitorMatch = url.pathname.match(/^\/api\/monitors\/([^/]+)$/);
+  if (monitorMatch) {
+    if (request.method !== 'DELETE') throw new HttpError(405, 'Method not allowed.');
+    const stopped = await userMonitors.deactivate(user.id, projectIdSchema.parse(monitorMatch[1]));
+    if (!stopped) throw new HttpError(404, 'Monitor not found.');
+    return json(stopped, 200, env.WEB_ORIGIN);
+  }
+  if (url.pathname === '/api/alerts/read') {
+    if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed.');
+    const { ids } = alertReadRequestSchema.parse(await parseBody(request));
+    return json({ marked: await userMonitors.markRead(user.id, ids) }, 200, env.WEB_ORIGIN);
+  }
+  if (url.pathname === '/api/today') {
+    if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
+    const now = new Date();
+    const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const [alerts, inventory, circuits, incidents] = await Promise.all([
+      userMonitors.listAlerts(user.id, { unreadOnly: true }),
+      enrichedListings(enrichRepositories, user.id, { inventory: true }, now),
+      serviceRest<Array<{ source_id: string; state: string; reason: string | null }>>(
+        env,
+        'source_circuits?state=neq.closed&select=source_id,state,reason',
+      ),
+      serviceRest<Array<{ source_id: string | null; kind: string }>>(
+        env,
+        'incidents?status=eq.open&select=source_id,kind',
+      ),
+    ]);
+    const byId = new Map(inventory.map((listing) => [listing.id, listing]));
+    const arrived = inventory.filter((listing) => listing.firstCollectedAt >= since);
+    const scoreOf = (listing: (typeof inventory)[number]) =>
+      listing.score?.status === 'known' ? (listing.score.value ?? -1) : -1;
+    return json(
+      {
+        since,
+        alerts: alerts.map((alert) => ({
+          ...alert,
+          listing: byId.has(alert.listingId)
+            ? {
+                title: byId.get(alert.listingId)!.title,
+                url: byId.get(alert.listingId)!.url,
+                sourceId: byId.get(alert.listingId)!.sourceId,
+              }
+            : null,
+        })),
+        arrived: {
+          count: arrived.length,
+          top: [...arrived]
+            .sort((left, right) => scoreOf(right) - scoreOf(left))
+            .slice(0, 5)
+            .map((listing) => ({
+              id: listing.id,
+              title: listing.title,
+              url: listing.url,
+              sourceId: listing.sourceId,
+              score: listing.score?.status === 'known' ? listing.score.value : null,
+              percentBelowReference:
+                listing.referenceDiscount?.status === 'known'
+                  ? listing.referenceDiscount.discountBasisPoints / 100
+                  : null,
+            })),
+        },
+        sources: { degraded: circuits, openIncidents: incidents },
+      },
+      200,
+      env.WEB_ORIGIN,
+    );
   }
   if (url.pathname === '/api/ops/heal-proposals') {
     if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed.');
@@ -1097,6 +1243,33 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
       analisar_texto: async (args) =>
         internal(`/api/projects/${await ownedProject(args.projectId)}/analysis`, {
           method: 'POST',
+        }),
+      criar_monitor: async (args) =>
+        internal('/api/monitors', {
+          method: 'POST',
+          body: JSON.stringify(
+            args.kind === 'listing'
+              ? {
+                  kind: 'listing',
+                  listingId: args.listingId,
+                  ...(input.projectId ? { projectId: input.projectId } : {}),
+                  cutoff:
+                    args.minPriceDropPercent !== undefined
+                      ? { minPriceDropPercent: Number(args.minPriceDropPercent) }
+                      : {},
+                  cadenceMinutes: Number(args.cadenceMinutes ?? 360),
+                }
+              : {
+                  kind: 'search',
+                  projectId: await ownedProject(args.projectId),
+                  cutoff: Object.fromEntries(
+                    (['minScore', 'minPercentBelowReference', 'maxTotalCostMinor'] as const)
+                      .filter((key) => args[key] !== undefined)
+                      .map((key) => [key, Number(args[key])]),
+                  ),
+                  cadenceMinutes: Number(args.cadenceMinutes ?? 360),
+                },
+          ),
         }),
       marcar: async (args) =>
         internal(`/api/listings/${projectIdSchema.parse(args.listingId)}/actions`, {
@@ -1342,6 +1515,31 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
         run: async () => ({
           data: {
             estimate: `1 chamada de LLM a cada 20 anúncios ainda não analisados, cadeia ${env.TEXT_ANALYZER_PROVIDERS ?? 'não configurada'}`,
+          },
+        }),
+      },
+      {
+        name: 'criar_monitor',
+        description:
+          'Prepara um monitor: de busca (pesquisa com corte por score, % abaixo da referência ou custo máximo em centavos) ou de item (queda de preço, encerrado). Exige confirmação.',
+        parameters: {
+          type: 'object',
+          properties: {
+            kind: { type: 'string', enum: ['search', 'listing'] },
+            projectId: { type: 'string' },
+            listingId: { type: 'string' },
+            minScore: { type: 'number' },
+            minPercentBelowReference: { type: 'number' },
+            maxTotalCostMinor: { type: 'number' },
+            minPriceDropPercent: { type: 'number' },
+            cadenceMinutes: { type: 'number', enum: [60, 360, 1440] },
+          },
+          required: ['kind'],
+        },
+        requiresConfirmation: true,
+        run: async (args) => ({
+          data: {
+            estimate: `1 coleta a cada ${Number(args.cadenceMinutes ?? 360) / 60} h enquanto o monitor estiver ativo (cada uma até ${env.EBAY_BROWSE_BUDGET_PER_RUN ?? '?'} chamadas à fonte); custo monetário US$ 0`,
           },
         }),
       },
@@ -1917,7 +2115,14 @@ export default {
     }
   },
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
-    await runSourceCanaries(env, 'cron');
+    // Independent jobs: a failing canary must not stop monitors, nor the reverse.
+    const outcomes = await Promise.allSettled([
+      runSourceCanaries(env, 'cron'),
+      monitorScheduler(env).runDue(),
+    ]);
+    for (const outcome of outcomes)
+      if (outcome.status === 'rejected')
+        console.error('scheduled job failed', String(outcome.reason));
   },
   async queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
     if (batch.queue?.endsWith('-dlq')) {
@@ -2023,6 +2228,20 @@ export default {
         const outcome = await processor.process(message.body, message.attempts);
         if (outcome.action === 'retry') message.retry({ delaySeconds: outcome.delaySeconds });
         else message.ack();
+        if (outcome.action === 'ack' && outcome.status === 'completed') {
+          // Monitors that asked for this collection evaluate its results right away. The message
+          // is already acknowledged, so a failure here is logged and never retries the collection.
+          const runId = (message.body as { runId?: string }).runId;
+          try {
+            const waiting = runId
+              ? await new SupabaseRestMonitorRepository(serviceConfig).findByCollectionRun(runId)
+              : [];
+            if (runId && waiting.length)
+              await monitorScheduler(env).onCollectionCompleted(runId, waiting);
+          } catch (error) {
+            console.error('monitor evaluation failed', String(error));
+          }
+        }
       } catch (error) {
         console.error(
           'Queue task infrastructure failure',

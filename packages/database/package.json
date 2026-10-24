@@ -19,7 +19,8 @@
     "./search-intelligence": "./src/repositories/supabase/SupabaseRestSearchQueryFamilyRepository.ts",
     "./user-actions": "./src/repositories/supabase/SupabaseRestUserListingActionRepository.ts",
     "./visual-analysis": "./src/repositories/supabase/SupabaseRestVisualAnalysisRepository.ts",
-    "./local-agent": "./src/repositories/supabase/SupabaseRestLocalAgentRepository.ts"
+    "./local-agent": "./src/repositories/supabase/SupabaseRestLocalAgentRepository.ts",
+    "./monitors": "./src/repositories/supabase/SupabaseRestMonitorRepository.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -20,3 +20,12 @@ export const redesignSwappaPage = (html: string, variant: SwappaRedesign) => {
 /** The same page with the grid still there but no cards in it (a source that went empty). */
 export const emptySwappaPage = (html: string) =>
   redesignSwappaPage(html, 'renamed').replace(/class="sw-listing-tile[^"]*"/g, 'class="sw-gone"');
+
+/** The recorded page with the first card's price lowered (a seller dropping the price). */
+export const cheaperSwappaPage = (html: string, fromDollars = 195, toDollars = 149) =>
+  html
+    .replace(`data-price="${fromDollars}"`, `data-price="${toDollars}"`)
+    .replace(
+      `<span itemprop="price">${fromDollars}</span>`,
+      `<span itemprop="price">${toDollars}</span>`,
+    );

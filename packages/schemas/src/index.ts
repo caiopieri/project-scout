@@ -1990,3 +1990,81 @@ export const localAgentResultSchema = z
     message: 'Records must not carry credentials or session data.',
   });
 export type LocalAgentResult = z.infer<typeof localAgentResultSchema>;
+
+// S10 monitors. A search monitor watches a project's results against a cutoff; a listing monitor
+// watches one listing's price and status. Unknown values never pass a cutoff.
+export const monitorCutoffSchema = z
+  .object({
+    minScore: z.number().int().min(0).max(100).optional(),
+    minPercentBelowReference: z.number().min(0).max(100).optional(),
+    maxTotalCostMinor: z.number().int().positive().optional(),
+    minPriceDropPercent: z.number().min(0).max(100).optional(),
+  })
+  .strict();
+export type MonitorCutoff = z.infer<typeof monitorCutoffSchema>;
+
+export const monitorKindSchema = z.enum(['search', 'listing']);
+
+export const monitorCreateSchema = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('search'),
+      projectId: z.string().uuid(),
+      sourceId: z.string().uuid().optional(),
+      cutoff: monitorCutoffSchema
+        .omit({ minPriceDropPercent: true })
+        .refine(
+          (cutoff) =>
+            cutoff.minScore !== undefined ||
+            cutoff.minPercentBelowReference !== undefined ||
+            cutoff.maxTotalCostMinor !== undefined,
+          { message: 'A search monitor needs at least one cutoff.' },
+        ),
+      cadenceMinutes: z.number().int().min(60).max(10_080).default(360),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('listing'),
+      listingId: z.string().uuid(),
+      projectId: z.string().uuid().optional(),
+      cutoff: monitorCutoffSchema.pick({ minPriceDropPercent: true }).default({}),
+      cadenceMinutes: z.number().int().min(60).max(10_080).default(360),
+    })
+    .strict(),
+]);
+export type MonitorCreate = z.infer<typeof monitorCreateSchema>;
+
+export const monitorTransportSchema = z.object({
+  id: z.string().uuid(),
+  kind: monitorKindSchema,
+  projectId: z.string().uuid().nullable(),
+  listingId: z.string().uuid().nullable(),
+  sourceId: z.string().uuid().nullable(),
+  cutoff: monitorCutoffSchema,
+  baseline: z.object({ priceMinor: z.number().int().nonnegative(), status: z.string() }).nullable(),
+  cadenceMinutes: z.number().int(),
+  active: z.boolean(),
+  nextRunAt: z.coerce.date(),
+  lastRunAt: z.coerce.date().nullable(),
+  createdAt: z.coerce.date(),
+});
+export type MonitorTransport = z.infer<typeof monitorTransportSchema>;
+
+export const alertKindSchema = z.enum(['NEW_OPPORTUNITY', 'PRICE_DROP', 'ENDED', 'GONE']);
+export type AlertKind = z.infer<typeof alertKindSchema>;
+
+export const alertTransportSchema = z.object({
+  id: z.string().uuid(),
+  monitorId: z.string().uuid(),
+  listingId: z.string().uuid(),
+  kind: alertKindSchema,
+  payload: jsonObjectSchema,
+  createdAt: z.coerce.date(),
+  readAt: z.coerce.date().nullable(),
+});
+export type AlertTransport = z.infer<typeof alertTransportSchema>;
+
+export const alertReadRequestSchema = z
+  .object({ ids: z.array(z.string().uuid()).min(1).max(100) })
+  .strict();

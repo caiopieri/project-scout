@@ -152,6 +152,13 @@ export { sliceListingFeed } from './listing-feed';
 export { calculateListingScore, LISTING_SCORE_POLICY_VERSION } from './listing-score';
 export type { ListingScoreInput, ListingScoreTextAnalysis } from './listing-score';
 export type { ListingFeedSlice } from './listing-feed';
+export {
+  evaluateListingMonitor,
+  evaluateSearchMonitor,
+  listingPriceMinor,
+  passesSearchCutoff,
+} from './monitors';
+export type { ListingState, MonitorAlertCandidate } from './monitors';
 export type { ReferenceDiscount, ReferencePolicy } from '@scout/schemas';
 export type { UsToUsLandedCostInput } from '@scout/schemas';
 export type { LandedCost, LandedCostComponent, LandedCostComponentOrigin } from '@scout/schemas';
